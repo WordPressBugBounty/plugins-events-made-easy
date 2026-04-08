@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 6.9
-Stable tag: 3.0.60
+Stable tag: 3.0.61
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,6 +12,8 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Manage and display (recurring) events, memberships, locations and maps, volunteers, widgets, RSVP, ICAL and RSS feeds, payment gateways. SEO ready.
              
 == Description ==
+
+To try it out on your free dummy site, [Click here](https://tastewp.org/plugins/events-made-easy/) (courtesy of TasteWP)
 
 Events Made Easy is a full-featured event and membership management solution for Wordpress and ClassicPress. Events Made Easy supports public, private, draft and recurring events, membership and locations management, RSVP (+ optional approval), several payment gateways (Paypal, FirstData, Mollie and others) and OpenStreetMap integration. With Events Made Easy you can plan and publish your event, let people book spaces for your weekly meetings or manage volunteers and memberships. You can add events list, calendars and description to your blog using multiple sidebar widgets or shortcodes; if you are a web designer you can simply employ the placeholders provided by Events Made Easy. 
 
@@ -96,6 +98,11 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.0.61  (2026/04/08) =
+* Improve event and booking list loading time by optimizing sql a bit
+* Fix frontend submit form fields with third param
+* Fix delete of uploaded files
+
 = 3.0.60  (2026/04/06) =
 * wp_cache delete fixes, better for caching plugins
 * fix empty strings as value for answers and show tag in bookings/events/locations/... ajax lists

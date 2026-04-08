@@ -2365,6 +2365,24 @@ function eme_store_booking_answers( $booking, $do_update = 1 ) {
     return $extra_charge;
 }
 
+// Bulk-fetch custom field answers for a list of booking_ids in a single query.
+function eme_prefetch_booking_answers( $booking_ids ) {
+    if ( empty( $booking_ids ) ) {
+        return [];
+    }
+    global $wpdb;
+    $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+    $placeholders  = implode( ',', array_fill( 0, count( $booking_ids ), '%d' ) );
+    $ids_arr       = array_map( 'intval', $booking_ids );
+    $sql           = $wpdb->prepare("SELECT * FROM $answers_table WHERE related_id IN ($placeholders) AND type='booking'", $ids_arr); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows          = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $result        = array_fill_keys( array_map( 'intval', $booking_ids ), [] );
+    foreach ( $rows as $row ) {
+        $result[ intval( $row['related_id'] ) ][] = $row;
+    }
+    return $result;
+}
+
 function eme_get_booking_answers( $booking_id ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
@@ -3053,6 +3071,34 @@ function eme_get_pending_multiseats( $event_id, $old_date = '', $exclude_booking
                 $result[ $key ] += $value;
             }
         }
+    }
+    return $result;
+}
+
+// Bulk-fetch booking seat counts for a list of event_ids in a single query.
+// $status: 'approved' or 'pending'
+// Returns an array keyed by event_id with the seat count as value.
+function eme_prefetch_booking_seats( $event_ids, $status = 'approved' ) {
+    if ( empty( $event_ids ) ) {
+        return [];
+    }
+    global $wpdb;
+    $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
+    if ( $status === 'approved' ) {
+        $status_sql = $wpdb->prepare( 'status = %d', EME_RSVP_STATUS_APPROVED );
+    } else {
+        $status_sql = $wpdb->prepare( 'status IN (%d,%d)', EME_RSVP_STATUS_PENDING, EME_RSVP_STATUS_USERPENDING );
+    }
+
+    $placeholders = implode( ',', array_fill( 0, count( $event_ids ), '%d' ) );
+    $ids_arr      = array_map( 'intval', $event_ids );
+    $sql          = $wpdb->prepare( "SELECT event_id, COALESCE(SUM(booking_seats),0) AS seats FROM $bookings_table WHERE $status_sql AND event_id IN ($placeholders) GROUP BY event_id", $ids_arr); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+    $rows   = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    // Start with 0 for every requested id so missing rows (no bookings) return 0
+    $result = array_fill_keys( array_map( 'intval', $event_ids ), 0 );
+    foreach ( $rows as $row ) {
+        $result[ intval( $row['event_id'] ) ] = $row['seats'];
     }
     return $result;
 }
@@ -5522,14 +5568,19 @@ function eme_registration_seats_form_table( $pending = 0 ) {
     </form>
     </div>
 <?php
-    $formfields               = eme_get_formfields( '', 'rsvp,generic' );
     $extrafields_arr          = [];
     $extrafieldnames_arr      = [];
     $extrafieldsearchable_arr = [];
-    foreach ( $formfields as $formfield ) {
-        $extrafields_arr[]          = $formfield['field_id'];
-        $extrafieldnames_arr[]      = str_replace(',','&sbquo;',eme_translate( $formfield['field_name'] ));
-        $extrafieldsearchable_arr[] = $formfield['searchable'];
+    $formfields               = eme_get_formfields( '', 'rsvp,generic' );
+    if ( ! empty( $formfields ) ) {
+        $extrafields_arr[]          = 'SEPARATOR';
+        $extrafieldnames_arr[]      = __('RSVP and generic fields','events-made-easy');
+        $extrafieldsearchable_arr[] = 0;
+        foreach ( $formfields as $formfield ) {
+            $extrafields_arr[]          = $formfield['field_id'];
+            $extrafieldnames_arr[]      = str_replace(',','&sbquo;',eme_translate( $formfield['field_name'] ));
+            $extrafieldsearchable_arr[] = $formfield['searchable'];
+        }
     }
     // add the formfields of events last
     // first a separator (will be used in the js)
@@ -5973,20 +6024,28 @@ function eme_ajax_bookings_list() {
     $rows = [];
     // the array $event_name_info will be used to store the event info for bookings, so we don't need to recalculate that for each booking
     $event_name_info = [];
+
+    // prefetch some info
+    $page_event_ids      = ! empty( $bookings ) ? array_column( $bookings, 'event_id' ) : [];
+    $page_booking_ids    = ! empty( $bookings ) ? array_column( $bookings, 'booking_id' ) : [];
+    $approved_seats_map  = eme_prefetch_booking_seats( $page_event_ids, 'approved' );
+    $pending_seats_map   = eme_prefetch_booking_seats( $page_event_ids, 'pending' );
+    $booking_answers_map = eme_prefetch_booking_answers( $page_booking_ids );
+    $event_answers_map   = eme_prefetch_event_answers( $page_event_ids );
+
     foreach ( $bookings as $booking ) {
         $line      = [];
-        $event_id  = $booking['event_id'];
-        $person_id = $booking['person_id'];
+        $event_id  = intval($booking['event_id']);
+        $person_id = intval($booking['person_id']);
         $event     = eme_get_event( $event_id );
         if (!empty($event) && !empty($event['location_id'])) {
-            $location = eme_get_location( $event['location_id'] );
+            $location = eme_get_location( intval($event['location_id']) );
         } else {
             $location = [];
         }
-        $answers  = eme_get_event_answers( $event_id );
-        $answers  = array_merge($answers,eme_get_booking_answers( $booking['booking_id'] ));
-        if ( ! empty( $booking['person_id'] ) ) {
-            $person = eme_get_person( $booking['person_id'] );
+        $answers  = array_merge($event_answers_map[$event_id] ?? [], $booking_answers_map[$booking['booking_id']] ?? []);
+        if ( ! empty( $person_id ) ) {
+            $person = eme_get_person( $person_id );
             // if a booking person_id gets removed for some reason, this is a non-existing person, so let's take a new one to avoid php warnings
             if ( empty( $person ) ) {
                 $person = eme_new_person();
@@ -6041,19 +6100,16 @@ function eme_ajax_bookings_list() {
             $line['edit_link'] = "<a href='" . esc_url( wp_nonce_url( admin_url( "admin.php?page=$page&eme_admin_action=editBooking&booking_id=" . $booking ['booking_id'] ), 'eme_admin', 'eme_admin_nonce' ) ) . "' title='" . esc_attr__( 'Click here to see and/or edit the details of the booking.', 'events-made-easy' ) . "'>" . "<img src='" . esc_url(EME_PLUGIN_URL) . "images/edit.png' alt='" . esc_attr__( 'Edit', 'events-made-easy' ) . "'> " . '</a>';
         }
         if ( ! isset( $event_name_info[ $event_id ] ) ) {
-            $event_name_info[ $event_id ] = '';
+            $event_name_info[ $event_id ] = "<strong><a href='" . esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=edit_event&event_id=' . $event['event_id'] ) ) . "' title='" . esc_attr__( 'Edit event', 'events-made-easy' ) . "'>" . esc_html( eme_translate( $event['event_name'] ) ) . '</a></strong>';
             $add_event_info               = 1;
         } else {
             $add_event_info = 0;
         }
-        if ( $add_event_info ) {
-            $event_name_info[ $event_id ] .= "<strong><a href='" . esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=edit_event&event_id=' . $event['event_id'] ) ) . "' title='" . esc_attr__( 'Edit event', 'events-made-easy' ) . "'>" . esc_html( eme_translate( $event['event_name'] ) ) . '</a></strong>';
-        }
         if ( $event['event_rsvp'] ) {
             if ( $add_event_info ) {
                 $event_name_info[ $event_id ] .= '<br>' . esc_html__( 'RSVP Info: ', 'events-made-easy' );
-                $booked_seats  = eme_get_approved_seats( $event['event_id'] );
-                $pending_seats = eme_get_pending_seats( $event['event_id'] );
+                $booked_seats  = $approved_seats_map[ $event_id ] ?? 0;
+                $pending_seats = $pending_seats_map[ $event_id ] ?? 0;
                 $booked_string = esc_html__( 'Approved:', 'events-made-easy' );
                 $total_seats   = eme_get_total( $event['event_seats'] );
                 if ( eme_is_multi( $event['event_seats'] ) ) {
@@ -6074,16 +6130,9 @@ function eme_ajax_bookings_list() {
                     $booked_seats_string  = $booked_seats;
                 }
                 if ( $total_seats > 0 ) {
-                    $available_seats = eme_get_available_seats( $event['event_id'] );
-                    if ( eme_is_multi( $event['event_seats'] ) ) {
-                        $available_seats_string = $available_seats . ' (' . eme_convert_array2multi( eme_get_available_multiseats( $event['event_id'] ) ) . ')';
-                    } else {
-                        $available_seats_string = $available_seats;
-                    }
-                    $event_name_info[ $event_id ] .= esc_html__( 'Free:', 'events-made-easy' ) .' '. $available_seats_string;
-                    $event_name_info[ $event_id ] .= ', ' . "<a href='" . esc_url( admin_url( 'admin.php?page=eme-registration-seats&event_id=' . $event['event_id'] ) ) . "'>$booked_string $booked_seats_string</a>";
+                    $event_name_info[ $event_id ] .= "<a href='" . esc_url( admin_url( 'admin.php?page=eme-registration-seats&event_id=' . $event['event_id'] ) ) . "'>$booked_string $booked_seats_string</a>";
                 } else {
-                    $total_seats_string                    = '&infin;';
+                    $total_seats_string            = '&infin;';
                     $event_name_info[ $event_id ] .= "<a href='" . esc_url( admin_url( 'admin.php?page=eme-registration-seats&event_id=' . $event['event_id'] ) ) . "'>$booked_string $booked_seats_string</a>";
                 }
 

@@ -5233,6 +5233,209 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
         } else {
             $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
         }
+    } elseif ( preg_match( '/^today--([0-9]{4}-[0-9]{2}-[0-9]{2})$/', $scope, $matches ) ) {
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = $matches[1] . ' 23:59:59';
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^\+(\d+)d$/', $scope, $matches ) ) {
+        $days        = $matches[1];
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = $eme_date_obj->addDays( $days )->endOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^\-(\d+)d$/', $scope, $matches ) ) {
+        $days        = $matches[1];
+        $limit_start = $eme_date_obj->minusDays( $days )->startOfDay()->getDateTime();
+        $limit_end   = $eme_date_obj->endOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^(\-?\+?\d+)d--(\-?\+?\d+)d$/', $scope, $matches ) ) {
+        $day1        = $matches[1];
+        $day2        = $matches[2];
+        $limit_start = $eme_date_obj->copy()->modifyDays( $day1 )->startOfDay()->getDateTime();
+        $limit_end   = $eme_date_obj->copy()->modifyDays( $day2 )->endOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^relative\-(\d+)d--([1-9][0-9]{3}-[0-9]{2}-[0-9]{2})$/', $scope, $matches ) ) {
+        $days      = $matches[1];
+        $limit_end = $matches[2] . ' 23:59:59';
+        $eme_date_obj->setTimestampFromString( $limit_end . ' ' . EME_TIMEZONE );
+        $limit_start = $eme_date_obj->minusDays( $days )->startOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^([1-9][0-9]{3}-[0-9]{2}-[0-9]{2})--relative\+(\d+)d$/', $scope, $matches ) ) {
+        $limit_start = $matches[1] . ' 00:00:00';
+        $days        = $matches[2];
+        $eme_date_obj->setTimestampFromString( $limit_start . ' ' . EME_TIMEZONE );
+        $limit_end = $eme_date_obj->addDays( $days )->endOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^\+(\d+)m$/', $scope, $matches ) ) {
+        $months_in_future = $matches[1]++;
+        $limit_start      = $eme_date_obj->startOfMonth()->getDateTime();
+        $eme_date_obj->addMonths( $months_in_future );
+        $limit_end = $eme_date_obj->endOfMonth()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^\-(\d+)m$/', $scope, $matches ) ) {
+        $months_in_past = $matches[1]++;
+        $limit_start    = $eme_date_obj->startOfMonth()->minusMonths( $months_in_past )->startOfMonth()->getDateTime();
+        $limit_end      = $eme_date_obj->endOfMonth()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( preg_match( '/^(\-?\+?\d+)m--(\-?\+?\d+)m$/', $scope, $matches ) ) {
+        $months1     = $matches[1];
+        $months2     = $matches[2];
+        $limit_start = $eme_date_obj->copy()->startOfMonth()->modifyMonths( $months1 )->startOfMonth()->getDateTime();
+        $limit_end   = $eme_date_obj->copy()->startOfMonth()->modifyMonths( $months2 )->endOfMonth()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'today--this_week' ) {
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = $eme_date_obj->endOfWeek()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'today--this_week_plus_one' ) {
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = $eme_date_obj->endOfWeek()->addOneDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'today--this_month' ) {
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = $eme_date_obj->endOfMonth()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'today--this_year' ) {
+        $year        = $eme_date_obj->getYear();
+        $limit_start = $today . ' 00:00:00';
+        $limit_end   = "$year-12-31 23:59:59";
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'this_week--today' ) {
+        $limit_start = $eme_date_obj->startOfWeek()->getDateTime();
+        $limit_end   = $today . ' 23:59:59';
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'this_month--today' ) {
+        $limit_start = $eme_date_obj->startOfMonth()->getDateTime();
+        $limit_end   = $today . ' 23:59:59';
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'this_year--today' ) {
+        $year        = $eme_date_obj->getYear();
+        $limit_start = "$year-01-01 00:00:00";
+        $limit_end   = $today . ' 23:59:59';
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
+    } elseif ( $scope == 'this_year--yesterday' ) {
+        $year        = $eme_date_obj->getYear();
+        $limit_start = "$year-01-01 00:00:00";
+        $limit_end   = $eme_date_obj->minusDays( 1 )->endOfDay()->getDateTime();
+        if ( $show_ongoing ) {
+            $conditions[] = $wpdb->prepare(
+                "((event_start BETWEEN %s AND %s) OR (event_end BETWEEN %s AND %s) OR (event_start <= %s AND event_end >= %s))",
+                $limit_start, $limit_end, $limit_start, $limit_end, $limit_start, $limit_end
+            );
+        } else {
+            $conditions[] = $wpdb->prepare( "event_start BETWEEN %s AND %s", $limit_start, $limit_end );
+        }
     } elseif ( $scope == 'today--future' ) {
         if ( $show_ongoing ) {
             $conditions[] = $wpdb->prepare( "(event_start >= %s OR event_end >= %s)", $today . ' 00:00:00', $this_datetime );
@@ -5980,11 +6183,16 @@ function eme_import_csv_events() {
                             $formfield  = eme_get_formfield( $field_name );
                             if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'locations' ) {
                                 $field_id = $formfield['field_id'];
-                                $prepared_sql = $wpdb->prepare( "DELETE FROM $answers_table WHERE related_id = %d and field_id=%d AND type='location'", $location_id, $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                                $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-
-                                $prepared_sql = $wpdb->prepare( "INSERT INTO $answers_table (related_id,field_id,answer,type) VALUES (%d,%d,%s,%s)", $location_id, $field_id, $value, 'location' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                                $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                                $wpdb->delete(
+                                    $answers_table,
+                                    [
+                                        'related_id' => $location_id,
+                                        'field_id'   => $field_id,
+                                        'type'       => 'location'
+                                    ],
+                                    [ '%d', '%d', '%s' ]
+                                );
+                                eme_insert_answer( 'location', $location_id, $field_id, $value);
                             }
                         }
                     }
@@ -6061,11 +6269,16 @@ function eme_import_csv_events() {
                             $formfield  = eme_get_formfield( $field_name );
                             if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'events' ) {
                                 $field_id = $formfield['field_id'];
-                                $prepared_sql = $wpdb->prepare( "DELETE FROM $answers_table WHERE related_id = %d and field_id=%d AND type='event'", $event_id, $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                                $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-
-                                $prepared_sql = $wpdb->prepare( "INSERT INTO $answers_table (related_id,field_id,answer,type) VALUES (%d,%d,%s,%s)", $event_id, $field_id, $value, 'event' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                                $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                                $wpdb->delete(
+                                    $answers_table,
+                                    [
+                                        'related_id' => $event_id,
+                                        'field_id'   => $field_id,
+                                        'type'       => 'event'
+                                    ],
+                                    [ '%d', '%d', '%s' ]
+                                );
+                                eme_insert_answer( 'event', $event_id, $field_id, $value);
                             }
                         }
                     }
@@ -9526,8 +9739,9 @@ function eme_db_delete_event( $event_id, $event_is_part_of_recurrence = 0 ) {
     }
 
     $table_name = EME_DB_PREFIX . EME_EVENTS_TBNAME;
-    $prepared_sql = $wpdb->prepare( "DELETE FROM $table_name WHERE event_id = %d", $event_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    if ( $wpdb->query( $prepared_sql ) ) { // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+    $res = $wpdb->delete( $table_name, [ 'event_id' => $event_id ], ['%d'] );
+    if ( $res ) { // we need at least 1 row deleted ...
         eme_delete_all_bookings_for_event_id( $event_id );
         eme_delete_event_attendances( $event_id );
         eme_delete_event_answers( $event_id );
@@ -9541,8 +9755,7 @@ function eme_db_delete_event( $event_id, $event_is_part_of_recurrence = 0 ) {
 function eme_delete_event_answers( $event_id ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-    $prepared_sql  = $wpdb->prepare( "DELETE FROM $answers_table WHERE related_id=%d AND type='event'", $event_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->delete( $answers_table, [ 'related_id' => $event_id, 'type' => 'event' ], ['%d', '%s'] );
     wp_cache_delete( "eme_event_cf $event_id" );
 }
 

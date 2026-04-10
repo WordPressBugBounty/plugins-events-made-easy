@@ -980,11 +980,26 @@ function eme_import_csv_people() {
                         $formfield  = eme_get_formfield( $field_name );
                         if ( ! empty( $formfield ) ) {
                             $field_id = $formfield['field_id'];
-                            $prepared_sql = $wpdb->prepare( "DELETE FROM $answers_table WHERE related_id = %d and field_id=%d AND type='person'", $person_id, $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                            $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-
-                            $prepared_sql = $wpdb->prepare( "INSERT INTO $answers_table (related_id,field_id,answer,eme_grouping,type) VALUES (%d,%d,%s,%d,%s)", $person_id, $field_id, $value, $grouping, 'person' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                            $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                            $wpdb->delete(
+                                $answers_table,
+                                    [
+                                        'related_id' => $person_id,
+                                        'field_id'   => $field_id,
+                                        'type'       => 'person'
+                                    ],
+                                    [ '%d', '%d', '%s' ]
+                            );
+                            $wpdb->insert(
+                                $answers_table,
+                                [
+                                    'related_id'    => $person_id,
+                                    'field_id'      => $field_id,
+                                    'answer'        => $value,
+                                    'eme_grouping'  => $grouping,
+                                    'type'          => 'person'
+                                ],
+                                [ '%d', '%d', '%s', '%d', '%s' ]
+                            );
                         }
                     }
                     if ( preg_match( '/^groups?$/', $key, $matches ) ) {
@@ -3370,8 +3385,13 @@ function eme_untrash_people( $person_ids ) {
 function eme_add_personid_to_newsletter( $person_id ) {
     global $wpdb;
     $people_table = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    $prepared_sql = $wpdb->prepare( "UPDATE $people_table SET newsletter=1 WHERE person_id=%d", $person_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $sql_res      = $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $sql_res = $wpdb->update(
+        $people_table,
+        [ 'newsletter' => 1 ],
+        [ 'person_id' => $person_id ],
+        [ '%d' ],
+        [ '%d' ]
+    );
     if ( $sql_res === false ) {
         return false;
     } else {
@@ -3387,8 +3407,7 @@ function eme_remove_email_from_newsletter( $email ) {
     $fields = [
 	    'newsletter' => 0,
     ];
-
-    return $wpdb->update( $people_table, $fields, $where ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    return $wpdb->update( $people_table, $fields, $where );
 }
 
 function eme_delete_people( $person_ids ) {
@@ -3582,8 +3601,11 @@ function eme_add_persongroups( $person_id, $group_ids, $public = 0 ) {
                 continue; // the continue-statement continues the higher foreach-loop
             }
             if ( ! in_array( $group['group_id'], $current_group_ids ) ) {
-                $prepared_sql = $wpdb->prepare( "INSERT INTO $table (person_id,group_id) VALUES (%d,%d)", $person_id, $group['group_id'] ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-                $sql_res = $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $sql_res = $wpdb->insert(
+                    $table,
+                    [ 'person_id' => $person_id, 'group_id'  => $group['group_id'] ],
+                    [ '%d', '%d' ]
+                );
                 if ( $sql_res === false ) {
                     $res = false;
                 }
@@ -3631,18 +3653,15 @@ function eme_delete_email_from_group( $email, $group_id ) {
 function eme_delete_person_from_group( $person_id, $group_id ) {
     global $wpdb;
     $usergroups_table = EME_DB_PREFIX . EME_USERGROUPS_TBNAME;
-    $prepared_sql     = $wpdb->prepare( "DELETE FROM $usergroups_table WHERE group_id=%d AND person_id=%d", $group_id, $person_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->delete( $usergroups_table, [ 'group_id' => $group_id, 'person_id' => $person_id ], ['%d','%d'] );
 }
 
 function eme_update_persongroups( $person_id, $group_ids ) {
     global $wpdb;
     $table = EME_DB_PREFIX . EME_USERGROUPS_TBNAME;
-    $prepared_sql = $wpdb->prepare( "DELETE from $table WHERE person_id = %d", $person_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->delete( $table, [ 'person_id' => $person_id ], ['%d'] );
     foreach ( $group_ids as $group_id ) {
-        $prepared_sql = $wpdb->prepare( "INSERT INTO $table (person_id,group_id) VALUES (%d,%d)", $person_id, $group_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $wpdb->insert( $table, [ 'person_id' => $person_id, 'group_id' => $group_id ], ['%d','%d'] );
     }
 }
 
@@ -3695,10 +3714,8 @@ function eme_delete_group( $group_id ) {
     global $wpdb;
     $groups_table     = EME_DB_PREFIX . EME_GROUPS_TBNAME;
     $usergroups_table = EME_DB_PREFIX . EME_USERGROUPS_TBNAME;
-    $prepared_sql     = $wpdb->prepare( "DELETE FROM $groups_table WHERE group_id = %d", $group_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-    $prepared_sql = $wpdb->prepare( "DELETE FROM $usergroups_table WHERE group_id = %d", $group_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->delete( $groups_table, [ 'group_id' => $group_id ], ['%d'] );
+    $wpdb->delete( $usergroups_table, [ 'group_id' => $group_id ], ['%d'] );
 }
 
 function eme_delete_groups( $group_ids ) {
@@ -4781,8 +4798,13 @@ function eme_update_person_wp_id( $person_id, $wp_id ) {
             return $wpdb->update( $table, $person_update, $where ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         }
     } else {
-        $prepared_sql = $wpdb->prepare( "UPDATE $table SET wp_id = 0 WHERE person_id = %d", $person_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        return $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        return $wpdb->update(
+            $table,
+            [ 'wp_id' => 0 ],
+            [ 'person_id' => $person_id ],
+            [ '%d' ],
+            [ '%d' ]
+        );
     }
 }
 
@@ -4790,8 +4812,16 @@ function eme_update_email_gdpr( $email ) {
     global $wpdb;
     $table     = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     $gdpr_date = current_time( 'mysql', false );
-    $prepared_sql = $wpdb->prepare( "UPDATE $table SET gdpr = 1, gdpr_date=%s WHERE email = %s", $gdpr_date, $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $wpdb->update(
+        $table,
+        [
+            'gdpr'      => 1,
+            'gdpr_date' => $gdpr_date
+        ],
+        [ 'email' => $email ],
+        [ '%d', '%s' ],
+        [ '%s' ]
+    );
 }
 
 function eme_update_people_gdpr( $person_ids, $gdpr = 1 ) {
@@ -4809,8 +4839,11 @@ function eme_update_people_gdpr( $person_ids, $gdpr = 1 ) {
 function eme_update_email_massmail( $email, $massmail ) {
     global $wpdb;
     $table = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    $prepared_sql = $wpdb->prepare( "UPDATE $table SET massmail = %d WHERE email = %s", $massmail, $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-    return $wpdb->query( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    return $wpdb->update(
+        $table,
+        [ 'massmail' => $massmail ],
+        [ 'email' => $email ]
+    );
 }
 
 function eme_update_people_massmail( $person_ids, $massmail = 1 ) {

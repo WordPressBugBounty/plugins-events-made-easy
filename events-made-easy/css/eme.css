@@ -15,13 +15,6 @@
 @media only screen and (max-width: 600px) {
     .rightclickhint {display:none;}
     .eme_import_form_img {display:none;}
-    .jtable-page-list {display:none !important;}
-    .jtable-page-info {display:none !important;}
-}
-
-/* print: don't show table command columns */
-@media print {
-    .jtable-command-column {display:none;}
 }
 
 #eme_person_image_example {
@@ -56,18 +49,8 @@ textarea.eme_formfield {
     resize: both; 
 }
 
-table.eme_event_admin_table td {
+table.eme_event_admin_table td, table.eme_membership_admin_table td {
     vertical-align: top;
-}
-
-table.eme_membership_admin_table td {
-    vertical-align: top;
-}
-
-table#eme-bookings-table tfoot td.booking-result {
-    font-weight: bold;
-    background:#6D6D6D url("../images/menu-bits.gif") repeat-x scroll left top;
-    color: #eee;
 }
 
 div#eme_printable_container {
@@ -82,15 +65,6 @@ table#eme_printable_table {
 
 tr#eme_printable_booked-seats td {
     border-top: 2px solid grey;
-}
-
-table#eme-bookings-table tfoot th {
-    text-align: right;
-    padding-right: 1em;
-}
-
-table#event_attributes tr {
-    vertical-align: top;
 }
 
 table.eme-rsvp-form, table.eme-member-form {
@@ -134,33 +108,6 @@ body#printable #container {
     width: 780px;
     text-align: left;
 }
-table#bookings-table {
-    width: 600px;
-    border-spacing: 0px;
-
-}
-table#bookings-table td {
-    padding: 5px 0;
-}
-table#bookings-table td.seats-number {
-    text-align: right;
-    padding-right: 20px;
-}
-table#bookings-table th {
-    text-align: left;
-    margin-left: 5px;
-}
-table#bookings-table tr#booked-seats td{
-    border-top: 2px solid #999;
-}
-
-table#bookings-table td.total-label {
-    text-align: right;
-}
-
-table#bookings-table tr#booked-seats td.seats-number, table#bookings-table tr#available-seats td.seats-number {
-    font-weight: bold;
-}
 
 p#recurrence_warning {
     border: 2px solid #FD0000;
@@ -171,9 +118,6 @@ p#recurrence_warning {
 }
 input#event_url {
     width: 100%
-}
-div#icon-events{
-    background:url('../images/calendar-32.png') no-repeat center;
 }
 
 table#eme-location-data th {
@@ -377,31 +321,6 @@ table.eme_admin_table , table.eme_admin_table th , table.eme_admin_table td {
 }
 /* for the honeypot, render it invisible */
 #honeypot_check { display: none; }
-/* for the datepicker at the bottom of the edit/new event page, render it invisible */
-#ui-datepicker-div { display: none; }
-.eme_formfield_date {
-    background-image: url("../images/calendar-16.png");
-    background-position: right center;
-    background-repeat: no-repeat;
-    padding-right: 18px;
-}
-
-/* datatable */
-div.dt-length select.dt-input {
-    -webkit-appearance: auto;
-    background: none;
-}
-/* to disable WP checkbox styles */
-.dt-select-checkbox:checked::before {
-    content: none !important;
-}
-/* better background */
-.eme-dt-row-selected{
-    background: #F2F5A9 !important;
-}
-.dataTable tr:hover {
-    background: #AAF5F3 !important;
-}
 
 /* clear X */
 .clearable{
@@ -751,23 +670,6 @@ div#eme_div_import {
   overflow: auto;
 }
 
-.datalist-input {
-  /* Set minimum width based on placeholder */
-  min-width: calc(15ch + 2em); /* Adjust '15ch' to match your placeholder length */
-
-  /* Optional styling */
-  padding: 0.5em;
-  font: inherit;
-}
-
-/* For browsers supporting field-sizing (Chrome 119+) */
-@supports (field-sizing: content) {
-  .datalist-input {
-    field-sizing: content;
-    min-width: fit-content;
-  }
-}
-
 .eme-yesno-check-text:before {
   content: attr(data-no);
 }
@@ -776,13 +678,6 @@ div#eme_div_import {
   content: attr(data-yes);
 }
 
-.ts-wrapper {
-    display: inline-block;
-}
-.ts-wrapper .ts-dropdown {
-    white-space: nowrap;
-    min-width: max-content !important;
-}
 .eme-ftable-center {
     text-align: center;
 }
@@ -795,4 +690,22 @@ a.nav-tab.nav-tab-active {
 a.nav-tab {
     margin-left: 0em;
     margin-right: .5em;
+}
+
+.eme_dyndata_occurence_block {
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+}
+.eme_dyndata_occurence_label {
+    font-weight: 600;
+}
+.eme_delete_dyndata_occurence {
+    color: #b32d2e !important;
+    border-color: #b32d2e !important;
+}
+.eme_delete_dyndata_occurence:hover {
+    background: #b32d2e !important;
+    color: #fff !important;
 }

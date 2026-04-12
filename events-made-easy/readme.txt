@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 6.9
-Stable tag: 3.0.62
+Stable tag: 3.0.64
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -98,6 +98,15 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.0.64  (2026/04/12) =
+* Bancontact update
+* Allow dyndata group delete in the backend
+* Fix some PHP warnings
+* CSS cleanup
+
+= 3.0.63  (2026/04/10) =
+* Fix EME updater class
+
 = 3.0.62  (2026/04/10) =
 * Fix missing event scopes
 * Less inline JS, better for caching/optimizing plugins

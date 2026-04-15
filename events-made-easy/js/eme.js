@@ -356,17 +356,17 @@ function eme_ajax_form(form_id, action, okSel, errSel, loadingSel, extraParams =
             // Show submit buttons
             form.querySelectorAll('[type="submit"]').forEach(btn => eme_toggle(btn, true));
 
-            if (data.Result === "OK" || data.Result === "REDIRECT_IMM") {
+            if (data.Result === "OK") {
+                if (errSel) {
+                    if (errEl) eme_toggle(errEl, false);
+                }
                 if (okSel) {
-                    if (okEl) {
+                    if (okEl && data.htmlmessage && (!data.redirect || ( data.redirect && parseInt(data.waitperiod)>0 ) ) ) {
                         okEl.innerHTML = data.htmlmessage;
                         eme_toggle(okEl, true);
                     }
                 }
-                if (errSel) {
-                    if (errEl) eme_toggle(errEl, false);
-                }
-                if (data.keep_form == 1) {
+                if (parseInt(data.keep_form) == 1) {
                     form.reset();
                     eme_refresh_captcha(form_id);
                 } else {
@@ -375,19 +375,19 @@ function eme_ajax_form(form_id, action, okSel, errSel, loadingSel, extraParams =
                 }
                 if (data.paymentform) {
                     const paymentDiv = EME.$(`#div_eme-payment-form-${form_id}`);
-                    if (paymentDiv) {
+                    if (paymentDiv && data.paymentform) {
                         paymentDiv.innerHTML = data.paymentform;
                         eme_toggle(paymentDiv, true);
                         eme_executeScriptsInElement(paymentDiv);
                     }
                 }
-                if (data.paymentredirect) {
-                    setTimeout(() => window.location.href = data.paymentredirect, parseInt(data.waitperiod));
+                if (data.redirect) {
+                    setTimeout(() => window.location.href = data.redirect, parseInt(data.waitperiod));
                 }
                 eme_scrollToEl(okEl);
             } else {
                 if (errSel) {
-                    if (errEl) {
+                    if (errEl && data.htmlmessage) {
                         errEl.innerHTML = data.htmlmessage;
                         eme_toggle(errEl, true);
                     }
@@ -434,13 +434,6 @@ function eme_scrollToEl(sel) {
         const scrollTop = window.scrollY + rect.top - (window.innerHeight / 2) + (rect.height / 2);
         window.scrollTo({ top: scrollTop, behavior: 'smooth' });
     }
-}
-
-function eme_auto_submit_form(formId, waitperiod) {
-    setTimeout(function() {
-        var form = document.getElementById(formId);
-        if (form) form.submit();
-    }, waitperiod);
 }
 
 // --- Unified Dynamic Data/Price AJAX ---

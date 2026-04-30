@@ -174,7 +174,7 @@ function eme_lastname_clearable() {
     const ln = EME.$('input[name=lastname]');
     if (!ln) return;
     
-    const fields = ['firstname', 'address1', 'address2', 'city', 'state', 'zip', 'country', 'email', 'phone', 'birthdate','dp_birthdate'];
+    const fields = ['firstname', 'address1', 'address2', 'city', 'state', 'zip', 'country', 'email', 'phone','birthdate'];
     if (ln.value == '') {
         ln.readOnly = false;
         eme_removeClass(ln, 'clearable');
@@ -183,11 +183,13 @@ function eme_lastname_clearable() {
             const field = EME.$(`input[name=${f}]`);
             if (field) {
                 field.value = '';
-                if (f != 'dp_birthdate') {
-                    field.readOnly = false;
-                }
+                field.readOnly = false;
             }
         });
+        const birthfield = EME.$('input#birthdate');
+        if (birthfield) {
+            birthfield.value = '';
+        }
         const wpIdField = EME.$('input[name=wp_id]');
         const personIdField = EME.$('input[name=person_id]');
         if (wpIdField) wpIdField.value = '';
@@ -652,6 +654,11 @@ function eme_attach_dynamic_handlers(selector, isBooking) {
         const debounced_family = !isBooking ? eme_debounce(() => eme_dynamic_familymemberdata_json(form_id), 500) : null;
 
         form.addEventListener('input', function(event) {
+            // Ignore events from hidden fields (e.g. FDatepicker auto-created altField);
+            // those are internal implementation details and should not trigger a dynamic refresh.
+            if (event.target.type === 'hidden') {
+                return;
+            }
             if (debounced_family && event.target.id === 'familycount') {
                 debounced_family();
             }

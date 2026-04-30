@@ -2641,8 +2641,7 @@ function eme_person_edit_layout( $person_id = 0, $message = '' ) {
         </tr>
         <tr>
         <td><label for="dp_birthdate"><?php esc_html_e( 'Date of birth', 'events-made-easy' ); ?></label></td>
-        <td><input type='hidden' name='birthdate' id='birthdate' value='<?php echo esc_html( $person['birthdate'] ); ?>'>
-        <input readonly='readonly' type='text' name='dp_birthdate' id='dp_birthdate' data-date='<?php echo esc_html( $person['birthdate'] ); ?>' data-format='<?php echo esc_attr( EME_WP_DATE_FORMAT ); ?>' data-alt-field='birthdate' data-view='years' class='eme_formfield_fdate'></td>
+        <td><input readonly='readonly' type='text' name='birthdate' id='birthdate' data-date='<?php echo esc_html( $person['birthdate'] ); ?>' data-format='<?php echo esc_attr( EME_WP_DATE_FORMAT ); ?>' data-view='years' class='eme_formfield_fdate'></td>
         <td></td>
         </tr>
         <tr>
@@ -5580,14 +5579,16 @@ function eme_ajax_chooseperson_snapselect() {
 
     $records = [];
     foreach ( $persons as $person ) {
-        $records[] = [
-            'id'        => intval( $person['person_id'] ),
-            'text'      => eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] ) . ' (' . $person['email'] . ')',
-            'firstname' => esc_html( $person['firstname'] ),
-            'lastname'  => esc_html( $person['lastname'] ),
-            'email'     => esc_html( $person['email'] ),
-            'wpid'      => intval( $person['wp_id'] ),
+        $record = [
+            'id'   => intval( $person['person_id'] ),
+            'text' => eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] ) . ' (' . $person['email'] . ')',
+            'wpid' => intval( $person['wp_id'] ),
         ];
+        $extra_info = ['firstname', 'lastname', 'email', 'phone', 'birthdate', 'birthplace', 'address1', 'address2', 'city', 'zip', 'state', 'country' ];
+        foreach ($extra_info as $extra_field) {
+            $record[$extra_field] = esc_html( $person[$extra_field]);
+        }
+        $records[] = $record;
     }
     $hasMore = count($records) > $pagesize;
     if ($hasMore)

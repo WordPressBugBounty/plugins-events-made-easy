@@ -64,59 +64,44 @@ function eme_add_task_function(element) {
     relElements.forEach(a => a.setAttribute('rel', newId));
 
     // Remove signup_count field
-    const signupCount = metaCopy.querySelector(`[name="eme_tasks[${currentId}][signup_count]"]`);
+    const signupCount = metaCopy.querySelector(`#eme_tasks_${currentId}_signup_count`);
     if (signupCount) signupCount.remove();
 
-    const metafields = ['task_id', 'name', 'task_start', 'task_end', 'spaces', 'dp_task_start', 'dp_task_end', 'description'];
+    const metafields = ['task_id', 'name', 'task_start', 'task_end', 'spaces', 'description'];
     metafields.forEach(f => {
-        const field = metaCopy.querySelector(`[name="eme_tasks[${currentId}][${f}]"]`);
+        const field = metaCopy.querySelector(`#eme_tasks_${currentId}_${f}`);
         if (field) {
+            field.id   = `eme_tasks_${newId}_${f}`;
             field.name = `eme_tasks[${newId}][${f}]`;
-            field.id = `eme_tasks[${newId}][${f}]`;
         }
     });
 
-    // Update data-alt-field attributes
-    const dpStart = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_start]"]`);
-    const dpEnd = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_end]"]`);
-    if (dpStart) dpStart.setAttribute('data-alt-field', `eme_tasks[${newId}][task_start]`);
-    if (dpEnd) dpEnd.setAttribute('data-alt-field', `eme_tasks[${newId}][task_end]`);
-
     // Clear values
-    const nameField = metaCopy.querySelector(`[name="eme_tasks[${newId}][name]"]`);
-    const spacesField = metaCopy.querySelector(`[name="eme_tasks[${newId}][spaces]"]`);
-    const descField = metaCopy.querySelector(`[name="eme_tasks[${newId}][description]"]`);
-    const taskIdField = metaCopy.querySelector(`[name="eme_tasks[${newId}][task_id]"]`);
+    const nameField   = metaCopy.querySelector(`#eme_tasks_${newId}_name`);
+    const spacesField = metaCopy.querySelector(`#eme_tasks_${newId}_spaces`);
+    const descField   = metaCopy.querySelector(`#eme_tasks_${newId}_description`);
+    const taskIdField = metaCopy.querySelector(`#eme_tasks_${newId}_task_id`);
 
-    if (nameField) nameField.value = '';
+    if (nameField)   nameField.value   = '';
     if (spacesField) spacesField.value = '1';
-    if (descField) descField.value = '';
+    if (descField)   descField.value   = '';
     if (taskIdField && taskIdField.parentNode) taskIdField.parentNode.innerHTML = '';
+
+    // Remove the stale FDatepicker auto-created hidden fields from the clone;
+    // eme_init_widgets() will let FDatepicker recreate them with the correct ids.
+    metaCopy.querySelectorAll('input[id$="-fdp-alt"]').forEach(el => el.remove());
+
+    // Clear date values on the visible datepicker inputs so the clone starts empty.
+    ['task_start', 'task_end'].forEach(f => {
+        const field = metaCopy.querySelector(`#eme_tasks_${newId}_${f}`);
+        if (field) { field.value = ''; field.removeAttribute('data-date'); }
+    });
 
     const tbody = EME.$('#eme_tasks_tbody');
     if (tbody) tbody.appendChild(metaCopy);
 
-    // Initialize date picker for added row
+    // Re-initialise datepickers in the cloned row so FDatepicker binds to the renamed fields.
     eme_init_widgets();
-
-    // Set existing dates
-    const currentStart = metaCopy.querySelector(`[name="eme_tasks[${newId}][task_start]"]`)?.value;
-    if (currentStart) {
-        const jsStartObj = new Date(currentStart);
-        const dpStartField = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_start]"]`);
-        if (dpStartField && dpStartField._fdatepicker) {
-            dpStartField._fdatepicker.setDate(jsStartObj);
-        }
-    }
-
-    const currentEnd = metaCopy.querySelector(`[name="eme_tasks[${newId}][task_end]"]`)?.value;
-    if (currentEnd) {
-        const jsEndObj = new Date(currentEnd);
-        const dpEndField = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_end]"]`);
-        if (dpEndField && dpEndField._fdatepicker) {
-            dpEndField._fdatepicker.setDate(jsEndObj);
-        }
-    }
 }
 
 function eme_remove_task_function(element) {
@@ -136,35 +121,29 @@ function eme_remove_task_function(element) {
         const relElements = metaCopy.querySelectorAll('a');
         relElements.forEach(a => a.setAttribute('rel', newId));
 
-        const metafields = ['task_id', 'name', 'task_start', 'task_end', 'spaces', 'dp_task_start', 'dp_task_end', 'description'];
+        const metafields = ['task_id', 'name', 'task_start', 'task_end', 'spaces', 'description'];
         metafields.forEach(f => {
-            const field = metaCopy.querySelector(`[name="eme_tasks[${currentId}][${f}]"]`);
+            const field = metaCopy.querySelector(`#eme_tasks_${currentId}_${f}`);
             if (field) {
+                field.id   = `eme_tasks_${newId}_${f}`;
                 field.name = `eme_tasks[${newId}][${f}]`;
-                field.id = `eme_tasks[${newId}][${f}]`;
             }
         });
 
-        // Update data-alt-field attributes
-        const dpStart = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_start]"]`);
-        const dpEnd = metaCopy.querySelector(`[name="eme_tasks[${newId}][dp_task_end]"]`);
-        if (dpStart) dpStart.setAttribute('data-alt-field', `eme_tasks[${newId}][task_start]`);
-        if (dpEnd) dpEnd.setAttribute('data-alt-field', `eme_tasks[${newId}][task_end]`);
-
         // Clear values
-        const nameField = metaCopy.querySelector(`[name="eme_tasks[${newId}][name]"]`);
-        const spacesField = metaCopy.querySelector(`[name="eme_tasks[${newId}][spaces]"]`);
-        const descField = metaCopy.querySelector(`[name="eme_tasks[${newId}][description]"]`);
-        const taskIdField = metaCopy.querySelector(`[name="eme_tasks[${newId}][task_id]"]`);
+        const nameField   = metaCopy.querySelector(`#eme_tasks_${newId}_name`);
+        const spacesField = metaCopy.querySelector(`#eme_tasks_${newId}_spaces`);
+        const descField   = metaCopy.querySelector(`#eme_tasks_${newId}_description`);
+        const taskIdField = metaCopy.querySelector(`#eme_tasks_${newId}_task_id`);
 
-        if (nameField) nameField.value = '';
+        if (nameField)   nameField.value   = '';
         if (spacesField) spacesField.value = '1';
-        if (descField) descField.value = '';
+        if (descField)   descField.value   = '';
         if (taskIdField && taskIdField.parentNode) taskIdField.parentNode.innerHTML = '';
 
         // Remove required attributes
         metafields.forEach(f => {
-            const field = metaCopy.querySelector(`[name="eme_tasks[${newId}][${f}]"]`);
+            const field = metaCopy.querySelector(`#eme_tasks_${newId}_${f}`);
             if (field) field.removeAttribute('required');
         });
     }
@@ -185,22 +164,22 @@ function eme_add_todo_function(element) {
 
     const metafields = ['todo_id', 'name', 'todo_offset', 'description'];
     metafields.forEach(f => {
-        const field = metaCopy.querySelector(`[name="eme_todos[${currentId}][${f}]"]`);
+        const field = metaCopy.querySelector(`#eme_todos_${currentId}_${f}`);
         if (field) {
+            field.id   = `eme_todos_${newId}_${f}`;
             field.name = `eme_todos[${newId}][${f}]`;
-            field.id = `eme_todos[${newId}][${f}]`;
         }
     });
 
     // Clear values
-    const nameField = metaCopy.querySelector(`[name="eme_todos[${newId}][name]"]`);
-    const offsetField = metaCopy.querySelector(`[name="eme_todos[${newId}][todo_offset]"]`);
-    const descField = metaCopy.querySelector(`[name="eme_todos[${newId}][description]"]`);
-    const todoIdField = metaCopy.querySelector(`[name="eme_todos[${newId}][todo_id]"]`);
+    const nameField   = metaCopy.querySelector(`#eme_todos_${newId}_name`);
+    const offsetField = metaCopy.querySelector(`#eme_todos_${newId}_todo_offset`);
+    const descField   = metaCopy.querySelector(`#eme_todos_${newId}_description`);
+    const todoIdField = metaCopy.querySelector(`#eme_todos_${newId}_todo_id`);
 
-    if (nameField) nameField.value = '';
+    if (nameField)   nameField.value   = '';
     if (offsetField) offsetField.value = '0';
-    if (descField) descField.value = '';
+    if (descField)   descField.value   = '';
     if (todoIdField && todoIdField.parentNode) todoIdField.parentNode.innerHTML = '';
 
     const tbody = EME.$('#eme_todos_tbody');
@@ -226,27 +205,27 @@ function eme_remove_todo_function(element) {
 
         const metafields = ['todo_id', 'name', 'todo_offset', 'description'];
         metafields.forEach(f => {
-            const field = metaCopy.querySelector(`[name="eme_todos[${currentId}][${f}]"]`);
+            const field = metaCopy.querySelector(`#eme_todos_${currentId}_${f}`);
             if (field) {
+                field.id   = `eme_todos_${newId}_${f}`;
                 field.name = `eme_todos[${newId}][${f}]`;
-                field.id = `eme_todos[${newId}][${f}]`;
             }
         });
 
         // Clear values
-        const nameField = metaCopy.querySelector(`[name="eme_todos[${newId}][name]"]`);
-        const offsetField = metaCopy.querySelector(`[name="eme_todos[${newId}][todo_offset]"]`);
-        const descField = metaCopy.querySelector(`[name="eme_todos[${newId}][description]"]`);
-        const todoIdField = metaCopy.querySelector(`[name="eme_todos[${newId}][todo_id]"]`);
+        const nameField   = metaCopy.querySelector(`#eme_todos_${newId}_name`);
+        const offsetField = metaCopy.querySelector(`#eme_todos_${newId}_todo_offset`);
+        const descField   = metaCopy.querySelector(`#eme_todos_${newId}_description`);
+        const todoIdField = metaCopy.querySelector(`#eme_todos_${newId}_todo_id`);
 
-        if (nameField) nameField.value = '';
+        if (nameField)   nameField.value   = '';
         if (offsetField) offsetField.value = '0';
-        if (descField) descField.value = '';
+        if (descField)   descField.value   = '';
         if (todoIdField && todoIdField.parentNode) todoIdField.parentNode.innerHTML = '';
 
         // Remove required attributes
         metafields.forEach(f => {
-            const field = metaCopy.querySelector(`[name="eme_todos[${newId}][${f}]"]`);
+            const field = metaCopy.querySelector(`#eme_todos_${newId}_${f}`);
             if (field) field.removeAttribute('required');
         });
     }
@@ -445,6 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // change_task_days snippet (for reference)
     const changeTaskDaysBtn = EME.$('#change_task_days');
     if (changeTaskDaysBtn) {
         changeTaskDaysBtn.addEventListener('click', (e) => {
@@ -452,19 +432,19 @@ document.addEventListener('DOMContentLoaded', function () {
             const offset = parseInt(EME.$('#task_offset').value);
             let myId = 0;
 
-            while (document.querySelector(`[name="eme_tasks[${myId}][task_start]"]`)) {
-                const dpStartField = document.querySelector(`[name="eme_tasks[${myId}][dp_task_start]"]`);
-                if (dpStartField && dpStartField._fdatepicker) {
-                    const startObj = dpStartField._fdatepicker.selectedDate;
+            while (EME.$(`#eme_row_task_${myId}`)) {
+                const startField = EME.$(`#eme_tasks_${myId}_task_start`);
+                if (startField?._fdatepicker) {
+                    const startObj = startField._fdatepicker.selectedDate;
                     startObj.setDate(startObj.getDate() + offset);
-                    dpStartField._fdatepicker.setDate(startObj);
+                    startField._fdatepicker.setDate(startObj);
                 }
 
-                const dpEndField = document.querySelector(`[name="eme_tasks[${myId}][dp_task_end]"]`);
-                if (dpEndField && dpEndField._fdatepicker) {
-                    const endObj = dpEndField._fdatepicker.selectedDate;
+                const endField = EME.$(`#eme_tasks_${myId}_task_end`);
+                if (endField?._fdatepicker) {
+                    const endObj = endField._fdatepicker.selectedDate;
                     endObj.setDate(endObj.getDate() + offset);
-                    dpEndField._fdatepicker.setDate(endObj);
+                    endField._fdatepicker.setDate(endObj);
                 }
                 myId++;
             }

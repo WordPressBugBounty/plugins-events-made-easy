@@ -3084,6 +3084,23 @@ function eme_replace_event_placeholders( $format, $event, $target = 'html', $lan
                         $replacement = esc_url( $replacement );
                     }
                 }
+            } elseif ( preg_match( '/#_PROP\{(.+?)\}$/', $result, $matches ) ) {
+                $tmp_attkey = $matches[1];
+                if ( isset( $event['event_attributes'][ $tmp_attkey ] ) && ! is_array( $event['event_attributes'][ $tmp_attkey ] ) ) {
+                    $replacement = $event['event_attributes'][ $tmp_attkey ];
+                    if ( $target == 'html' ) {
+                        $replacement = esc_html( eme_translate( $replacement, $lang ) );
+                        $replacement = apply_filters( 'eme_general', $replacement );
+                    } elseif ( $target == 'rss' ) {
+                        $replacement = eme_translate( $replacement, $lang );
+                        $replacement = apply_filters( 'the_content_rss', $replacement );
+                    } else {
+                        $replacement = eme_translate( $replacement, $lang );
+                        $replacement = apply_filters( 'eme_text', $replacement );
+                    }
+                } else {
+                    $found = 0;
+                }
             } elseif ( preg_match( '/#_DBFIELD\{(.+?)\}$/', $result, $matches ) ) {
                 $tmp_attkey = $matches[1];
                 if ( isset( $event[ $tmp_attkey ] ) && ! is_array( $event[ $tmp_attkey ] ) ) {
@@ -3098,6 +3115,8 @@ function eme_replace_event_placeholders( $format, $event, $target = 'html', $lan
                         $replacement = eme_translate( $replacement, $lang );
                         $replacement = apply_filters( 'eme_text', $replacement );
                     }
+                } else {
+                    $found = 0;
                 }
             } elseif ( preg_match( '/#_ATT\{(.+?)\}\{(.+?)\}$/', $result, $matches ) ) {
                 $tmp_event_id     = intval( $matches[1] );
@@ -3115,6 +3134,8 @@ function eme_replace_event_placeholders( $format, $event, $target = 'html', $lan
                         $replacement = eme_translate( $replacement, $lang );
                         $replacement = apply_filters( 'eme_text', $replacement );
                     }
+                } else {
+                    $found = 0;
                 }
             } elseif ( preg_match( '/#_FIELDNAME\{(.+?)\}$/', $result, $matches ) ) {
                 $field_key = $matches[1];
@@ -10367,7 +10388,7 @@ function eme_ajax_events_list() {
     $StartIndex = isset( $_POST['jtStartIndex'] ) ? intval( $_POST['jtStartIndex'] ) : 0;
 
     $scope             = isset( $_POST['scope'] ) ? eme_sanitize_request( $_POST['scope'] ) : 'future';
-    $orderby           = eme_get_datatables_orderby() ?: '';
+    $orderby           = eme_get_ftable_orderby() ?: '';
     $category          = isset( $_POST['category'] ) ? eme_sanitize_request( $_POST['category'] ) : '';
     $status            = isset( $_POST['status'] ) ? intval( $_POST['status'] ) : '';
     $search_name       = isset( $_POST['search_name'] ) ? eme_sanitize_request( $_POST['search_name'] ) : '';

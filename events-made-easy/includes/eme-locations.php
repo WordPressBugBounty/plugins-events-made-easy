@@ -1702,17 +1702,9 @@ function eme_global_map_shortcode( $atts ) {
 
     $result = '';
     if ( ! empty( $locations ) ) {
-        $result           = "<div id='eme_global_map_$id_base' class='eme_global_map' $style>map</div>";
-        $locations_string = 'global_map_info_' . $id_base;
-        $locations_val    = eme_global_map_json( $locations, $marker_clustering, $letter_icons );
-
-        // using wp_add_inline_script and "before", so we're sure this code is always there before the maps code
-        // we need to do this for minifiers that might otherwise reorder code if inline scripts are used
-        wp_add_inline_script(
-            'eme-show-maps', // dependent on eme-show-maps, so this inline script comes before that
-            "window.$locations_string = $locations_val;",
-            'before' // ensures availability before init runs
-        );
+        $locations_val = eme_global_map_json( $locations, $marker_clustering, $letter_icons );
+        $result  = "<script>window.global_map_info_{$id_base} = {$locations_val};</script>";
+        $result .= "<div id='eme_global_map_$id_base' class='eme_global_map' $style>map</div>";
     }
 
     if ( $atts['paging'] == 1 ) {
@@ -1761,7 +1753,12 @@ function eme_global_map_shortcode( $atts ) {
             $loc_list .= '</ol>';
         }
         if ( $letter_icons ) {
-            ++$firstletter;
+            if (function_exists('str_increment')) {
+                $firstletter = str_increment($firstletter);
+            } else {
+                // older php doesn't know str_increment
+                ++$firstletter;
+            }
         }
     }
     $loc_list .= '</ol></div>';
@@ -2282,7 +2279,23 @@ function eme_replace_locations_placeholders( $format, $location = '', $target = 
                     $replacement = apply_filters( 'eme_general', $replacement );
                 }
                 # until I find something easy not-google related, this is returning the google form
-
+            } elseif ( preg_match( '/#_PROP\{(.+?)\}$/', $result, $matches ) ) {
+                $tmp_attkey = $matches[1];
+                if ( isset( $location['location_attributes'][ $tmp_attkey ] ) && ! is_array( $location['location_attributes'][ $tmp_attkey ] ) ) {
+                    $replacement = $location['location_attributes'][ $tmp_attkey ];
+                    if ( $target == 'html' ) {
+                        $replacement = esc_html( eme_translate( $replacement, $lang ) );
+                        $replacement = apply_filters( 'eme_general', $replacement );
+                    } elseif ( $target == 'rss' ) {
+                        $replacement = eme_translate( $replacement, $lang );
+                        $replacement = apply_filters( 'the_content_rss', $replacement );
+                    } else {
+                        $replacement = eme_translate( $replacement, $lang );
+                        $replacement = apply_filters( 'eme_text', $replacement );
+                    }
+                } else {
+                    $found = 0;
+                }
             } elseif ( preg_match( '/#_DBFIELD\{(.+?)\}/', $result, $matches ) ) {
                 $tmp_attkey = $matches[1];
                 if ( isset( $location[ $tmp_attkey ] ) && ! is_array( $location[ $tmp_attkey ] ) ) {
@@ -2297,6 +2310,8 @@ function eme_replace_locations_placeholders( $format, $location = '', $target = 
                         $replacement = eme_translate( $replacement, $lang );
                         $replacement = apply_filters( 'eme_text', $replacement );
                     }
+                } else {
+                    $found = 0;
                 }
             } elseif ( preg_match( '/#_MYLOCATIONATT\{(.+?)\}/', $result, $matches ) ) {
                 $tmp_attkey = $matches[1];
@@ -3010,8 +3025,8 @@ function eme_ajax_locations_list() {
     $formfields            = eme_get_formfields( '', 'locations' );
 
     $fTableResult = [];
-    $limit    = eme_get_datatables_limit();
-    $orderby  = eme_get_datatables_orderby();
+    $limit    = eme_get_ftable_limit();
+    $orderby  = eme_get_ftable_orderby();
 
     if ( empty( $formfields_searchable ) ) {
         $count_sql = "SELECT COUNT(*) FROM $table AS locations $where"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared

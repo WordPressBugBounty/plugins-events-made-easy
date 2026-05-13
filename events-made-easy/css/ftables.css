@@ -38,8 +38,8 @@ div.ftable-main-container table.ftable tbody>tr {
 	-webkit-column-count:1;
         column-count: 1;
     }
-    .ftable-toolbar-item-csv {display:none !important;}
-    .ftable-toolbar-item-print {display:none !important;}
+    .ftable-toolbar-item-csv,
+    .ftable-toolbar-item-print,
     .ftable-page-info {display:none !important;}
 }
 @media (max-width: 768px) {
@@ -67,7 +67,7 @@ div.ftable-main-container div.ftable-title div.ftable-title-text {
     text-shadow: none;
 }
 
-div.ftable-main-container div.ftable-title div.ftable-toolbar .ftable-toolbar-item {
+div.ftable-main-container div.ftable-title .ftable-toolbar-item {
     font-size: 1.1em;
     background: #e6e6e6;
     color: #555;

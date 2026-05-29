@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = this.form;
 
             // the tinymce save needs to happen before the FormData-call, as it changes the form content
-            if (ememails.translate_htmleditor === 'tinymce' && ememails.translate_htmlmail === 'yes') {
+            if (emeadmin.translate_htmleditor === 'tinymce' && emeadmin.translate_htmlmail === 'yes') {
                 if (typeof tinymce !== 'undefined' && tinymce.get(editorTarget)) {
                     tinymce.get(editorTarget).save();
                 }
@@ -26,9 +26,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const formData = new FormData(form);
             formData.append('action', action);
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
-            button.textContent = ememails.translate_pleasewait;
+            button.textContent = emeadmin.translate_pleasewait;
             button.disabled = true;
 
             eme_postJSON(ajaxurl, formData, (data) => {
@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (data.Result === 'OK') {
                     form.reset();
+                    if (typeof Jodit !== 'undefined' && Jodit.instances['joditdiv_'+editorTarget]) {
+                        Jodit.instances['joditdiv_'+editorTarget].value = '';
+                    }
                     resetSelectors.forEach(sel => {
                         const el = EME.$(sel);
                         if (el && el.snapselectInstance) {
@@ -48,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     setTimeout(() => { eme_toggle(messageDiv, false); }, 5000);
                 }
 
-                button.textContent = ememails.translate_sendmail;
+                button.textContent = emeadmin.translate_sendmail;
                 button.disabled = false;
             });
         });
@@ -58,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '#eventmailButton',
         'eme_eventmail',
         'event_mail_message',
-        '#eventmail-message',
+        '#eventmail-result',
         [
             '#event_ids',
             "#eme_eventmail_send_persons",
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function () {
         '#genericmailButton',
         'eme_genericmail',
         'generic_mail_message',
-        '#genericmail-message',
+        '#genericmail-result',
         [
             "#eme_genericmail_send_persons",
             "#eme_genericmail_send_peoplegroups",
@@ -97,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = this.form;
  
             // the tinymce save needs to happen before the FormData-call, as it changes the form content
-            if (ememails.translate_htmleditor === 'tinymce' && ememails.translate_htmlmail === 'yes') {
+            if (emeadmin.translate_htmleditor === 'tinymce' && emeadmin.translate_htmlmail === 'yes') {
                 const editorField = form.querySelector('textarea');
                 if (editorField && tinymce.get(editorField.id)) {
                     tinymce.get(editorField.id).save();
@@ -106,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const formData = new FormData(form);
             formData.append('action', action);
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             eme_postJSON(ajaxurl, formData, (data) => {
                 const messageDiv = EME.$(messageDivSelector);
@@ -148,17 +151,17 @@ document.addEventListener('DOMContentLoaded', function () {
             const form = this.form;
             const formData = new FormData(form);
             formData.append('action', 'eme_testmail');
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
-            testmailButton.textContent = ememails.translate_pleasewait;
+            testmailButton.textContent = emeadmin.translate_pleasewait;
             testmailButton.disabled = true;
 
             eme_postJSON(ajaxurl, formData, (data) => {
-                const msg = EME.$('#testmail-message');
+                const msg = EME.$('#testmail-result');
                 msg.innerHTML = data.htmlmessage;
                 eme_toggle(msg, true);
                 if (data.Result === 'OK') form.reset();
-                testmailButton.textContent = ememails.translate_sendmail;
+                testmailButton.textContent = emeadmin.translate_sendmail;
                 testmailButton.disabled = false;
             });
         });
@@ -191,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function () {
         select.addEventListener('change', function () {
             const formData = new FormData();
             formData.append('action', 'eme_get_template');
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
             formData.append('template_id', select.value);
 
             fetch(ajaxurl, { method: 'POST', body: formData })
@@ -210,17 +213,17 @@ document.addEventListener('DOMContentLoaded', function () {
     templateSelectHandler({
         selectSelector: 'select#event_message_template',
         targetSelector: 'textarea#event_mail_message',
-        editorType: ememails.translate_htmlmail === 'yes' ? ememails.translate_htmleditor : undefined,
-        editorTarget: ememails.translate_htmleditor === 'tinymce' ? 'event_mail_message' :
-                      ememails.translate_htmleditor === 'jodit' ? 'joditdiv_event_mail_message' : undefined
+        editorType: emeadmin.translate_htmlmail === 'yes' ? emeadmin.translate_htmleditor : undefined,
+        editorTarget: emeadmin.translate_htmleditor === 'tinymce' ? 'event_mail_message' :
+                      emeadmin.translate_htmleditor === 'jodit' ? 'joditdiv_event_mail_message' : undefined
     });
 
     templateSelectHandler({
         selectSelector: 'select#generic_message_template',
         targetSelector: 'textarea#generic_mail_message',
-        editorType: ememails.translate_htmlmail === 'yes' ? ememails.translate_htmleditor : undefined,
-        editorTarget: ememails.translate_htmleditor === 'tinymce' ? 'generic_mail_message' :
-                      ememails.translate_htmleditor === 'jodit' ? 'joditdiv_generic_mail_message' : undefined
+        editorType: emeadmin.translate_htmlmail === 'yes' ? emeadmin.translate_htmleditor : undefined,
+        editorTarget: emeadmin.translate_htmleditor === 'tinymce' ? 'generic_mail_message' :
+                      emeadmin.translate_htmleditor === 'jodit' ? 'joditdiv_generic_mail_message' : undefined
     });
 
     // --- Show/Hide Groups ---
@@ -269,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- ftable: Mailing Report Table ---
     if (MailingReportTableContainer) {
         MailingReportTable = new FTable('#MailingReportTableContainer', {
-            title: ememails.translate_mailingreport,
+            title: emeadmin.translate_mailingreport,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -280,20 +283,20 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             listQueryParams: () => ({
                 action: "eme_mailingreport_list",
-                eme_admin_nonce: ememails.translate_adminnonce,
+                eme_admin_nonce: emeadmin.translate_adminnonce,
                 mailing_id: parseInt($_GET['id']),
                 search_name: EME.$('#search_name')?.value || ''
             }),
             fields: {
-                receiveremail: { title: ememails.translate_email, visibility: 'hidden' },
-                receivername: { title: ememails.translate_name },
-                status: { title: ememails.translate_status },
-                sent_datetime: { title: ememails.translate_sentdatetime },
-                first_read_on: { title: ememails.translate_first_read_on, visibility: 'hidden' },
-                last_read_on: { title: ememails.translate_last_read_on, visibility: 'hidden' },
-                read_count: { title: ememails.translate_total_readcount },
-                error_msg: { title: ememails.translate_errormessage, visibility: 'hidden', sorting: false },
-                action: { title: ememails.translate_action, listClass: 'eme-wsnobreak', visibility: 'fixed', sorting: false }
+                receiveremail: { title: emeadmin.translate_email, visibility: 'hidden' },
+                receivername: { title: emeadmin.translate_name },
+                status: { title: emeadmin.translate_status },
+                sent_datetime: { title: emeadmin.translate_sentdatetime },
+                first_read_on: { title: emeadmin.translate_first_read_on, visibility: 'hidden' },
+                last_read_on: { title: emeadmin.translate_last_read_on, visibility: 'hidden' },
+                read_count: { title: emeadmin.translate_total_readcount },
+                error_msg: { title: emeadmin.translate_errormessage, visibility: 'hidden', sorting: false },
+                action: { title: emeadmin.translate_action, listClass: 'eme-wsnobreak', visibility: 'fixed', sorting: false }
             }
         });
 
@@ -312,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- ftable: Mails Table ---
     if (MailsTableContainer) {
         MailsTable = new FTable('#MailsTableContainer', {
-            title: ememails.translate_mails,
+            title: emeadmin.translate_mails,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -328,23 +331,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 action: "eme_mails_list",
                 search_text: EME.$('#search_text')?.value || '',
                 search_failed: EME.$('#search_failed')?.checked ? 1 : 0,
-                eme_admin_nonce: ememails.translate_adminnonce
+                eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
-                id: { key: true, width: '1%', columnResizable: false, list: false, title: ememails.translate_id },
-                fromemail: { title: ememails.translate_senderemail, visibility: 'hidden' },
-                fromname: { title: ememails.translate_sendername },
-                receiveremail: { title: ememails.translate_recipientemail },
-                receivername: { title: ememails.translate_recipientname },
-                subject: { title: ememails.translate_subject },
-                status: { title: ememails.translate_status },
-                creation_date: { title: ememails.translate_queueddatetime },
-                sent_datetime: { title: ememails.translate_sentdatetime },
-                first_read_on: { title: ememails.translate_first_read_on, visibility: 'hidden' },
-                last_read_on: { title: ememails.translate_last_read_on, visibility: 'hidden' },
-                read_count: { title: ememails.translate_total_readcount, visibility: 'hidden' },
-                error_msg: { title: ememails.translate_errormessage, visibility: 'hidden', sorting: false },
-                action: { title: ememails.translate_action, listClass: 'eme-wsnobreak', visibility: 'fixed', sorting: false }
+                id: { key: true, width: '1%', columnResizable: false, list: false, title: emeadmin.translate_id },
+                fromemail: { title: emeadmin.translate_senderemail, visibility: 'hidden' },
+                fromname: { title: emeadmin.translate_sendername },
+                receiveremail: { title: emeadmin.translate_recipientemail },
+                receivername: { title: emeadmin.translate_recipientname },
+                subject: { title: emeadmin.translate_subject },
+                status: { title: emeadmin.translate_status },
+                creation_date: { title: emeadmin.translate_queueddatetime },
+                sent_datetime: { title: emeadmin.translate_sentdatetime },
+                first_read_on: { title: emeadmin.translate_first_read_on, visibility: 'hidden' },
+                last_read_on: { title: emeadmin.translate_last_read_on, visibility: 'hidden' },
+                read_count: { title: emeadmin.translate_total_readcount, visibility: 'hidden' },
+                error_msg: { title: emeadmin.translate_errormessage, visibility: 'hidden', sorting: false },
+                action: { title: emeadmin.translate_action, listClass: 'eme-wsnobreak', visibility: 'fixed', sorting: false }
             }
         });
 
@@ -358,15 +361,18 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        EME.$('#MailsActionsButton')?.addEventListener('click', function (e) {
+        EME.$('#MailsActionsButton')?.addEventListener('click', async function (e) {
             e.preventDefault();
             const selectedRows = MailsTable.getSelectedRows();
             const do_action = EME.$('#eme_admin_action_mails').value;
             if (!selectedRows.length || !do_action) return;
 
-            if (do_action === 'deleteMails' && !confirm(ememails.translate_areyousuretodeleteselected)) return;
+            if (do_action === 'deleteMails') {
+                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
+                if (!ok) return;
+            }
 
-            this.textContent = ememails.translate_pleasewait;
+            this.textContent = emeadmin.translate_pleasewait;
             this.disabled = true;
 
             const ids = selectedRows.map(row => row.dataset.recordKey);
@@ -376,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (do_action === 'sendMails') {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = ememails.translate_admin_sendmails_url;
+                form.action = emeadmin.translate_admin_sendmails_url;
                 ['person_ids', 'eme_admin_action'].forEach(key => {
                     const val = key === 'person_ids' ? personids.join() : 'new_mailing';
                     const input = document.createElement('input');
@@ -394,13 +400,13 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('mail_ids', idsjoined);
             formData.append('action', 'eme_manage_mails');
             formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             eme_postJSON(ajaxurl, formData, (data) => {
                 MailsTable.reload();
-                this.textContent = ememails.translate_apply;
+                this.textContent = emeadmin.translate_apply;
                 this.disabled = false;
-                const msg = EME.$('#mails-message');
+                const msg = EME.$('#mails-result');
                 msg.innerHTML = data.htmlmessage;
                 eme_toggle(msg, true);
                 setTimeout(() => eme_toggle(msg, false), 3000);
@@ -411,7 +417,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- ftable: Mailings Table ---
     if (MailingsTableContainer) {
         MailingsTable = new FTable('#MailingsTableContainer', {
-            title: ememails.translate_mailings,
+            title: emeadmin.translate_mailings,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -426,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: "eme_mailings_list",
                 search_text: EME.$('#search_mailingstext')?.value || '',
-                eme_admin_nonce: ememails.translate_adminnonce
+                eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
                 id: {
@@ -436,38 +442,38 @@ document.addEventListener('DOMContentLoaded', function () {
                     list: false,
                 },
                 name: {
-                    title: ememails.translate_mailingname,
+                    title: emeadmin.translate_mailingname,
                 },
                 subject: {
-                    title: ememails.translate_subject,
+                    title: emeadmin.translate_subject,
                 },
                 planned_on: {
-                    title: ememails.translate_planneddatetime,
+                    title: emeadmin.translate_planneddatetime,
                 },
                 creation_date: {
-                    title: ememails.translate_queueddatetime,
+                    title: emeadmin.translate_queueddatetime,
                     visibility: 'hidden',
                 },
                 status: {
-                    title: ememails.translate_status,
+                    title: emeadmin.translate_status,
                 },
                 read_count: {
-                    title: ememails.translate_unique_readcount,
+                    title: emeadmin.translate_unique_readcount,
                     visibility: 'hidden',
                 },
                 total_read_count: {
-                    title: ememails.translate_total_readcount,
+                    title: emeadmin.translate_total_readcount,
                 },
                 extra_info: {
-                    title: ememails.translate_extrainfo,
+                    title: emeadmin.translate_extrainfo,
                     sorting: false
                 },
                 report: {
-                    title: ememails.translate_report,
+                    title: emeadmin.translate_report,
                     sorting: false
                 },
                 action: {
-                    title: ememails.translate_action,
+                    title: emeadmin.translate_action,
                     listClass: 'eme-wsnobreak',
                     visibility: 'fixed',
                     columnResizable: false,
@@ -485,15 +491,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 MailingsTable.load();
             });
         }
-        EME.$('#MailingsActionsButton')?.addEventListener('click', function (e) {
+        EME.$('#MailingsActionsButton')?.addEventListener('click', async function (e) {
             e.preventDefault();
             const selectedRows = MailingsTable.getSelectedRows();
             const do_action = EME.$('#eme_admin_action_mailings').value;
             if (!selectedRows.length || !do_action) return;
 
-            if (do_action === 'deleteMailings' && !confirm(ememails.translate_areyousuretodeleteselected)) return;
+            if (do_action === 'deleteMailings') {
+                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
+                if (!ok) return;
+            }
 
-            this.textContent = ememails.translate_pleasewait;
+            this.textContent = emeadmin.translate_pleasewait;
             this.disabled = true;
 
             const ids = selectedRows.map(row => row.dataset.recordKey);
@@ -503,13 +512,13 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('mailing_ids', idsjoined);
             formData.append('action', 'eme_manage_mailings');
             formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             eme_postJSON(ajaxurl, formData, (data) => {
                 MailingsTable.reload();
-                this.textContent = ememails.translate_apply;
+                this.textContent = emeadmin.translate_apply;
                 this.disabled = false;
-                const msg = EME.$('#mailings-message');
+                const msg = EME.$('#mailings-result');
                 msg.innerHTML = data.htmlmessage;
                 eme_toggle(msg, true);
                 setTimeout(() => eme_toggle(msg, false), 5000);
@@ -520,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- ftable: Archived Mailings Table ---
     if (ArchivedMailingsTableContainer) {
         ArchivedMailingsTable = new FTable('#ArchivedMailingsTableContainer', {
-            title: ememails.translate_archivedmailings,
+            title: emeadmin.translate_archivedmailings,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -535,7 +544,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: "eme_archivedmailings_list",
                 search_text: EME.$('#search_archivedmailingstext')?.value || '',
-                eme_admin_nonce: ememails.translate_adminnonce
+                eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
                 id: {
@@ -545,27 +554,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     list: false,
                 },
                 name: {
-                    title: ememails.translate_mailingname,
+                    title: emeadmin.translate_mailingname,
                 },
                 subject: {
-                    title: ememails.translate_subject,
+                    title: emeadmin.translate_subject,
                 },
                 planned_on: {
-                    title: ememails.translate_planneddatetime,
+                    title: emeadmin.translate_planneddatetime,
                 },
                 read_count: {
-                    title: ememails.translate_unique_readcount,
+                    title: emeadmin.translate_unique_readcount,
                     visibility: 'hidden',
                 },
                 total_read_count: {
-                    title: ememails.translate_total_readcount,
+                    title: emeadmin.translate_total_readcount,
                 },
                 extra_info: {
-                    title: ememails.translate_extrainfo,
+                    title: emeadmin.translate_extrainfo,
                     sorting: false
                 },
                 action: {
-                    title: ememails.translate_action,
+                    title: emeadmin.translate_action,
                     listClass: 'eme-wsnobreak',
                     visibility: 'fixed',
                     columnResizable: false,
@@ -584,15 +593,18 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
-        EME.$('#ArchivedMailingsActionsButton')?.addEventListener('click', function (e) {
+        EME.$('#ArchivedMailingsActionsButton')?.addEventListener('click', async function (e) {
             e.preventDefault();
             const selectedRows = ArchivedMailingsTable.getSelectedRows();
             const do_action = EME.$('#eme_admin_action_archivedmailings').value;
             if (!selectedRows.length || !do_action) return;
 
-            if (do_action === 'deleteArchivedMailings' && !confirm(ememails.translate_areyousuretodeleteselected)) return;
+            if (do_action === 'deleteArchivedMailings') {
+                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
+                if (!ok) return;
+            }
 
-            this.textContent = ememails.translate_pleasewait;
+            this.textContent = emeadmin.translate_pleasewait;
             this.disabled = true;
 
             const ids = selectedRows.map(row => row.dataset.recordKey);
@@ -602,13 +614,13 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('mailing_ids', idsjoined);
             formData.append('action', 'eme_manage_archivedmailings');
             formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', ememails.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             eme_postJSON(ajaxurl, formData, (data) => {
                 ArchivedMailingsTable.reload();
-                this.textContent = ememails.translate_apply;
+                this.textContent = emeadmin.translate_apply;
                 this.disabled = false;
-                const msg = EME.$('#archivedmailings-message');
+                const msg = EME.$('#archivedmailings-result');
                 msg.innerHTML = data.htmlmessage;
                 eme_toggle(msg, true);
                 setTimeout(() => eme_toggle(msg, false), 5000);
@@ -617,13 +629,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     initSnapSelectRemote('select.eme_snapselect_events_class', {
-        placeholder: ememails.translate_selectevents,
+        placeholder: emeadmin.translate_selectevents,
         showClearButton: true,
         data: function(search, page) {
             return {
                 action: 'eme_events_snapselect',
                 search_all: EME.$('#eventsearch_all')?.checked ? 1 : 0,
-                eme_admin_nonce: ememails.translate_adminnonce
+                eme_admin_nonce: emeadmin.translate_adminnonce
             };
         }
     });

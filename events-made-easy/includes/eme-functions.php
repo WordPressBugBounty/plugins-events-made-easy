@@ -112,7 +112,7 @@ function eme_client_clock_ajax() {
     }
 
     // client cookie lifetime = 0 (the session)
-    // the cookie is stored using wp_json_encode and not eme_serialize, to avoid for Object Injection
+    // the cookie is stored using wp_json_encode and not eme_json_encode_safe, to avoid for Object Injection
     // See https://www.owasp.org/index.php/PHP_Object_Injection
     setcookie( 'eme_client_time', wp_json_encode( $client_timeinfo ), 0, COOKIEPATH, COOKIE_DOMAIN );
     echo $ret; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- fixed 0 or 1
@@ -188,7 +188,6 @@ function eme_captcha_generate( $file ) {
     // give image back
     header( 'Content-type: image/gif' );
     imagegif( $im );
-    imagedestroy( $im );
     exit;
 }
 
@@ -196,7 +195,8 @@ function eme_load_captcha_html() {
     $captcha_id  = "eme_".eme_random_id(); // JS selectors need to start with a letter, so to be sure we prefix it
     $captcha_url = eme_captcha_url( $captcha_id );
     if ( $captcha_url ) {
-        $replacement = "<input type='hidden' name='eme_captcha_id' value='$captcha_id'><img class='eme-captcha-img' src='$captcha_url'><br><input required='required' type='text' name='captcha_check' id='captcha_check' autocomplete='off' class='nodynamicupdates'>";
+        $replacement = '<p>' . __( 'Please enter the displayed code.', 'events-made-easy' ) . '</p>';
+        $replacement .= "<input type='hidden' name='eme_captcha_id' value='$captcha_id'><img class='eme-captcha-img' src='$captcha_url'><br><input required='required' type='text' name='captcha_check' id='captcha_check' autocomplete='off' class='nodynamicupdates'>";
     } else {
         $replacement = __( 'Problem while generating the captcha, please check with the site administrator', 'events-made-easy' );
     }
@@ -462,11 +462,14 @@ function eme_check_captcha( $properties = [], $remove_captcha_if_ok = 0 ) {
     return $captcha_res;
 }
 
-function eme_generate_captchas_html($selected_captcha = '') {
+function eme_generate_captchas_html($selected_captcha = '', $eme_captcha_only_logged_out = null) {
     if ( eme_is_admin_request() ) {
         return '';
     }
-    if ( get_option( 'eme_captcha_only_logged_out' ) && is_user_logged_in() ) {
+    if ( is_null($eme_captcha_only_logged_out)) {
+        $eme_captcha_only_logged_out = get_option( 'eme_captcha_only_logged_out' );
+    }
+    if ( $eme_captcha_only_logged_out && is_user_logged_in() ) {
         return '';
     }
 
@@ -480,9 +483,11 @@ function eme_generate_captchas_html($selected_captcha = '') {
         if (function_exists($captcha_function))
             return $captcha_function();
     }
+    return '';
 }
 
-function eme_add_captcha_submit( $format, $captcha = '', $add_dyndata = 0 ) {
+function eme_add_missing_placeholders( $format, $add_captcha = 0, $add_dyndata = 0 ) {
+
     if ( $add_dyndata && ! preg_match( '/#_DYNAMICDATA/', $format ) ) {
         $text = '#_DYNAMICDATA';
         if ( preg_match( '/#_SUBMIT/', $format ) ) {
@@ -491,23 +496,22 @@ function eme_add_captcha_submit( $format, $captcha = '', $add_dyndata = 0 ) {
             $format .= $text;
         }
     }
+
     $configured_captchas = eme_get_configured_captchas();
-    if (empty($configured_captchas)) {
-        $captcha = "";
-    } elseif (!empty($captcha) && !array_key_exists($captcha, $configured_captchas)) {
-        $captcha = array_key_first($configured_captchas);
-    }
-    if ( !empty($captcha) && ! preg_match( '/#_CFCAPTCHA|#_HCAPTCHA|#_RECAPTCHA|#_CAPTCHA/', $format ) ) {
-        if ($captcha == 'captcha')
-            $captcha_text = '<p>' . __( 'Please enter the displayed code.', 'events-made-easy' ) . '</p> #_CAPTCHA';
-        else
-            $captcha_text = '#_CAPTCHA';
+    if ( $add_captcha && !empty($configured_captchas) && !preg_match( '/#_CFCAPTCHA|#_HCAPTCHA|#_RECAPTCHA|#_CAPTCHA/', $format ) ) {
+        $captcha_text = '#_CAPTCHA';
         if ( preg_match( '/#_SUBMIT/', $format ) ) {
             $format = preg_replace( '/#_SUBMIT/', "$captcha_text<br>#_SUBMIT", $format );
         } else {
             $format .= $captcha_text;
         }
     }
+    if ( preg_match( '/#_CAPTCHAHTML\{.*\}/s', $format ) ) {
+        $format = $add_captcha && !empty($configured_captchas)
+            ? preg_replace( '/#_CAPTCHAHTML\{(.*?)\}/s', '$1', $format )
+            : preg_replace( '/#_CAPTCHAHTML\{(.*?)\}/s', '', $format );
+    }
+
     if ( ! preg_match( '/#_SUBMIT/', $format ) ) {
         $format .= '<br>#_SUBMIT';
     }
@@ -2860,15 +2864,28 @@ function eme_drop_table( $table ) {
     $wpdb->query( "DROP TABLE IF EXISTS $table" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 }
 
-function eme_add_index_if_not_exists( $table_name, $column, $index_name='' ) {
+function eme_add_index_if_not_exists( $table_name, $columns, $index_name = '' ) {
     global $wpdb;
 
-    if (empty($index_name)) $index_name=$column;
-    // Check if index exists using SHOW INDEX
-    $exists = $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM `$table_name` WHERE Key_name = %s", $index_name ) );
-    if ( ! $exists ) {
-        $wpdb->query( "ALTER TABLE `$table_name` ADD INDEX `$index_name` ( `$column` )" );
+    // Handle both string (single column) and array (multiple columns)
+    if ( is_string( $columns ) ) {
+        $columns = array( $columns );
     }
+
+    // Generate index name if not provided
+    if ( empty( $index_name ) ) {
+        $index_name = implode( '_', $columns );
+    }
+
+    // Check if index exists using SHOW INDEX
+    $exists = $wpdb->get_var( $wpdb->prepare( "SHOW INDEX FROM `$table_name` WHERE Key_name = %s", $index_name) );
+
+    if ( ! $exists ) {
+        $columns_sql = '`' . implode( '`, `', $columns ) . '`';
+        $wpdb->query( "ALTER TABLE `$table_name` ADD INDEX `$index_name` ( $columns_sql )" );
+        return true;
+    }
+    return false;
 }
 
 function eme_convert_charset( $table, $charset, $collate ) {
@@ -3520,7 +3537,6 @@ function eme_ajax_record_edit( $tablename, $cap, $id_column, $record, $record_fu
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
     }
 
-    //Return result to jTable
     print wp_json_encode( $fTableResult );
     wp_die();
 }
@@ -3854,17 +3870,24 @@ function eme_is_serialized( $data ) {
 
 // the function is called serialize, but in fact prefers to do json_encde for security
 function eme_serialize( $data ) {
-    if ( !eme_is_serialized( $data )) {
-        return json_encode( $data );
-    } elseif (is_serialized( $data )) {
-        $data = unserialize( $data, ['allowed_classes' => false] );
-        return json_encode( $data );
-    } else {
+    return eme_json_encode_safe( $data );
+}
+function eme_json_encode_safe( $data ) {
+    // If it's already a JSON string, return it directly
+    if ( eme_isjson( $data ) ) {
         return $data;
     }
+    // If it's a serialized PHP string, convert to JSON
+    if ( is_serialized( $data ) ) {
+        $data = unserialize( $data, ['allowed_classes' => false] );
+    }
+    return json_encode( $data );
 }
 
 function eme_unserialize( $data ) {
+    return eme_json_decode_safe( $data );
+}
+function eme_json_decode_safe( $data ) {
     if ( is_serialized( $data ) ) {
         return unserialize( $data, ['allowed_classes' => false] );
     } elseif (eme_isjson($data)) {
@@ -3943,7 +3966,6 @@ function eme_generate_qrcode( $url_to_encode, $targetBasePath, $targetBaseUrl, $
         $qr = QRCode::getMinimumQRCode( $url_to_encode, $qr_error_level );
         $im = $qr->createImage( $real_size );
         imagegif( $im, $target_file );
-        imagedestroy( $im );
     } else {
         $target_file = $targetBasePath . '/' . basename( $existing_file );
         $target_url  = $targetBaseUrl . '/' . basename( $existing_file );
@@ -3961,12 +3983,12 @@ function eme_check_access( $post_id ) {
             $eme_membershipids = isset( $custom_values['eme_membershipids'] ) ? $custom_values['eme_membershipids'][0] : '';
             $eme_groupids      = isset( $custom_values['eme_groupids'] ) ? $custom_values['eme_groupids'][0] : '';
             if ( eme_is_serialized( $eme_membershipids ) ) {
-                $page_membershipids = eme_unserialize( $eme_membershipids );
+                $page_membershipids = eme_json_decode_safe( $eme_membershipids );
             } else {
                 $page_membershipids = [];
             }
             if ( eme_is_serialized( $eme_groupids ) ) {
-                $page_groupids = eme_unserialize( $eme_groupids );
+                $page_groupids = eme_json_decode_safe( $eme_groupids );
             } else {
                 $page_groupids = [];
             }
@@ -4494,4 +4516,16 @@ function eme_message_ok_div($message) {
 }
 function eme_message_error_div($message) {
     return "<div class='notice notice-error eme-message-admin is-dismissible'><p>" .$message.'</p></div>';
+}
+
+function eme_apply_output_filters( $replacement, $target, $esc_html = false ) {
+    if ( $target == 'html' ) {
+        if ( $esc_html ) {
+            $replacement = esc_html( $replacement );
+        }
+        return apply_filters( 'eme_general', $replacement );
+    } elseif ( $target == 'rss' ) {
+        return apply_filters( 'the_content_rss', $replacement );
+    }
+    return apply_filters( 'eme_text', $replacement );
 }

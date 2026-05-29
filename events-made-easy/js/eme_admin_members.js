@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Initialize Memberships Table ---
     if (MembershipsTableContainer) {
         MembershipsTable = new FTable('#MembershipsTableContainer', {
-            title: ememembers.translate_memberships,
+            title: emeadmin.translate_memberships,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -19,24 +19,24 @@ document.addEventListener('DOMContentLoaded', function () {
             actions: { listAction: ajaxurl },
             listQueryParams: () => ({
                 action: 'eme_memberships_list',
-                eme_admin_nonce: ememembers.translate_adminnonce
+                eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
                 membership_id: {
                     key: true,
-                    title: ememembers.translate_id,
+                    title: emeadmin.translate_id,
                     width: '1%',
                     columnResizable: false,
                     visibility: 'hidden'
                 },
                 name: {
-                    title: ememembers.translate_name
+                    title: emeadmin.translate_name
                 },
                 description: {
-                    title: ememembers.translate_description
+                    title: emeadmin.translate_description
                 },
                 membercount: {
-                    title: ememembers.translate_membercount,
+                    title: emeadmin.translate_membercount,
                     sorting: false
                 }
             }
@@ -48,16 +48,19 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Memberships Bulk Actions ---
     const membershipsButton = EME.$('#MembershipsActionsButton');
     if (membershipsButton) {
-        membershipsButton.addEventListener('click', function (e) {
+        membershipsButton.addEventListener('click', async function (e) {
             e.preventDefault();
             const selectedRows = MembershipsTable.getSelectedRows();
             const doAction = EME.$('#eme_admin_action').value;
 
             if (selectedRows.length === 0 || !doAction) return;
 
-            if (['deleteMemberships'].includes(doAction) && !confirm(ememembers.translate_areyousuretodeleteselected)) return;
+            if (doAction === 'deleteMemberships') {
+                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
+                if (!ok) return;
+            }
 
-            membershipsButton.textContent = ememembers.translate_pleasewait;
+            membershipsButton.textContent = emeadmin.translate_pleasewait;
             membershipsButton.disabled = true;
 
             const ids = selectedRows.map(row => row.dataset.recordKey);
@@ -67,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('membership_id', idsJoined);
             formData.append('action', 'eme_manage_memberships');
             formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', ememembers.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             eme_postJSON(ajaxurl, formData, (data) => {
                 if (data.Result === 'ERROR') {
@@ -77,8 +80,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     MembershipsTable.showInfo(data.htmlmessage);
                 }
-                MembershipsTable.reload();
-                membershipsButton.textContent = ememembers.translate_apply;
+                if (doAction !== 'showMembershipStats') {
+                    MembershipsTable.reload();
+                }
+                membershipsButton.textContent = emeadmin.translate_apply;
                 membershipsButton.disabled = false;
             });
         });
@@ -91,137 +96,137 @@ document.addEventListener('DOMContentLoaded', function () {
                 key: true,
                 width: '1%',
                 columnResizable: false,
-                title: ememembers.translate_memberid,
+                title: emeadmin.translate_memberid,
                 visibility: 'hidden'
             },
             lastname: {
-                title: ememembers.translate_lastname
+                title: emeadmin.translate_lastname
             },
             firstname: {
-                title: ememembers.translate_firstname
+                title: emeadmin.translate_firstname
             },
             email: {
-                title: ememembers.translate_email
+                title: emeadmin.translate_email
             },
             related_member_id: {
-                title: ememembers.translate_related_to,
+                title: emeadmin.translate_related_to,
                 visibility: 'hidden'
             },
             address1: {
-                title: ememembers.translate_address1,
+                title: emeadmin.translate_address1,
                 visibility: 'hidden'
             },
             address2: {
-                title: ememembers.translate_address2,
+                title: emeadmin.translate_address2,
                 visibility: 'hidden'
             },
             city: {
-                title: ememembers.translate_city,
+                title: emeadmin.translate_city,
                 visibility: 'hidden'
             },
             zip: {
-                title: ememembers.translate_zip,
+                title: emeadmin.translate_zip,
                 visibility: 'hidden'
             },
             state: {
-                title: ememembers.translate_state,
+                title: emeadmin.translate_state,
                 visibility: 'hidden'
             },
             country: {
-                title: ememembers.translate_country,
+                title: emeadmin.translate_country,
                 visibility: 'hidden'
             },
             birthdate: {
-                title: ememembers.translate_birthdate,
+                title: emeadmin.translate_birthdate,
                 visibility: 'hidden'
             },
             birthplace: {
-                title: ememembers.translate_birthplace,
+                title: emeadmin.translate_birthplace,
                 visibility: 'hidden'
             },
             membership_name: {
-                title: ememembers.translate_membership,
+                title: emeadmin.translate_membership,
                 visibility: 'hidden'
             },
             membershipprice: {
-                title: ememembers.translate_membershipprice,
+                title: emeadmin.translate_membershipprice,
                 visibility: 'hidden',
                 sorting: false
             },
             discount: {
-                title: ememembers.translate_discount,
+                title: emeadmin.translate_discount,
                 sorting: false,
                 visibility: 'hidden'
             },
             dcodes_used: {
-                title: ememembers.translate_dcodes_used,
+                title: emeadmin.translate_dcodes_used,
                 sorting: false,
                 visibility: 'hidden'
             },
             totalprice: {
-                title: ememembers.translate_totalprice,
+                title: emeadmin.translate_totalprice,
                 visibility: 'hidden',
                 sorting: false
             },
             start_date: {
-                title: ememembers.translate_startdate,
+                title: emeadmin.translate_startdate,
                 visibility: 'hidden'
             },
             end_date: {
-                title: ememembers.translate_enddate,
+                title: emeadmin.translate_enddate,
                 visibility: 'hidden'
             },
             usage_count: {
-                title: ememembers.translate_usage_count,
+                title: emeadmin.translate_usage_count,
                 visibility: 'hidden',
                 sorting: false
             },
             creation_date: {
-                title: ememembers.translate_registrationdate,
+                title: emeadmin.translate_registrationdate,
                 visibility: 'hidden'
             },
             last_seen: {
-                title: ememembers.translate_last_seen,
+                title: emeadmin.translate_last_seen,
                 visibility: 'hidden'
             },
             paid: {
-                title: ememembers.translate_paid,
+                title: emeadmin.translate_paid,
                 visibility: 'hidden'
             },
             unique_nbr: {
-                title: ememembers.translate_uniquenbr,
+                title: emeadmin.translate_uniquenbr,
                 visibility: 'hidden'
             },
             payment_date: {
-                title: ememembers.translate_paymentdate,
+                title: emeadmin.translate_paymentdate,
                 visibility: 'hidden'
             },
             pg: {
-                title: ememembers.translate_pg,
+                title: emeadmin.translate_pg,
                 visibility: 'hidden'
             },
             pg_pid: {
-                title: ememembers.translate_pg_pid,
+                title: emeadmin.translate_pg_pid,
                 visibility: 'hidden'
             },
             payment_id: {
-                title: ememembers.translate_paymentid,
+                title: emeadmin.translate_paymentid,
                 visibility: 'hidden'
             },
             reminder_date: {
-                title: ememembers.translate_lastreminder,
+                title: emeadmin.translate_lastreminder,
                 visibility: 'hidden'
             },
             reminder: {
-                title: ememembers.translate_nbrreminder,
+                title: emeadmin.translate_nbrreminder,
                 visibility: 'hidden'
             },
             status: {
-                title: ememembers.translate_status,
+                title: emeadmin.translate_status,
                 visibility: 'hidden'
             },
             wp_user: {
-                title: ememembers.translate_wpuser,
+                title: emeadmin.translate_wpuser,
                 sorting: false,
                 visibility: 'hidden'
             }
@@ -247,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         MembersTable = new FTable('#MembersTableContainer', {
-            title: ememembers.translate_members,
+            title: emeadmin.translate_members,
             paging: true,
             sorting: true,
             sortingResetButton: true,
@@ -261,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
             actions: { listAction: ajaxurl },
             listQueryParams: () => ({
                 action: 'eme_members_list',
-                eme_admin_nonce: ememembers.translate_adminnonce,
+                eme_admin_nonce: emeadmin.translate_adminnonce,
                 search_person: eme_getValue(EME.$('#search_person')),
                 search_memberstatus: eme_getValue(EME.$('#search_memberstatus')),
                 search_membershipids: eme_getValue(EME.$('#search_membershipids')),
@@ -354,16 +359,19 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Bulk Actions ---
     const membersButton = EME.$('#MembersActionsButton');
     if (membersButton) {
-        membersButton.addEventListener('click', function (e) {
+        membersButton.addEventListener('click', async function (e) {
             e.preventDefault();
             const selectedRows = MembersTable.getSelectedRows();
             const doAction = EME.$('#eme_admin_action').value;
 
             if (selectedRows.length === 0 || !doAction) return;
 
-            if (['deleteMembers'].includes(doAction) && !confirm(ememembers.translate_areyousuretodeleteselected)) return;
+            if (['deleteMembers'].includes(doAction)) {
+                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
+                if (!ok) return;
+            }
 
-            membersButton.textContent = ememembers.translate_pleasewait;
+            membersButton.textContent = emeadmin.translate_pleasewait;
             membersButton.disabled = true;
 
             const ids = selectedRows.map(row => row.dataset.recordKey);
@@ -383,12 +391,12 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('html_template', EME.$('#html_template')?.value || '');
             formData.append('html_template_header', EME.$('#html_template_header')?.value || '');
             formData.append('html_template_footer', EME.$('#html_template_footer')?.value || '');
-            formData.append('eme_admin_nonce', ememembers.translate_adminnonce);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
 
             if (doAction === 'sendMails') {
                 const form = document.createElement('form');
                 form.method = 'POST';
-                form.action = ememembers.translate_admin_sendmails_url;
+                form.action = emeadmin.translate_admin_sendmails_url;
                 ['member_ids', 'eme_admin_action'].forEach(key => {
                     const val = key === 'member_ids' ? idsJoined : 'new_mailing';
                     const input = document.createElement('input');
@@ -416,7 +424,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 document.body.appendChild(form);
                 form.submit();
-                membersButton.textContent = ememembers.translate_apply;
+                membersButton.textContent = emeadmin.translate_apply;
                 membersButton.disabled = false;
                 return;
             }
@@ -430,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     MembersTable.showInfo(data.htmlmessage);
                 }
                 MembersTable.reload();
-                membersButton.textContent = ememembers.translate_apply;
+                membersButton.textContent = emeadmin.translate_apply;
                 membersButton.disabled = false;
             });
         });
@@ -460,7 +468,7 @@ document.addEventListener('DOMContentLoaded', function () {
             data: function(search, page) {
                 return {
                     action:          'eme_chooseperson_snapselect',
-                    eme_admin_nonce: ememembers.translate_adminnonce,
+                    eme_admin_nonce: emeadmin.translate_adminnonce,
                 };
             },
             onItemAdd: function(value, text) {
@@ -500,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
             data: function(search, page) {
                 return {
                     action:            'eme_memberperson_snapselect',
-                    eme_admin_nonce:   ememembers.translate_adminnonce,
+                    eme_admin_nonce:   emeadmin.translate_adminnonce,
                     exclude_personid:  this.dataset.personId    || '',
                     membership_id:     this.dataset.membershipId || '',
                     related_member_id: this.dataset.memberId     || '',
@@ -518,7 +526,7 @@ document.addEventListener('DOMContentLoaded', function () {
             data: function(search, page) {
                 return {
                     action:          'eme_membermainaccount_snapselect',
-                    eme_admin_nonce: ememembers.translate_adminnonce,
+                    eme_admin_nonce: emeadmin.translate_adminnonce,
                     member_id:       this.dataset.memberId     || '',
                     membership_id:   this.dataset.membershipId || '',
                 };
@@ -575,7 +583,7 @@ document.addEventListener('DOMContentLoaded', function () {
             'search_customfieldids': eme_getValue(EME.$('#search_customfieldids')),
             'search_exactmatch': exactmatch,
             'action': 'eme_store_members_query',
-            'eme_admin_nonce': ememembers.translate_adminnonce,
+            'eme_admin_nonce': emeadmin.translate_adminnonce,
             'dynamicgroupname': EME.$('#dynamicgroupname').value
         };
 
@@ -605,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function () {
     eme_admin_init_attachment_ui('#paid_attach_button', '#paid_attach_links', '#eme_paid_attach_ids', '#paid_remove_attach_button');
 
     // --- Delete a dyndata occurrence block from the admin member-edit form ---
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', async function (e) {
         if (!e.target.matches('.eme_delete_dyndata_occurence')) return;
 
         const block     = e.target.closest('.eme_dyndata_occurence_block');
@@ -613,15 +621,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const occurence = block.dataset.occurence;
         const memberId  = block.dataset.memberId;
 
-        const confirmMsg = ememembers.translate_areyousure_group;
-        if (!confirm(confirmMsg)) return;
+        const confirmMsg = emeadmin.translate_areyousure_group;
+        const ok = await FTable.confirm(emeadmin.translate_confirmdelete, confirmMsg);
+        if (!ok) return;
 
         e.target.disabled    = true;
         e.target.textContent = '…';
 
         const fd = new FormData();
         fd.append('action',          'eme_delete_dyndata_occurence');
-        fd.append('eme_admin_nonce', ememembers.translate_adminnonce);
+        fd.append('eme_admin_nonce', emeadmin.translate_adminnonce);
         fd.append('member_id',       memberId);
         fd.append('grouping',        grouping);
         fd.append('occurence',       occurence);
@@ -650,7 +659,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Update the visible label
                 const lbl = b.querySelector('.eme_dyndata_occurence_label');
                 if (lbl) {
-                    const base = ememembers.translate_occurrence || 'Occurrence';
+                    const base = emeadmin.translate_occurrence || 'Occurrence';
                     lbl.textContent = base + ' ' + (idx + 1);
                 }
 

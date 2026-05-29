@@ -314,6 +314,405 @@ function eme_replace_email_event_placeholders( $format, $email, $lastname, $firs
     return $format;
 }
 
+function eme_get_people_placeholder_handler_definitions() {
+    static $handlers = [];
+    if ( ! empty( $handlers ) ) {
+        return $handlers;
+    }
+
+    $handlers = [
+        '/#_ID/' => function( $result, $matches, $ctx ) {
+            if (!empty($ctx['person']['person_id']))
+                return intval( $ctx['person']['person_id'] );
+            return '';
+        },
+        '/#_WPID/' => function( $result, $matches, $ctx ) {
+            return intval( $ctx['person']['wp_id'] );
+        },
+        '/#_FULLNAME/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_(NAME|LASTNAME|FIRSTNAME|ZIP|POSTAL|CITY|ADDRESS1|ADDRESS2|PHONE|BIRTHPLACE)$/' => function( $result, $matches, $ctx ) {
+            $field = str_replace( '#_', '', $result );
+            $field = strtolower( $field );
+            if ( $field == 'name' ) {
+                $field = 'lastname';
+            }
+            if ( $field == 'postal' ) {
+                $field = 'zip';
+            }
+            $replacement = $ctx['person'][ $field ];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_BIRTHDATE$/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_date( $ctx['person']['birthdate'], EME_TIMEZONE, 1 );
+            return eme_apply_output_filters( $replacement, $ctx['target'] );
+        },
+        '/#_EMAIL$/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['person']['email'];
+            if ( $ctx['target'] == 'html' ) {
+                $replacement = eme_email_obfuscate( $replacement, $ctx['orig_target'] );
+            }
+            return eme_apply_output_filters( $replacement, $ctx['target'] );
+        },
+        '/#_FIRSTNAME\{(.+)\}/' => function( $result, $matches, $ctx ) {
+            $length = intval( $matches[1] );
+            $replacement = substr( $ctx['person']['firstname'], 0, $length );
+            $replacement .= ( substr( $replacement, -1 ) == '.' ? '' : '.' );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_LASTNAME\{(.+)\}/' => function( $result, $matches, $ctx ) {
+            $length = intval( $matches[1] );
+            $replacement = substr( $ctx['person']['lastname'], 0, $length );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_INITIALS/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $fullname = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
+            $replacement = eme_get_initials( $fullname );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_LASTNAME_INITIALS/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_get_initials( $ctx['person']['lastname'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_COUNTRY/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_get_country_name( $ctx['person']['country_code'], $ctx['lang'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_STATE/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = eme_get_state_name( $person['state_code'], $person['country_code'], $ctx['lang'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_GROUPS/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if (!empty($person['person_id']))
+                $replacement = join( ', ', eme_get_persongroup_names( $person['person_id'] ) );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_MEMBERSHIPS/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if (!empty($person['person_id']))
+                $replacement = eme_get_activemembership_names_by_personid( $person['person_id'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/^#_IS_PERSON_MEMBER_OF\{(.+?)\}$/' => function( $result, $matches, $ctx ) {
+            $memberships = $matches[1];
+            $active_membershipids = eme_get_active_membershipids_by_personid( $ctx['person']['person_id'] );
+            $memberships_arr = explode( ',', $memberships );
+            foreach ( $memberships_arr as $membership_t ) {
+                if (!is_numeric($membership_t)) {
+                    $membership = eme_get_membership( $membership_t );
+                    if ($membership) {
+                        $membership_id = $membership['membership_id'];
+                    } else {
+                        $membership_id = 0;
+                    }
+                } else {
+                    $membership_id = $membership_t;
+                }
+                if ( !empty($membership_id) && in_array($membership_id, $active_membershipids) ) {
+                    return 1;
+                }
+            }
+            return 0;
+        },
+        '/^#_IS_PERSON_IN_GROUP\{(.+?)\}$/' => function( $result, $matches, $ctx ) {
+            $groups = $matches[1];
+            $groupids_arr = explode( ',', $groups );
+            $person_groupids = eme_get_persongroup_ids( $ctx['person']['person_id'] );
+            if ( ! empty($person_groupids ) ) {
+                $res_intersect = array_intersect( $person_groupids, $groupids_arr );
+            } else {
+                $res_intersect = 0;
+            }
+            if ( !empty( $res_intersect ) ) {
+                return 1;
+            }
+            return 0;
+        },
+        '/#_BIRTHDAY_EMAIL/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['person']['bd_email'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_MASSMAIL|#_OPT_IN|#_OPT_OUT/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['person']['massmail'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_GDPR|#_CONSENT/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['person']['gdpr'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_IMAGETITLE$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $info = eme_get_wp_image( $person['properties']['image_id'] );
+                if (!empty($info)) {
+                    $replacement = $info['title'];
+                    return eme_apply_output_filters( $replacement, $ctx['target'] );
+                }
+            }
+            return '';
+        },
+        '/#_IMAGEALT$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $info = eme_get_wp_image( $person['properties']['image_id'] );
+                if (!empty($info)) {
+                    $replacement = $info['alt'];
+                    return eme_apply_output_filters( $replacement, $ctx['target'] );
+                }
+            }
+            return '';
+        },
+        '/#_IMAGECAPTION$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $info = eme_get_wp_image( $person['properties']['image_id'] );
+                if (!empty($info)) {
+                    $replacement = $info['caption'];
+                    return eme_apply_output_filters( $replacement, $ctx['target'] );
+                }
+            }
+            return '';
+        },
+        '/#_IMAGEDESCRIPTION$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $info = eme_get_wp_image( $person['properties']['image_id'] );
+                if (!empty($info)) {
+                    $replacement = $info['description'];
+                    return eme_apply_output_filters( $replacement, $ctx['target'] );
+                }
+            }
+            return '';
+        },
+        '/#_IMAGE$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $replacement = wp_get_attachment_image( $person['properties']['image_id'], 'full', 0, [ 'class' => 'eme_person_image' ] );
+                if (empty($replacement)) {
+                    $replacement = "";
+                }
+                return eme_apply_output_filters( $replacement, $ctx['target'] );
+            }
+            return '';
+        },
+        '/#_IMAGEURL$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $replacement = wp_get_attachment_image_url( $person['properties']['image_id'], 'full' );
+                if (empty($replacement)) {
+                    $replacement = "";
+                }
+                if ( $ctx['target'] == 'html' ) {
+                    $replacement = esc_url( $replacement );
+                }
+                return $replacement;
+            }
+            return '';
+        },
+        '/#_IMAGETHUMB(\{.+?\})?$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if ( isset( $matches[1] ) ) {
+                $thumb_size = substr( $matches[1], 1, -1 );
+            } else {
+                $thumb_size = get_option( 'eme_thumbnail_size' );
+            }
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $replacement = wp_get_attachment_image( $person['properties']['image_id'], $thumb_size, 0, [ 'class' => 'eme_person_image' ] );
+                if (empty($replacement)) {
+                    $replacement = "";
+                }
+                return eme_apply_output_filters( $replacement, $ctx['target'] );
+            }
+            return '';
+        },
+        '/#_IMAGETHUMBURL(\{.+?\})?/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if ( isset( $matches[1] ) ) {
+                $thumb_size = substr( $matches[1], 1, -1 );
+            } else {
+                $thumb_size = get_option( 'eme_thumbnail_size' );
+            }
+            if ( ! empty( $person['properties']['image_id'] ) ) {
+                $replacement = wp_get_attachment_image_url( $person['properties']['image_id'], $thumb_size );
+                if (empty($replacement)) {
+                    $replacement = "";
+                }
+                if ( $ctx['target'] == 'html' ) {
+                    $replacement = esc_url( $replacement );
+                }
+                return $replacement;
+            }
+            return '';
+        },
+        '/#_INVITEURL\{(.+)\}/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $event = eme_get_event( $matches[1] );
+            if ( ! empty( $event ) ) {
+                $replacement = eme_invite_url( $event, $person['email'], $person['lastname'], $person['firstname'], $ctx['lang'] );
+                if ( $ctx['target'] == 'html' ) {
+                    $replacement = esc_url( $replacement );
+                }
+                return $replacement;
+            }
+            return '';
+        },
+        '/#_DBFIELD\{(.+)\}/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $tmp_attkey = $matches[1];
+            if ( isset( $person[ $tmp_attkey ] ) && ! is_array( $person[ $tmp_attkey ] ) ) {
+                $replacement = $person[ $tmp_attkey ];
+                $replacement = eme_translate( $replacement, $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_PERSONAL_FILES/' => function( $result, $matches, $ctx ) {
+            $res_files = [];
+            foreach ( $ctx['files'] as $file ) {
+                if ( $ctx['target'] == 'html' ) {
+                    $res_files[] = eme_get_uploaded_file_html( $file );
+                } else {
+                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
+                }
+            }
+            if ( $ctx['target'] == 'html' ) {
+                return join( '<br>', $res_files );
+            }
+            return join( "\n", $res_files );
+        },
+        '/#_FIELDNAME\{(.+)\}/' => function( $result, $matches, $ctx ) {
+            $field_key = $matches[1];
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) ) {
+                $replacement = eme_translate( $formfield['field_name'], $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return null;
+        },
+        '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/' => function( $result, $matches, $ctx ) {
+            $target = $ctx['target'];
+            $field_key = $matches[2];
+            if ( isset( $matches[3] ) ) {
+                $sep = substr( $matches[3], 1, -1 );
+            } else {
+                $sep = '||';
+            }
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'people' ) {
+                $field_id      = $formfield['field_id'];
+                $field_replace = '';
+                foreach ( $ctx['answers'] as $answer ) {
+                    if ( $answer['field_id'] == $field_id ) {
+                        if ( $matches[1] == 'VALUE' ) {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
+                        } else {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
+                        }
+                        $field_replace = eme_apply_output_filters( $field_replace, $target );
+                        break;
+                    }
+                }
+                foreach ( $ctx['files'] as $file ) {
+                    if ( $file['field_id'] == $field_id ) {
+                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
+                            if ( $target == 'html' ) {
+                                $field_replace .= esc_url($file['url']) ;
+                            } else {
+                                $field_replace .= $file['url'] ;
+                            }
+                        } else {
+                            if ( $target == 'html' ) {
+                                $field_replace .= eme_get_uploaded_file_html( $file ) . '<br>';
+                            } else {
+                                $field_replace .= $file['name'] . ' [' . $file['url'] . ']' . "\n";
+                            }
+                        }
+                    }
+                }
+                return eme_translate( $field_replace, $ctx['lang'] );
+            }
+            return null;
+        },
+        '/#_NICKNAME$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( $person['wp_id'] > 0 ) {
+                $user = get_userdata( $person['wp_id'] );
+                if ( $user ) {
+                    $replacement = $user->user_nicename;
+                }
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_DISPNAME$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if ( $person['wp_id'] > 0 ) {
+                $user = get_userdata( $person['wp_id'] );
+                if ( $user ) {
+                    $replacement = $user->display_name;
+                }
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_RANDOMID$/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if ( empty( $person['random_id'] ) && !empty($person['person_id']) ) {
+                $person['random_id'] = eme_random_id();
+                $person_id           = eme_db_update_person( $person['person_id'], $person );
+            }
+            $my_nonce = wp_create_nonce( 'eme_frontend' );
+            $replacement = $person['random_id']."&eme_frontend_nonce=$my_nonce";
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_FAMILYCOUNT/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            if (!empty($person['person_id'])) {
+                $familymember_person_ids = eme_get_family_person_ids( $person['person_id'] );
+                if ( ! empty( $familymember_person_ids ) ) {
+                    return count( $familymember_person_ids );
+                }
+                return 0;
+            }
+            return '';
+        },
+        '/#_FAMILYMEMBERS/' => function( $result, $matches, $ctx ) {
+            $person = $ctx['person'];
+            $replacement = '';
+            if (!empty($person['person_id'])) {
+                $familymember_person_ids = eme_get_family_person_ids( $person['person_id'] );
+                if ( ! empty( $familymember_person_ids ) ) {
+                    $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
+                    foreach ( $familymember_person_ids as $familymember_person_id ) {
+                        $related_person = eme_get_person( $familymember_person_id );
+                        if ( $related_person ) {
+                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( eme_format_full_name( $related_person['firstname'], $related_person['lastname'], $related_person['email'] ) ) . "</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'>" . esc_html( $related_person['email'] ) . '</td></tr>';
+                        }
+                    }
+                    $replacement .= '</table>';
+                }
+            }
+            return $replacement;
+        },
+    ];
+
+    return $handlers;
+}
+
 function eme_replace_people_placeholders( $format, $person, $target = 'html', $lang = '', $do_shortcode = 1 ) {
     $orig_target  = $target;
     if ( $target == 'htmlmail' || $target == 'html_nohtml2br' ) {
@@ -338,6 +737,8 @@ function eme_replace_people_placeholders( $format, $person, $target = 'html', $l
     // now the generic placeholders
     $format = eme_replace_generic_placeholders( $format, $target );
 
+    $ph_handlers = eme_get_people_placeholder_handler_definitions();
+
     $needle_offset = 0;
     preg_match_all( '/#(ESC|URL)?@?_?[A-Za-z0-9_]+(\{(?>[^{}]+|(?2))*\})*+/', $format, $placeholders, PREG_OFFSET_CAPTURE );
     foreach ( $placeholders[0] as $orig_result ) {
@@ -345,7 +746,7 @@ function eme_replace_people_placeholders( $format, $person, $target = 'html', $l
         $orig_result_needle = $orig_result[1] - $needle_offset;
         $orig_result_length = strlen( $orig_result[0] );
         $replacement                = '';
-        $found                      = 1;
+        $found                      = 0;
         $need_escape                = 0;
         $need_urlencode             = 0;
 
@@ -360,462 +761,24 @@ function eme_replace_people_placeholders( $format, $person, $target = 'html', $l
         # support for ATTEND, RESP and PERSON
         $result = preg_replace( '/#_ATTEND(_)?|#_RESP(_)?|#_PERSON(_)?/', '#_', $result );
 
-        if ( preg_match( '/#_ID/', $result ) ) {
-            if (!empty($person['person_id']))
-                $replacement = intval( $person['person_id'] );
-        } elseif ( preg_match( '/#_WPID/', $result ) ) {
-            $replacement = intval( $person['wp_id'] );
-        } elseif ( preg_match( '/#_FULLNAME/', $result ) ) {
-            $replacement = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_(NAME|LASTNAME|FIRSTNAME|ZIP|POSTAL|CITY|ADDRESS1|ADDRESS2|PHONE|BIRTHPLACE)$/', $result ) ) {
-            $field = str_replace( '#_', '', $result );
-            $field = strtolower( $field );
-            if ( $field == 'name' ) {
-                $field = 'lastname';
-            }
-            if ( $field == 'postal' ) {
-                $field = 'zip';
-            }
-            $replacement = $person[ $field ];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_BIRTHDATE$/', $result ) ) {
-            $replacement = eme_localized_date( $person['birthdate'], EME_TIMEZONE, 1 );
-            if ( $target == 'html' ) {
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_EMAIL$/', $result ) ) {
-            $replacement = $person['email'];
-            if ( $target == 'html' ) {
-                $replacement = eme_email_obfuscate( $replacement, $orig_target );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_FIRSTNAME\{(.+)\}/', $result, $matches ) ) {
-            $length      = intval( $matches[1] );
-            $replacement = substr( $person['firstname'], 0, $length );
-            // add trailing '.'
-            $replacement .= ( substr( $replacement, -1 ) == '.' ? '' : '.' );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_LASTNAME\{(.+)\}/', $result, $matches ) ) {
-            $length      = intval( $matches[1] );
-            $replacement = substr( $person['lastname'], 0, $length );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_INITIALS/', $result ) ) {
-            $fullname    = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
-            $replacement = eme_get_initials( $fullname );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_LASTNAME_INITIALS/', $result ) ) {
-            $replacement = eme_get_initials( $person['lastname'] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_COUNTRY/', $result ) ) {
-            $replacement = eme_get_country_name( $person['country_code'], $lang );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_STATE/', $result ) ) {
-            $replacement = eme_get_state_name( $person['state_code'], $person['country_code'], $lang );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_GROUPS/', $result ) ) {
-            if (!empty($person['person_id']))
-                $replacement = join( ', ', eme_get_persongroup_names( $person['person_id'] ) );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_MEMBERSHIPS/', $result ) ) {
-            if (!empty($person['person_id']))
-                $replacement = eme_get_activemembership_names_by_personid( $person['person_id'] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/^#_IS_PERSON_MEMBER_OF\{(.+?)\}$/', $result, $matches ) ) {
-            $memberships = $matches[1];
-            $replacement = 0;
-            $active_membershipids = eme_get_active_membershipids_by_personid( $person['person_id'] );
-            $memberships_arr = explode( ',', $memberships );
-            foreach ( $memberships_arr as $membership_t ) {
-                if (!is_numeric($membership_t)) {
-                    $membership = eme_get_membership( $membership_t );
-                    if ($membership) {
-                        $membership_id = $membership['membership_id'];
-                    } else {
-                        $membership_id = 0;
-                    }
-                } else {
-                    $membership_id = $membership_t;
+        $ctx = [
+            'person' => $person,
+            'target' => $target,
+            'orig_target' => $orig_target,
+            'lang' => $lang,
+            'answers' => $answers,
+            'files' => $files,
+            'need_escape' => $need_escape,
+            'need_urlencode' => $need_urlencode,
+        ];
+        foreach ( $ph_handlers as $pattern => $handler ) {
+            if ( preg_match( $pattern, $result, $matches ) ) {
+                $replacement = $handler( $result, $matches, $ctx );
+                if ( $replacement !== null ) {
+                    $found = 1;
                 }
-                if ( !empty($membership_id) && in_array($membership_id, $active_membershipids) ) {
-                    $replacement = 1;
-                    break;
-                }
+                break;
             }
-        } elseif ( preg_match( '/^#_IS_PERSON_IN_GROUP\{(.+?)\}$/', $result, $matches ) ) {
-            $groups = $matches[1];
-            $replacement = 0;
-            $people_table = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-            $groupids_arr = explode( ',', $groups );
-            $person_groupids = eme_get_persongroup_ids( $person['person_id'] );
-            if ( ! empty($person_groupids ) ) {
-                $res_intersect = array_intersect( $person_groupids, $groupids_arr );
-            } else {
-                $res_intersect = 0;
-            }
-            if ( !empty( $res_intersect ) ) {
-                $replacement = 1;
-            }
-        } elseif ( preg_match( '/#_BIRTHDAY_EMAIL/', $result ) ) {
-            $replacement = $person['bd_email'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_MASSMAIL|#_OPT_IN|#_OPT_OUT/', $result ) ) {
-            $replacement = $person['massmail'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_GDPR|#_CONSENT/', $result ) ) {
-            $replacement = $person['gdpr'] ? __( 'Yes', 'events-made-easy' ) : __( 'No', 'events-made-easy' );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_IMAGETITLE$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $info = eme_get_wp_image( $person['properties']['image_id'] );
-                if (!empty($info)) {
-                    $replacement = $info['title'];
-                    if ( $target == 'html' ) {
-                        $replacement = apply_filters( 'eme_general', $replacement );
-                    } elseif ( $target == 'rss' ) {
-                        $replacement = apply_filters( 'the_content_rss', $replacement );
-                    } else {
-                        $replacement = apply_filters( 'eme_text', $replacement );
-                    }
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGEALT$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $info = eme_get_wp_image( $person['properties']['image_id'] );
-                if (!empty($info)) {
-                    $replacement = $info['alt'];
-                    if ( $target == 'html' ) {
-                        $replacement = apply_filters( 'eme_general', $replacement );
-                    } elseif ( $target == 'rss' ) {
-                        $replacement = apply_filters( 'the_content_rss', $replacement );
-                    } else {
-                        $replacement = apply_filters( 'eme_text', $replacement );
-                    }
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGECAPTION$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $info = eme_get_wp_image( $person['properties']['image_id'] );
-                if (!empty($info)) {
-                    $replacement = $info['caption'];
-                    if ( $target == 'html' ) {
-                        $replacement = apply_filters( 'eme_general', $replacement );
-                    } elseif ( $target == 'rss' ) {
-                        $replacement = apply_filters( 'the_content_rss', $replacement );
-                    } else {
-                        $replacement = apply_filters( 'eme_text', $replacement );
-                    }
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGEDESCRIPTION$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $info = eme_get_wp_image( $person['properties']['image_id'] );
-                if (!empty($info)) {
-                    $replacement = $info['description'];
-                    if ( $target == 'html' ) {
-                        $replacement = apply_filters( 'eme_general', $replacement );
-                    } elseif ( $target == 'rss' ) {
-                        $replacement = apply_filters( 'the_content_rss', $replacement );
-                    } else {
-                        $replacement = apply_filters( 'eme_text', $replacement );
-                    }
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGE$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $replacement = wp_get_attachment_image( $person['properties']['image_id'], 'full', 0, [ 'class' => 'eme_person_image' ] );
-                if (empty($replacement)) {
-                    $replacement = "";
-                }
-                if ( $target == 'html' ) {
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } elseif ( $target == 'rss' ) {
-                    $replacement = apply_filters( 'the_content_rss', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGEURL$/', $result ) ) {
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $replacement = wp_get_attachment_image_url( $person['properties']['image_id'], 'full' );
-                if (empty($replacement)) {
-                    $replacement = "";
-                }
-                if ( $target == 'html' ) {
-                    $replacement = esc_url( $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGETHUMB(\{.+?\})?$/', $result, $matches ) ) {
-            if ( isset( $matches[1] ) ) {
-                // remove { and } (first and last char of second match)
-                $thumb_size = substr( $matches[1], 1, -1 );
-            } else {
-                $thumb_size = get_option( 'eme_thumbnail_size' );
-            }
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $replacement = wp_get_attachment_image( $person['properties']['image_id'], $thumb_size, 0, [ 'class' => 'eme_person_image' ] );
-                if (empty($replacement)) {
-                    $replacement = "";
-                }
-                if ( $target == 'html' ) {
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } elseif ( $target == 'rss' ) {
-                    $replacement = apply_filters( 'the_content_rss', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_IMAGETHUMBURL(\{.+?\})?/', $result, $matches ) ) {
-            if ( isset( $matches[1] ) ) {
-                // remove { and } (first and last char of second match)
-                $thumb_size = substr( $matches[1], 1, -1 );
-            } else {
-                $thumb_size = get_option( 'eme_thumbnail_size' );
-            }
-            if ( ! empty( $person['properties']['image_id'] ) ) {
-                $replacement = wp_get_attachment_image_url( $person['properties']['image_id'], $thumb_size );
-                if (empty($replacement)) {
-                    $replacement = "";
-                }
-                if ( $target == 'html' ) {
-                    $replacement = esc_url( $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_INVITEURL\{(.+)\}/', $result, $matches ) ) {
-            $event = eme_get_event( $matches[1] );
-            if ( ! empty( $event ) ) {
-                $replacement = eme_invite_url( $event, $person['email'], $person['lastname'], $person['firstname'], $lang );
-                if ( $target == 'html' ) {
-                    $replacement = esc_url( $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_DBFIELD\{(.+)\}/', $result, $matches ) ) {
-            $tmp_attkey = $matches[1];
-            if ( isset( $person[ $tmp_attkey ] ) && ! is_array( $person[ $tmp_attkey ] ) ) {
-                $replacement = $person[ $tmp_attkey ];
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( eme_translate( $replacement, $lang ) );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } elseif ( $target == 'rss' ) {
-                    $replacement = eme_translate( $replacement, $lang );
-                    $replacement = apply_filters( 'the_content_rss', $replacement );
-                } else {
-                    $replacement = eme_translate( $replacement, $lang );
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_PERSONAL_FILES/', $result ) ) {
-            $res_files = [];
-            foreach ( $files as $file ) {
-                if ( $target == 'html' ) {
-                    $res_files[] = eme_get_uploaded_file_html( $file );
-                } else {
-                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
-                }
-            }
-            if ( $target == 'html' ) {
-                $replacement = join( '<br>', $res_files );
-            } else {
-                $replacement = join( "\n", $res_files );
-            }
-        } elseif ( preg_match( '/#_FIELDNAME\{(.+)\}/', $result, $matches ) ) {
-            $field_key = $matches[1];
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) ) {
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( eme_translate( $formfield['field_name'], $lang ) );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = eme_translate( $formfield['field_name'], $lang );
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            } else {
-                $found = 0;
-            }
-        } elseif ( preg_match( '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/', $result, $matches ) ) {
-            $field_key = $matches[2];
-            if ( isset( $matches[3] ) ) {
-                // remove { and } (first and last char of second match)
-                $sep = substr( $matches[3], 1, -1 );
-            } else {
-                $sep = '||';
-            }
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'people' ) {
-                $field_id      = $formfield['field_id'];
-                $field_replace = '';
-                foreach ( $answers as $answer ) {
-                    if ( $answer['field_id'] == $field_id ) {
-                        if ( $matches[1] == 'VALUE' ) {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
-                        } else {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
-                        }
-                        if ( $target == 'html' ) {
-                            $field_replace = apply_filters( 'eme_general', $field_replace );
-                        } else {
-                            $field_replace = apply_filters( 'eme_text', $field_replace );
-                        }
-                        break;
-                    }
-                }
-                foreach ( $files as $file ) {
-                    if ( $file['field_id'] == $field_id ) {
-                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
-                            // for file, we can show the url. For multifile this would not make any sense
-                            if ( $target == 'html' ) {
-                                $field_replace .= esc_url($file['url']) ;
-                            } else {
-                                $field_replace .= $file['url'] ;
-                            }
-                        } else {
-                            if ( $target == 'html' ) {
-                                $field_replace .= eme_get_uploaded_file_html( $file ) . '<br>';
-                            } else {
-                                $field_replace .= $file['name'] . ' [' . $file['url'] . ']' . "\n";
-                            }
-                        }
-                    }
-                }
-                $replacement = eme_translate( $field_replace, $lang );
-            } else {
-                // no people custom field? Then leave it alone
-                $found = 0;
-            }
-        } elseif ( preg_match( '/#_NICKNAME$/', $result ) ) {
-            if ( $person['wp_id'] > 0 ) {
-                $user = get_userdata( $person['wp_id'] );
-                if ( $user ) {
-                    $replacement = $user->user_nicename;
-                }
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( $replacement );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_DISPNAME$/', $result ) ) {
-            if ( $person['wp_id'] > 0 ) {
-                $user = get_userdata( $person['wp_id'] );
-                if ( $user ) {
-                    $replacement = $user->display_name;
-                }
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( $replacement );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_RANDOMID$/', $result ) ) {
-            // if random id is empty, create one
-            if ( empty( $person['random_id'] ) && !empty($person['person_id']) ) {
-                $person['random_id'] = eme_random_id();
-                $person_id           = eme_db_update_person( $person['person_id'], $person );
-            }
-            $my_nonce = wp_create_nonce( 'eme_frontend' );
-            $replacement = $person['random_id']."&eme_frontend_nonce=$my_nonce";
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_FAMILYCOUNT/', $result ) ) {
-            if (!empty($person['person_id'])) {
-                $familymember_person_ids = eme_get_family_person_ids( $person['person_id'] );
-                if ( ! empty( $familymember_person_ids ) ) {
-                    $replacement = count( $familymember_person_ids );
-                } else {
-                    $replacement = 0;
-                }
-            }
-        } elseif ( preg_match( '/#_FAMILYMEMBERS/', $result ) ) {
-            if (!empty($person['person_id'])) {
-                $familymember_person_ids = eme_get_family_person_ids( $person['person_id'] );
-                if ( ! empty( $familymember_person_ids ) ) {
-                    $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
-                    foreach ( $familymember_person_ids as $familymember_person_id ) {
-                        $related_person = eme_get_person( $familymember_person_id );
-                        if ( $related_person ) {
-                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( eme_format_full_name( $related_person['firstname'], $related_person['lastname'], $related_person['email'] ) ) . "</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'>" . esc_html( $related_person['email'] ) . '</td></tr>';
-                        }
-                    }
-                    $replacement .= '</table>';
-                }
-            }
-        } else {
-            $found = 0;
         }
 
         if ( $found ) {
@@ -1398,7 +1361,7 @@ function eme_csv_booking_report( $event_id ) {
             }
             if ( ! empty( $booking['discountids'] ) ) {
                 if ( eme_is_serialized( $booking['discountids'] ) ) {
-                    $applied_discounts = eme_unserialize( $booking['discountids'] );
+                    $applied_discounts = eme_json_decode_safe( $booking['discountids'] );
                     $applied_discountids = array_keys($applied_discounts);
                 } else {
                     $applied_discountids = explode( ',', $booking['discountids'] );
@@ -1719,7 +1682,7 @@ function eme_printable_booking_report( $event_id ) {
         }
         if ( ! empty( $booking['discountids'] ) ) {
             if ( eme_is_serialized( $booking['discountids'] ) ) {
-                $applied_discounts = eme_unserialize( $booking['discountids'] );
+                $applied_discounts = eme_json_decode_safe( $booking['discountids'] );
                 $applied_discountids = array_keys($applied_discounts);
             } else {
                 $applied_discountids = explode( ',', $booking['discountids'] );
@@ -2133,7 +2096,7 @@ function eme_render_people_searchfields( $limit_to_group = 0, $group_to_edit = [
     if ( ! empty( $group_to_edit ) ) {
         $edit_group   = 1;
         $id_prefix    = 'edit_';
-        $search_terms = eme_unserialize( $group_to_edit['search_terms'] );
+        $search_terms = eme_json_decode_safe( $group_to_edit['search_terms'] );
         // just to make sure ...
         $limit_to_group = 0;
     } else {
@@ -2141,7 +2104,7 @@ function eme_render_people_searchfields( $limit_to_group = 0, $group_to_edit = [
         $id_prefix  = '';
         if ($limit_to_group) {
             $tmp_group = eme_get_group($limit_to_group);
-            $search_terms = eme_unserialize( $tmp_group['search_terms'] );
+            $search_terms = eme_json_decode_safe( $tmp_group['search_terms'] );
         }
     }
 
@@ -3036,7 +2999,7 @@ function eme_get_person_by_email( $email ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $people_table WHERE email = %s AND status=" . EME_PEOPLE_STATUS_ACTIVE . ' LIMIT 1', $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared
     $res     = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $res ) {
-        $res['properties'] = eme_init_person_props( eme_unserialize( $res['properties'] ) );
+        $res['properties'] = eme_init_person_props( eme_json_decode_safe( $res['properties'] ) );
     }
     return $res;
 }
@@ -3053,7 +3016,7 @@ function eme_get_person_by_email_only( $email ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $people_table WHERE lastname = '' AND firstname = '' AND email = %s AND status=" . EME_PEOPLE_STATUS_ACTIVE . ' ORDER BY wp_id DESC LIMIT 1', $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared
     $res     = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $res ) {
-        $res['properties'] = eme_init_person_props( eme_unserialize( $res['properties'] ) );
+        $res['properties'] = eme_init_person_props( eme_json_decode_safe( $res['properties'] ) );
     }
     return $res;
 }
@@ -3084,7 +3047,7 @@ function eme_get_person_by_name_and_email( $lastname, $firstname, $email, $skip_
         $res = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     }
     if ( $res ) {
-        $res['properties'] = eme_init_person_props( eme_unserialize( $res['properties'] ) );
+        $res['properties'] = eme_init_person_props( eme_json_decode_safe( $res['properties'] ) );
     }
     return $res;
 }
@@ -3186,7 +3149,7 @@ function eme_get_person_by_wp_id( $wp_id ) {
             $person['firstname'] = $firstname;
         }
         $person['email'] = $email;
-        $person['properties'] = eme_init_person_props( eme_unserialize( $person['properties'] ) );
+        $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
     } else {
         // imagine there is no user yet, but someone matching with this info (lastname, firstname, email), then we add the wp id to that existing user
         $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
@@ -3229,7 +3192,7 @@ function eme_get_person_by_randomid( $random_id ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $people_table WHERE random_id = %s LIMIT 1", $random_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $person       = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $person ) {
-        $person['properties'] = eme_init_person_props( eme_unserialize( $person['properties'] ) );
+        $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
     }
     return $person;
 }
@@ -3240,7 +3203,7 @@ function eme_get_person( $person_id ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $people_table WHERE person_id = %d LIMIT 1", $person_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $person       = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $person ) {
-        $person['properties'] = eme_init_person_props( eme_unserialize( $person['properties'] ) );
+        $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
     }
     return $person;
 }
@@ -3443,7 +3406,7 @@ function eme_get_group( $group_id ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $groups_table WHERE group_id = %d", $group_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $res          = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $res !== false && ! empty( $res ) && ! empty( $res['search_terms'] ) ) {
-        $res['search_terms'] = eme_unserialize( $res['search_terms'] );
+        $res['search_terms'] = eme_json_decode_safe( $res['search_terms'] );
     }
     return $res;
 }
@@ -3454,7 +3417,7 @@ function eme_get_group_by_name( $name ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $groups_table WHERE name = %s LIMIT 1", $name ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $res          = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $res !== false && ! empty( $res ) && ! empty( $res['search_terms'] ) ) {
-        $res['search_terms'] = eme_unserialize( $res['search_terms'] );
+        $res['search_terms'] = eme_json_decode_safe( $res['search_terms'] );
     }
     return $res;
 }
@@ -3465,7 +3428,7 @@ function eme_get_group_by_email( $email ) {
     $prepared_sql = $wpdb->prepare( "SELECT * FROM $groups_table WHERE email = %s LIMIT 1", $email ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $res          = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     if ( $res !== false && ! empty( $res ) && ! empty( $res['search_terms'] ) ) {
-        $res['search_terms'] = eme_unserialize( $res['search_terms'] );
+        $res['search_terms'] = eme_json_decode_safe( $res['search_terms'] );
     }
     return $res;
 }
@@ -3810,7 +3773,7 @@ function eme_get_persons( $person_ids = '', $extra_search = '', $limit = '', $or
 
     $persons = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     foreach ( $persons as $key => $person ) {
-        $person['properties'] = eme_init_person_props( eme_unserialize( $person['properties'] ) );
+        $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
         $persons[ $key ]      = $person;
     }
     return $persons;
@@ -3878,7 +3841,7 @@ function eme_get_groups_person_emails( $group_ids, $massmail_only=1 ) {
     $dynamic_groups = $wpdb->get_results( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     foreach ( $dynamic_groups as $dynamic_group ) {
         if ( ! empty( $dynamic_group['search_terms'] ) ) {
-            $search_terms = eme_unserialize( $dynamic_group['search_terms'] );
+            $search_terms = eme_json_decode_safe( $dynamic_group['search_terms'] );
             if ( $dynamic_group['type'] == 'dynamic_members' ) {
                 $sql = eme_get_sql_members_searchfields( search_terms: $search_terms, emails_only: 1, where_arr: [$massmail_sql] );
             }
@@ -3944,7 +3907,7 @@ function eme_get_groups_person_ids( $group_ids, $extra_sql = '' ) {
     $dynamic_groups = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     foreach ( $dynamic_groups as $dynamic_group ) {
         if ( ! empty( $dynamic_group['search_terms'] ) ) {
-            $search_terms = eme_unserialize( $dynamic_group['search_terms'] );
+            $search_terms = eme_json_decode_safe( $dynamic_group['search_terms'] );
             if ( $dynamic_group['type'] == 'dynamic_members' ) {
                 $sql = eme_get_sql_members_searchfields( search_terms: $search_terms, peopleids_only: 1, where_arr: [$extra_sql] );
             }
@@ -3979,7 +3942,7 @@ function eme_get_groups_member_ids( $group_ids ) {
     $res            = [];
     foreach ( $dynamic_groups as $dynamic_group ) {
         if ( ! empty( $dynamic_group['search_terms'] ) ) {
-            $search_terms = eme_unserialize( $dynamic_group['search_terms'] );
+            $search_terms = eme_json_decode_safe( $dynamic_group['search_terms'] );
             $sql          = eme_get_sql_members_searchfields( search_terms: $search_terms, memberids_only: 1 );
         } else {
             $sql = 'SELECT members.member_id ' . $dynamic_group['stored_sql']; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -4018,14 +3981,14 @@ function eme_db_insert_person( $line ) {
     }
 
     // some properties validation: only image_id or wp_delete_user as int is allowed
-    $props                  = eme_unserialize( $new_line['properties'] );
+    $props                  = eme_json_decode_safe( $new_line['properties'] );
     $new_line['properties'] = [];
     foreach ( $props as $key => $val ) {
         if ( $key == 'image_id' || $key == 'wp_delete_user' ) {
             $new_line['properties'][ $key ] = intval( $val );
         }
     }
-    $new_line['properties'] = eme_serialize( $new_line['properties'] );
+    $new_line['properties'] = eme_json_encode_safe( $new_line['properties'] );
 
     if ( empty( $new_line['creation_date'] ) || ! ( eme_is_date( $new_line['creation_date'] ) || eme_is_datetime( $new_line['creation_date'] ) ) ) {
         $new_line['creation_date'] = current_time( 'mysql', false );
@@ -4082,17 +4045,17 @@ function eme_db_update_person( $person_id, $line ) {
     // we need to do this since this function is also called for csv import
     $keys                   = array_intersect_key( $line, $person );
     $new_line               = array_merge( $person, $keys );
-    $new_line['properties'] = eme_serialize( $new_line['properties'] );
+    $new_line['properties'] = eme_json_encode_safe( $new_line['properties'] );
 
     // some properties validation: only image_id or wp_delete_user as int is allowed
-    $props                  = eme_unserialize( $new_line['properties'] );
+    $props                  = eme_json_decode_safe( $new_line['properties'] );
     $new_line['properties'] = [];
     foreach ( $props as $key => $val ) {
         if ( $key == 'image_id' || $key == 'wp_delete_user' ) {
             $new_line['properties'][ $key ] = intval( $val );
         }
     }
-    $new_line['properties'] = eme_serialize( $new_line['properties'] );
+    $new_line['properties'] = eme_json_encode_safe( $new_line['properties'] );
 
     $new_line['modif_date'] = current_time( 'mysql', false );
 
@@ -4298,7 +4261,7 @@ function eme_add_update_group( $group_id = 0 ) {
             $search_terms[ $search_field ] = eme_sanitize_request( $_POST[ $search_field ] );
         }
     }
-    $group['search_terms'] = eme_serialize( $search_terms );
+    $group['search_terms'] = eme_json_encode_safe( $search_terms );
 
     // let's check if the email is unique
     if ( ! eme_is_empty_string( $_POST['email'] ) && eme_is_email( $_POST['email'] ) ) {
@@ -5374,7 +5337,7 @@ function eme_ajax_people_list( ) {
     $fTableResult = [];
     $limit        = eme_get_ftable_limit();
     $orderby      = eme_get_ftable_orderby();
-    $search_terms = eme_unserialize(eme_sanitize_request($_POST));
+    $search_terms = eme_json_decode_safe(eme_sanitize_request($_POST));
     $count_sql    = eme_get_sql_people_searchfields( $search_terms, 1 );
     $sql          = eme_get_sql_people_searchfields( $search_terms );
     $recordCount  = $wpdb->get_var( $count_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -5506,7 +5469,7 @@ function eme_ajax_groups_list() {
         if ( $group['type'] == 'dynamic_people' ) {
             $record['groupcount'] = esc_html__( 'Dynamic group of people', 'events-made-easy' );
             if ( ! empty( $group['search_terms'] ) ) {
-                $search_terms = eme_unserialize( $group['search_terms'] );
+                $search_terms = eme_json_decode_safe( $group['search_terms'] );
                 $count_sql    = eme_get_sql_people_searchfields( $search_terms, 1 );
                 $count        = $wpdb->get_var( $count_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
                 if ( $count > 0 ) {
@@ -5517,7 +5480,7 @@ function eme_ajax_groups_list() {
         } elseif ( $group['type'] == 'dynamic_members' ) {
             $record['groupcount'] = esc_html__( 'Dynamic group of members', 'events-made-easy' );
             if ( ! empty( $group['search_terms'] ) ) {
-                $search_terms = eme_unserialize( $group['search_terms'] );
+                $search_terms = eme_json_decode_safe( $group['search_terms'] );
                 $count_sql    = eme_get_sql_members_searchfields( search_terms: $search_terms, count: 1 );
                 $count        = $wpdb->get_var( $count_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
                 if ( $count > 0 ) {
@@ -5682,7 +5645,7 @@ function eme_ajax_store_people_query() {
                 $search_terms[ $search_field ] = eme_sanitize_request( $_POST[ $search_field ] );
             }
         }
-        $group['search_terms'] = eme_serialize( $search_terms );
+        $group['search_terms'] = eme_json_encode_safe( $search_terms );
         $new_group_id = eme_db_insert_group($group);
         if ($new_group_id) {
             $fTableResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Dynamic group added', 'events-made-easy' ) . '</p></div>';

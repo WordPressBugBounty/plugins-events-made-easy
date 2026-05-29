@@ -259,7 +259,7 @@ function eme_db_insert_membership( $membership ) {
     global $wpdb;
     $table = EME_DB_PREFIX . EME_MEMBERSHIPS_TBNAME;
     if ( ! eme_is_serialized( $membership['properties'] ) ) {
-        $membership['properties'] = eme_serialize( $membership['properties'] );
+        $membership['properties'] = eme_json_encode_safe( $membership['properties'] );
     }
     $membership['modif_date'] = current_time( 'mysql', false );
     if ( ! $wpdb->insert( $table, $membership ) ) {
@@ -297,10 +297,10 @@ function eme_db_insert_member( $line, $membership, $member_id = 0 ) {
     $member['modif_date']    = $member['creation_date'];
     $member['membership_id'] = $membership['membership_id'];
 
-    // eme_serialize if needed
-    $member['dcodes_entered'] = eme_serialize( $member['dcodes_entered'] );
-    $member['dcodes_used']    = eme_serialize( $member['dcodes_used'] );
-    $member['properties']     = eme_serialize( $member['properties'] );
+    // eme_json_encode_safe if needed
+    $member['dcodes_entered'] = eme_json_encode_safe( $member['dcodes_entered'] );
+    $member['dcodes_used']    = eme_json_encode_safe( $member['dcodes_used'] );
+    $member['properties']     = eme_json_encode_safe( $member['properties'] );
 
     // add the memberid if wanted
     if ( ! empty( $member_id ) ) {
@@ -345,10 +345,10 @@ function eme_db_update_member( $member_id, $line, $membership, $update_answers =
     // make sure we always have the correct membership id
     $member['membership_id'] = $membership['membership_id'];
 
-    // eme_serialize if needed
-    $member['dcodes_entered'] = eme_serialize( $member['dcodes_entered'] );
-    $member['dcodes_used']    = eme_serialize( $member['dcodes_used'] );
-    $member['properties']     = eme_serialize( $member['properties'] );
+    // eme_json_encode_safe if needed
+    $member['dcodes_entered'] = eme_json_encode_safe( $member['dcodes_entered'] );
+    $member['dcodes_used']    = eme_json_encode_safe( $member['dcodes_used'] );
+    $member['properties']     = eme_json_encode_safe( $member['properties'] );
 
     if ( ! empty( $member ) && $wpdb->update( $table, $member, $where ) === false ) {
         return false;
@@ -384,7 +384,7 @@ function eme_db_update_membership( $membership_id, $line ) {
     $new_line = array_merge( $membership, $keys );
 
     if ( ! eme_is_serialized( $new_line['properties'] ) ) {
-        $new_line['properties'] = eme_serialize( $new_line['properties'] );
+        $new_line['properties'] = eme_json_encode_safe( $new_line['properties'] );
     }
 
     if ( ! empty( $new_line ) && $wpdb->update( $table, $new_line, $where ) === false ) {
@@ -467,7 +467,7 @@ function eme_get_memberships( $exclude_id = 0 ) {
     }
     $memberships = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     foreach ( $memberships as $key => $membership ) {
-        $membership['properties'] = eme_init_membership_props( eme_unserialize( $membership['properties'] ) );
+        $membership['properties'] = eme_init_membership_props( eme_json_decode_safe( $membership['properties'] ) );
         $memberships[ $key ]      = $membership;
     }
     return $memberships;
@@ -488,7 +488,7 @@ function eme_get_membership( $id ) {
     if ( $membership === false ) {
         $membership = $wpdb->get_row( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         if ( $membership ) {
-            $membership['properties'] = eme_init_membership_props( eme_unserialize( $membership['properties'] ) );
+            $membership['properties'] = eme_init_membership_props( eme_json_decode_safe( $membership['properties'] ) );
             wp_cache_set( "eme_membership $id", $membership, '', 15 );
         }
     }
@@ -707,16 +707,16 @@ function eme_get_member_by_personid_membershipid( $person_id, $membership_id ) {
 function eme_get_extra_member_data( $member ) {
     if ( ! empty( $member ) ) {
         if ( eme_is_serialized( $member['dcodes_used'] ) ) {
-            $member['dcodes_used'] = eme_unserialize( $member['dcodes_used'] );
+            $member['dcodes_used'] = eme_json_decode_safe( $member['dcodes_used'] );
         } else {
             $member['dcodes_used'] = [];
         }
         if ( eme_is_serialized( $member['dcodes_entered'] ) ) {
-            $member['dcodes_entered'] = eme_unserialize( $member['dcodes_entered'] );
+            $member['dcodes_entered'] = eme_json_decode_safe( $member['dcodes_entered'] );
         } else {
             $member['dcodes_entered'] = [];
         }
-        $member['properties'] = eme_init_member_props( eme_unserialize( $member['properties'] ) );
+        $member['properties'] = eme_init_member_props( eme_json_decode_safe( $member['properties'] ) );
     }
     return $member;
 }
@@ -4016,10 +4016,10 @@ function eme_member_recalculate_status( $member_id = 0 ) {
     }
     $rows = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     foreach ( $rows as $item ) {
-        $properties        = eme_init_membership_props( eme_unserialize( $item['properties'] ) );
+        $properties        = eme_init_membership_props( eme_json_decode_safe( $item['properties'] ) );
         $status_calculated = eme_member_calc_status( $item['start_date'], $item['end_date'], $item['duration_period'], $properties['grace_period'] );
         if ($properties['max_usage_count'] > 0 ) {
-            $memberprops = eme_unserialize( $item['memberprops'] );
+            $memberprops = eme_json_decode_safe( $item['memberprops'] );
             if ($memberprops['usage_count'] >= $properties['max_usage_count'] ) {
                 $status_calculated = EME_MEMBER_STATUS_EXPIRED;
             }
@@ -4346,7 +4346,7 @@ function eme_renew_expired_member( $member, $pg = '', $pg_pid = '' ) {
 
     // also set the usage_count propertie to 0
     $member['properties']['usage_count'] = 0;
-    $fields['properties'] = eme_serialize( $member['properties'] );
+    $fields['properties'] = eme_json_encode_safe( $member['properties'] );
 
     // now update
     $res = $wpdb->update( $table, $fields, $where );
@@ -4979,12 +4979,12 @@ function eme_access_meta_box_cb( $post ) {
     $access_denied_tpl      = ! empty( $custom_values['eme_access_denied'] ) ? intval( $custom_values['eme_access_denied'][0] ) : 0;
     $drip_counter           = ! empty( $custom_values['eme_drip_counter'] ) ? intval( $custom_values['eme_drip_counter'][0] ) : 0;
     if ( eme_is_serialized( $selected_membershipids ) ) {
-        $selected_membershipids_arr = eme_unserialize( $selected_membershipids );
+        $selected_membershipids_arr = eme_json_decode_safe( $selected_membershipids );
     } else {
         $selected_membershipids_arr = [ $selected_membershipids ];
     }
     if ( eme_is_serialized( $selected_groupids ) ) {
-        $selected_groupids_arr = eme_unserialize( $selected_groupids );
+        $selected_groupids_arr = eme_json_decode_safe( $selected_groupids );
     } else {
         $selected_groupids_arr = [ $selected_groupids ];
     }
@@ -5212,6 +5212,479 @@ function eme_add_member_ajax() {
     wp_die();
 }
 
+function eme_get_member_placeholder_handler_definitions() {
+    static $handlers = [];
+    if ( ! empty( $handlers ) ) {
+        return $handlers;
+    }
+
+    $handlers = [
+        '/#_ID/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['member']['member_id'];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_TOTALDISCOUNT$/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            if ( $ctx['need_escape'] ) {
+                return $member['discount'];
+            }
+            return eme_localized_price( $member['discount'], $ctx['membership']['properties']['currency'], $ctx['target'] );
+        },
+        '/#_APPLIEDDISCOUNTNAMES$/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $replacement = '';
+            if ( ! empty( $member['discountids'] ) ) {
+                if ( eme_is_serialized( $member['discountids'] ) ) {
+                    $applied_discounts = eme_json_decode_safe( $member['discountids'] );
+                    $applied_discountids = array_keys($applied_discounts);
+                } else {
+                    $applied_discountids = explode( ',', $member['discountids'] );
+                }
+                $discount_names = [];
+                foreach ( $applied_discountids as $discount_id ) {
+                    $discount = eme_get_discount( $discount_id );
+                    if ( $discount && isset( $discount['name'] ) ) {
+                        $discount_names[] = esc_html( $discount['name'] );
+                    } else {
+                        $discount_names[] = sprintf( __( 'Applied discount %d no longer exists', 'events-made-easy' ), $discount_id );
+                    }
+                }
+                $replacement = join( ', ', $discount_names );
+                return eme_apply_output_filters( $replacement, $ctx['target'] );
+            }
+            return '';
+        },
+        '/#_DISCOUNTCODES_ENTERED$/' => function( $result, $matches, $ctx ) {
+            $dcodes_entered = $ctx['member']['dcodes_entered'];
+            return join( ', ', $dcodes_entered );
+        },
+        '/#_DISCOUNTCODES_VALID|#_DISCOUNTCODES_USED$/' => function( $result, $matches, $ctx ) {
+            $dcodes_used = $ctx['member']['dcodes_used'];
+            return join( ', ', $dcodes_used );
+        },
+        '/#_PRICE$/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_price( $ctx['total_member_price'], $ctx['membership']['properties']['currency'], $ctx['target'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE_NO_VAT/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $ctx['total_member_price'] / ( 1 + $membership['properties']['vat_pct'] / 100 );
+            $replacement = eme_localized_price( $price, $membership['properties']['currency'], $ctx['target'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE_VAT_ONLY/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $ctx['total_member_price'] - $ctx['total_member_price'] / ( 1 + $membership['properties']['vat_pct'] / 100 );
+            $replacement = eme_localized_price( $price, $membership['properties']['currency'], $ctx['target'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_CURRENCY$/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['membership']['properties']['currency'];
+            return eme_apply_output_filters( $replacement, $ctx['target'] );
+        },
+        '/#_CURRENCYSYMBOL$/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_currencysymbol( $ctx['membership']['properties']['currency'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'] );
+        },
+        '/#_TRANSFER_NBR_BE97|UNIQUE_NBR/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_unique_nbr_formatted( $ctx['member']['unique_nbr'] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_LASTSEEN/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            if ( ! eme_is_empty_datetime( $member['last_seen'] ) ) {
+                $replacement = eme_localized_datetime( $member['last_seen'], EME_TIMEZONE );
+            } else {
+                $replacement = __( 'Never', 'events-made-easy' );
+            }
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_CREATIONDATE\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_date( $ctx['member']['creation_date'], EME_TIMEZONE, $matches[1] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_STARTDATE\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_date( $ctx['member']['start_date'], EME_TIMEZONE, $matches[1] );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_ENDDATE\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $need_escape = $ctx['need_escape'];
+            if ( eme_is_expired_member( $member ) && $need_escape ) {
+                $replacement = 'expired';
+            } elseif ( eme_is_active_member( $member ) && ( $ctx['membership']['duration_period'] == 'forever' ) ) {
+                if ( $need_escape ) {
+                    $replacement = 'forever';
+                } else {
+                    $replacement = __( 'no end date', 'events-made-easy' );
+                }
+            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
+                $replacement = eme_localized_date( $member['end_date'], EME_TIMEZONE, $matches[1] );
+            } else {
+                $replacement = '';
+            }
+            if ( isset($replacement) && $replacement !== '' ) {
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_NEXTENDDATE\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $membership = $ctx['membership'];
+            $need_escape = $ctx['need_escape'];
+            if ( eme_is_expired_member( $member ) && $need_escape ) {
+                $replacement = 'expired';
+            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
+                if ( $need_escape ) {
+                    $replacement = 'forever';
+                } else {
+                    $replacement = __( 'no end date', 'events-made-easy' );
+                }
+            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
+                $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
+                $replacement   = eme_localized_date( $next_end_date, EME_TIMEZONE, $matches[1] );
+            } elseif ( eme_is_empty_date( $member['end_date'] ) ) {
+                $start_date    = eme_get_start_date( $membership, $member );
+                $next_end_date = eme_get_next_end_date( $membership, $start_date );
+                $replacement       = eme_localized_date( $next_end_date, EME_TIMEZONE, $matches[1] );
+            } else {
+                $replacement = '';
+            }
+            if ( isset($replacement) && $replacement !== '' ) {
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_CREATIONDATE$/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_date( $ctx['member']['creation_date'], EME_TIMEZONE );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_STARTDATE$/' => function( $result, $matches, $ctx ) {
+            $replacement = eme_localized_date( $ctx['member']['start_date'], EME_TIMEZONE );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_ENDDATE$/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $need_escape = $ctx['need_escape'];
+            if ( eme_is_expired_member( $member ) && $need_escape ) {
+                $replacement = 'expired';
+            } elseif ( eme_is_active_member( $member ) && ( $ctx['membership']['duration_period'] == 'forever' ) ) {
+                if ( $need_escape ) {
+                    $replacement = 'forever';
+                } else {
+                    $replacement = __( 'no end date', 'events-made-easy' );
+                }
+            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
+                $replacement = eme_localized_date( $member['end_date'], EME_TIMEZONE );
+            } else {
+                $replacement = '';
+            }
+            if ( isset($replacement) && $replacement !== '' ) {
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_NEXTENDDATE$/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $membership = $ctx['membership'];
+            $need_escape = $ctx['need_escape'];
+            if ( eme_is_expired_member( $member ) ) {
+                if ( $need_escape ) {
+                    $replacement = 'expired';
+                } else {
+                    $replacement = __( 'expired', 'events-made-easy' );
+                }
+            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
+                if ( $need_escape ) {
+                    $replacement = 'forever';
+                } else {
+                    $replacement = __( 'no end date', 'events-made-easy' );
+                }
+            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
+                $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
+                $replacement   = eme_localized_date( $next_end_date, EME_TIMEZONE );
+            } elseif ( eme_is_empty_date( $member['end_date'] ) ) {
+                $start_date    = eme_get_start_date( $membership, $member );
+                $next_end_date = eme_get_next_end_date( $membership, $start_date );
+                $replacement       = eme_localized_date( $next_end_date, EME_TIMEZONE );
+            } else {
+                $replacement = '';
+            }
+            if ( isset($replacement) && $replacement !== '' ) {
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return '';
+        },
+        '/#_PAYMENTDATE\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            return eme_localized_date( $ctx['member']['payment_date'], EME_TIMEZONE, $matches[1] );
+        },
+        '/#_PAYMENTDATE/' => function( $result, $matches, $ctx ) {
+            return eme_localized_date( $ctx['member']['payment_date'], EME_TIMEZONE );
+        },
+        '/#_PAYMENTTIME\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            return eme_localized_time( $ctx['member']['payment_date'], EME_TIMEZONE, $matches[1] );
+        },
+        '/#_PAYMENTTIME/' => function( $result, $matches, $ctx ) {
+            return eme_localized_time( $ctx['member']['payment_date'], EME_TIMEZONE );
+        },
+        '/#_STATUS$/' => function( $result, $matches, $ctx ) {
+            $eme_member_status_array = eme_member_status_array();
+            return $eme_member_status_array[ $ctx['member']['status'] ];
+        },
+        '/#_IS_MEMBER_PENDING$/' => function( $result, $matches, $ctx ) {
+            if ( $ctx['member']['status'] == EME_MEMBER_STATUS_PENDING ) {
+                return 1;
+            }
+            return 0;
+        },
+        '/#_IS_MEMBER_ACTIVE$/' => function( $result, $matches, $ctx ) {
+            if ( $ctx['member']['status'] == EME_MEMBER_STATUS_ACTIVE ) {
+                return 1;
+            }
+            return 0;
+        },
+        '/#_IS_MEMBER_GRACE$/' => function( $result, $matches, $ctx ) {
+            if ( $ctx['member']['status'] == EME_MEMBER_STATUS_GRACE ) {
+                return 1;
+            }
+            return 0;
+        },
+        '/#_IS_MEMBER_EXPIRED$/' => function( $result, $matches, $ctx ) {
+            if ( $ctx['member']['status'] == EME_MEMBER_STATUS_EXPIRED ) {
+                return 1;
+            }
+            return 0;
+        },
+        '/#_FAMILYCOUNT/' => function( $result, $matches, $ctx ) {
+            $related_member_ids = eme_get_family_member_ids( $ctx['member']['member_id'] );
+            if ( ! empty( $related_member_ids ) ) {
+                return count( $related_member_ids );
+            }
+            return 0;
+        },
+        '/#_FAMILYMEMBERS/' => function( $result, $matches, $ctx ) {
+            $replacement = '';
+            $related_member_ids = eme_get_family_member_ids( $ctx['member']['member_id'] );
+            if ( ! empty( $related_member_ids ) ) {
+                $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
+                foreach ( $related_member_ids as $related_member_id ) {
+                    $related_member = eme_get_member( $related_member_id );
+                    if ( $related_member ) {
+                        $related_person = eme_get_person( $related_member['person_id'] );
+                        if ( $related_person ) {
+                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( eme_format_full_name( $related_person['firstname'], $related_person['lastname'], $related_person['email'] ) ) . "</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'>" . esc_html( $related_person['email'] ) . '</td></tr>';
+                        }
+                    }
+                }
+                $replacement .= '</table>';
+            }
+            return $replacement;
+        },
+        '/#_PDF_URL\{(\d+)\}/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            $template_id = intval( $matches[1] );
+            $generated_pdf = eme_generate_member_pdf( $member, $ctx['membership'], $template_id );
+            if ( ! empty( $generated_pdf ) ) {
+                return EME_UPLOAD_URL . '/members/' . $member['member_id'] . '/' . basename( $generated_pdf[1] );
+            }
+            return '';
+        },
+        '/#_PAYMENTID/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['member']['payment_id'];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PAYMENT_URL/' => function( $result, $matches, $ctx ) {
+            $payment = eme_get_payment( $ctx['member']['payment_id'] );
+            if ( $payment ) {
+                $replacement = eme_payment_url( $payment );
+                if ( $ctx['target'] == 'html' ) {
+                    $replacement = esc_url( $replacement );
+                }
+                return $replacement;
+            }
+            return '';
+        },
+        '/#_QRCODE(\{.+?\})?$/' => function( $result, $matches, $ctx ) {
+            $member = $ctx['member'];
+            if ( isset( $matches[1] ) ) {
+                $size = substr( $matches[1], 1, -1 );
+            } else {
+                $size = 'medium';
+            }
+            $targetBasePath = EME_UPLOAD_DIR . '/members/' . $member['member_id'];
+            $targetBaseUrl  = EME_UPLOAD_URL . '/members/' . $member['member_id'];
+            $url_to_encode  = eme_member_url( $member );
+            [$target_file, $target_url] = eme_generate_qrcode( $url_to_encode, $targetBasePath, $targetBaseUrl, $size );
+            if ( is_file( $target_file ) ) {
+                [$width, $height, $type, $attr] = getimagesize( $target_file );
+                return "<img width='$width' height='$height' src='$target_url'>";
+            }
+            return '';
+        },
+        '/#_DYNAMICFIELD\{(.+?)\}$/' => function( $result, $matches, $ctx ) {
+            $target = $ctx['target'];
+            $dyn_answers = $ctx['dyn_answers'];
+            $field_key = $matches[1];
+            $formfield = eme_get_formfield( $field_key );
+            $replacement = '';
+            if ( ! empty( $dyn_answers ) ) {
+                foreach ( $dyn_answers as $answer ) {
+                    if ( $answer['field_id'] != $formfield['field_id'] ) {
+                        continue;
+                    }
+                    if ( $target == 'html' ) {
+                        $replacement .= eme_answer2readable( $answer['answer'], $formfield, 1, '<br>', $target );
+                    } else {
+                        $replacement .= eme_answer2readable( $answer['answer'], $formfield, 1, '||', $target ) . "\n";
+                    }
+                }
+                $replacement = eme_translate( $replacement, $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $target );
+            }
+            return '';
+        },
+        '/#_DYNAMICDATA$/' => function( $result, $matches, $ctx ) {
+            $target = $ctx['target'];
+            $dyn_answers = $ctx['dyn_answers'];
+            $replacement = '';
+            if ( ! empty( $dyn_answers ) ) {
+                if ( $target == 'html' ) {
+                    $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
+                }
+                $old_grouping = 1;
+                $old_occurence = 0;
+                foreach ( $dyn_answers as $answer ) {
+                    $grouping      = $answer['eme_grouping'];
+                    $occurence     = $answer['occurence'];
+                    $tmp_formfield = eme_get_formfield( $answer['field_id'] );
+                    if ( ! empty( $tmp_formfield ) ) {
+                        if ( $target == 'html' ) {
+                            if ( $old_grouping != $grouping || $old_occurence != $occurence ) {
+                                $replacement  .= "</table><br><table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
+                                $old_grouping  = $grouping;
+                                $old_occurence = $occurence;
+                            }
+                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( $tmp_formfield['field_name'] ) . ":</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'> " . eme_answer2readable( $answer['answer'], $tmp_formfield, 1, '<br>', $target ) . '</td></tr>';
+                        } else {
+                            $replacement .= $tmp_formfield['field_name'] . ': ' . eme_answer2readable( $answer['answer'], $tmp_formfield, 1, '||', $target ) . "\n";
+                        }
+                    }
+                }
+                if ( $target == 'html' ) {
+                    $replacement .= '</table>';
+                }
+                $replacement = eme_translate( $replacement, $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $target );
+            }
+            return '';
+        },
+        '/#_FILES/' => function( $result, $matches, $ctx ) {
+            $res_files = [];
+            foreach ( $ctx['files'] as $file ) {
+                if ( $ctx['target'] == 'html' ) {
+                    $res_files[] = eme_get_uploaded_file_html( $file );
+                } else {
+                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
+                }
+            }
+            if ( $ctx['target'] == 'html' ) {
+                return join( '<br>', $res_files );
+            }
+            return join( "\n", $res_files );
+        },
+        '/#_PERSONAL_FILES/' => function( $result, $matches, $ctx ) {
+            $res_files = [];
+            $person_files = eme_get_uploaded_files( $ctx['member']['person_id'], 'people' );
+            foreach ( $person_files as $file ) {
+                if ( $ctx['target'] == 'html' ) {
+                    $res_files[] = eme_get_uploaded_file_html( $file );
+                } else {
+                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
+                }
+            }
+            if ( $ctx['target'] == 'html' ) {
+                return join( '<br>', $res_files );
+            }
+            return join( "\n", $res_files );
+        },
+        '/#_FIELDNAME\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $field_key = $matches[1];
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) ) {
+                $replacement = eme_translate( $formfield['field_name'], $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return null;
+        },
+        '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/' => function( $result, $matches, $ctx ) {
+            $target = $ctx['target'];
+            $dyn_answers = $ctx['dyn_answers'];
+            $take_answers_from_post = $ctx['take_answers_from_post'];
+            $field_key = $matches[2];
+            if ( isset( $matches[3] ) ) {
+                $sep = substr( $matches[3], 1, -1 );
+            } else {
+                $sep = '||';
+                if ( $target == 'html' ) {
+                    $eol_sep = '<br>';
+                } else {
+                    $eol_sep = "\n";
+                }
+            }
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) && in_array( $formfield['field_purpose'], [ 'generic', 'members' ] ) ) {
+                $matched_answers = [];
+                foreach ( $ctx['answers'] as $answer ) {
+                    if ( $answer['field_id'] == $formfield['field_id'] ) {
+                        if ( $matches[1] == 'VALUE' || $take_answers_from_post ) {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
+                        } else {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
+                        }
+                        $matched_answers[] = eme_apply_output_filters( $field_replace, $target );
+                        break;
+                    }
+                }
+                foreach ( $ctx['files'] as $file ) {
+                    if ( $file['field_id'] == $formfield['field_id'] ) {
+                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
+                            if ( $target == 'html' ) {
+                                $matched_answers[] = esc_url($file['url']) ;
+                            } else {
+                                $matched_answers[] = $file['url'] ;
+                            }
+                        } else {
+                            if ( $target == 'html' ) {
+                                $matched_answers[] = eme_get_uploaded_file_html( $file );
+                            } else {
+                                $matched_answers[] = $file['name'] . ' [' . $file['url'] . ']';
+                            }
+                        }
+                    }
+                }
+                if ( empty( $matched_answers) && ! empty( $dyn_answers ) ) {
+                    foreach ( $dyn_answers as $answer ) {
+                        if ( $answer['field_id'] != $formfield['field_id'] ) {
+                            continue;
+                        }
+                        if ( $matches[1] == 'VALUE' || $take_answers_from_post ) {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
+                        } else {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
+                        }
+                        $matched_answer[] = eme_apply_output_filters( $field_replace, $target );
+                    }
+                }
+                $replacement = join($eol_sep, $matched_answers);
+                return eme_translate( $replacement, $ctx['lang'] );
+            }
+            return null;
+        },
+    ];
+
+    return $handlers;
+}
+
 function eme_replace_member_placeholders( $format, $membership, $member, $target = 'html', $lang = '', $take_answers_from_post = 0 ) {
     $orig_target  = $target;
     if ( $target == 'htmlmail' || $target == 'html_nohtml2br' ) {
@@ -5258,6 +5731,8 @@ function eme_replace_member_placeholders( $format, $membership, $member, $target
     // replace the generic placeholders
     $format = eme_replace_generic_placeholders( $format, $orig_target );
 
+    $ph_handlers = eme_get_member_placeholder_handler_definitions();
+
     $needle_offset = 0;
     preg_match_all( '/#(ESC|URL)?@?_?[A-Za-z0-9_]+(\{(?>[^{}]+|(?2))*\})*+/', $format, $placeholders, PREG_OFFSET_CAPTURE );
     foreach ( $placeholders[0] as $orig_result ) {
@@ -5265,7 +5740,7 @@ function eme_replace_member_placeholders( $format, $membership, $member, $target
         $orig_result_needle = $orig_result[1] - $needle_offset;
         $orig_result_length = strlen( $orig_result[0] );
         $replacement        = '';
-        $found              = 1;
+        $found              = 0;
         $need_escape        = 0;
 
         # support for #_MEMBERxxx and #_MEMBER_xxx
@@ -5275,503 +5750,28 @@ function eme_replace_member_placeholders( $format, $membership, $member, $target
             $result      = str_replace( '#ESC', '#', $result );
             $need_escape = 1;
         }
-        if ( preg_match( '/#_ID/', $result ) ) {
-            $replacement = $member['member_id'];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_TOTALDISCOUNT$/', $result ) ) {
-            if ( $need_escape ) {
-                $replacement = $member['discount'];
-            } else {
-                $replacement = eme_localized_price( $member['discount'], $membership['properties']['currency'], $target );
-            }
-        } elseif ( preg_match( '/#_APPLIEDDISCOUNTNAMES$/', $result ) ) {
-            if ( ! empty( $member['discountids'] ) ) {
-                if ( eme_is_serialized( $member['discountids'] ) ) {
-                    $applied_discounts = eme_unserialize( $member['discountids'] );
-                    $applied_discountids = array_keys($applied_discounts);
-                } else {
-                    $applied_discountids = explode( ',', $member['discountids'] );
-                }
-                $discount_names = []; 
-                foreach ( $applied_discountids as $discount_id ) {
-                    $discount = eme_get_discount( $discount_id );
-                    if ( $discount && isset( $discount['name'] ) ) {
-                        $discount_names[] = esc_html( $discount['name'] );
-                    } else {
-                        // translators: %d is the discount ID
-                        $discount_names[] = sprintf( __( 'Applied discount %d no longer exists', 'events-made-easy' ), $discount_id );
-                    }
-                }
-                $replacement = join( ', ', $discount_names );
-                if ( $target == 'html' ) {
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_DISCOUNTCODES_ENTERED$/', $result ) ) {
-            $dcodes_entered = $member['dcodes_entered'];
-            $replacement    = join( ', ', $dcodes_entered );
-        } elseif ( preg_match( '/#_DISCOUNTCODES_VALID|#_DISCOUNTCODES_USED$/', $result ) ) {
-            $dcodes_used = $member['dcodes_used'];
-            $replacement = join( ', ', $dcodes_used );
-        } elseif ( preg_match( '/#_PRICE$/', $result ) ) {
-            $replacement = eme_localized_price( $total_member_price, $membership['properties']['currency'], $target );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE_NO_VAT/', $result ) ) {
-            $price       = $total_member_price / ( 1 + $membership['properties']['vat_pct'] / 100 );
-            $replacement = eme_localized_price( $price, $membership['properties']['currency'], $target );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE_VAT_ONLY/', $result ) ) {
-            $price       = $total_member_price - $total_member_price / ( 1 + $membership['properties']['vat_pct'] / 100 );
-            $replacement = eme_localized_price( $price, $membership['properties']['currency'], $target );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CURRENCY$/', $result ) ) {
-            $replacement = $membership['properties']['currency'];
-            if ( $target == 'html' ) {
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } elseif ( $target == 'rss' ) {
-                $replacement = apply_filters( 'the_content_rss', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CURRENCYSYMBOL$/', $result ) ) {
-            $replacement = eme_localized_currencysymbol( $membership['properties']['currency'] );
-            if ( $target == 'html' ) {
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } elseif ( $target == 'rss' ) {
-                $replacement = apply_filters( 'the_content_rss', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_TRANSFER_NBR_BE97|UNIQUE_NBR/', $result ) ) {
-            $replacement = eme_unique_nbr_formatted( $member['unique_nbr'] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_LASTSEEN/', $result ) ) {
-            if ( ! eme_is_empty_datetime( $member['last_seen'] ) ) {
-                $replacement = eme_localized_datetime( $member['last_seen'], EME_TIMEZONE );
-            } else {
-                $replacement = __( 'Never', 'events-made-easy' );
-            }
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CREATIONDATE\{(.+?)\}/', $result, $matches ) ) {
-            $replacement = eme_localized_date( $member['creation_date'], EME_TIMEZONE, $matches[1] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_STARTDATE\{(.+?)\}/', $result, $matches ) ) {
-            $replacement = eme_localized_date( $member['start_date'], EME_TIMEZONE, $matches[1] );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_ENDDATE\{(.+?)\}/', $result, $matches ) ) {
-            if ( eme_is_expired_member( $member ) && $need_escape ) {
-                $replacement = 'expired';
-            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
-                if ( $need_escape ) {
-                    $replacement = 'forever';
-                } else {
-                    $replacement = __( 'no end date', 'events-made-easy' );
-                }
-            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
-                $replacement = eme_localized_date( $member['end_date'], EME_TIMEZONE, $matches[1] );
-            }
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_NEXTENDDATE\{(.+?)\}/', $result, $matches ) ) {
-            if ( eme_is_expired_member( $member ) && $need_escape ) {
-                $replacement = 'expired';
-            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
-                if ( $need_escape ) {
-                    $replacement = 'forever';
-                } else {
-                    $replacement = __( 'no end date', 'events-made-easy' );
-                }
-            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
-                $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
-                $replacement   = eme_localized_date( $next_end_date, EME_TIMEZONE, $matches[1] );
-            } elseif ( eme_is_empty_date( $member['end_date'] ) ) {
-                $start_date    = eme_get_start_date( $membership, $member );
-                $next_end_date = eme_get_next_end_date( $membership, $start_date );
-                $replacement       = eme_localized_date( $next_end_date, EME_TIMEZONE, $matches[1] );
-            }
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CREATIONDATE$/', $result ) ) {
-            $replacement = eme_localized_date( $member['creation_date'], EME_TIMEZONE );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_STARTDATE$/', $result ) ) {
-            $replacement = eme_localized_date( $member['start_date'], EME_TIMEZONE );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_ENDDATE$/', $result ) ) {
-            if ( eme_is_expired_member( $member ) && $need_escape ) {
-                $replacement = 'expired';
-            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
-                if ( $need_escape ) {
-                    $replacement = 'forever';
-                } else {
-                    $replacement = __( 'no end date', 'events-made-easy' );
-                }
-            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
-                $replacement = eme_localized_date( $member['end_date'], EME_TIMEZONE );
-            }
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_NEXTENDDATE$/', $result ) ) {
-            if ( eme_is_expired_member( $member ) ) {
-                if ( $need_escape ) {
-                    $replacement = 'expired';
-                } else {
-                    $replacement = __( 'expired', 'events-made-easy' );
-                }
-            } elseif ( eme_is_active_member( $member ) && ( $membership['duration_period'] == 'forever' ) ) {
-                if ( $need_escape ) {
-                    $replacement = 'forever';
-                } else {
-                    $replacement = __( 'no end date', 'events-made-easy' );
-                }
-            } elseif ( ! eme_is_empty_date( $member['end_date'] ) ) {
-                $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
-                $replacement   = eme_localized_date( $next_end_date, EME_TIMEZONE );
-            } elseif ( eme_is_empty_date( $member['end_date'] ) ) {
-                $start_date    = eme_get_start_date( $membership, $member );
-                $next_end_date = eme_get_next_end_date( $membership, $start_date );
-                $replacement       = eme_localized_date( $next_end_date, EME_TIMEZONE );
-            }
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PAYMENTDATE\{(.+?)\}/', $result, $matches ) ) {
-            $replacement = eme_localized_date( $member['payment_date'], EME_TIMEZONE, $matches[1] );
-        } elseif ( preg_match( '/#_PAYMENTDATE/', $result ) ) {
-            $replacement = eme_localized_date( $member['payment_date'], EME_TIMEZONE );
-        } elseif ( preg_match( '/#_PAYMENTTIME\{(.+?)\}/', $result, $matches ) ) {
-            $replacement = eme_localized_time( $member['payment_date'], EME_TIMEZONE, $matches[1] );
-        } elseif ( preg_match( '/#_PAYMENTTIME/', $result ) ) {
-            $replacement = eme_localized_time( $member['payment_date'], EME_TIMEZONE );
-        } elseif ( preg_match( '/#_STATUS$/', $result ) ) {
-            $eme_member_status_array = eme_member_status_array();
-            $replacement             = $eme_member_status_array[ $member['status'] ];
-        } elseif ( preg_match( '/#_IS_MEMBER_PENDING$/', $result ) ) {
-            if ( $member['status'] == EME_MEMBER_STATUS_PENDING ) {
-                $replacement = 1;
-            } else {
-                $replacement = O;
-            }
-        } elseif ( preg_match( '/#_IS_MEMBER_ACTIVE$/', $result ) ) {
-            if ( $member['status'] == EME_MEMBER_STATUS_ACTIVE ) {
-                $replacement = 1;
-            } else {
-                $replacement = O;
-            }
-        } elseif ( preg_match( '/#_IS_MEMBER_GRACE$/', $result ) ) {
-            if ( $member['status'] == EME_MEMBER_STATUS_GRACE ) {
-                $replacement = 1;
-            } else {
-                $replacement = O;
-            }
-        } elseif ( preg_match( '/#_IS_MEMBER_EXPIRED$/', $result ) ) {
-            if ( $member['status'] == EME_MEMBER_STATUS_EXPIRED ) {
-                $replacement = 1;
-            } else {
-                $replacement = O;
-            }
-        } elseif ( preg_match( '/#_FAMILYCOUNT/', $result ) ) {
-            $related_member_ids = eme_get_family_member_ids( $member['member_id'] );
-            if ( ! empty( $related_member_ids ) ) {
-                $replacement = count( $related_member_ids );
-            } else {
-                $replacement = 0;
-            }
-        } elseif ( preg_match( '/#_FAMILYMEMBERS/', $result ) ) {
-            $related_member_ids = eme_get_family_member_ids( $member['member_id'] );
-            if ( ! empty( $related_member_ids ) ) {
-                $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
-                foreach ( $related_member_ids as $related_member_id ) {
-                    $related_member = eme_get_member( $related_member_id );
-                    if ( $related_member ) {
-                        $related_person = eme_get_person( $related_member['person_id'] );
-                        if ( $related_person ) {
-                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( eme_format_full_name( $related_person['firstname'], $related_person['lastname'], $related_person['email'] ) ) . "</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'>" . esc_html( $related_person['email'] ) . '</td></tr>';
-                        }
-                    }
-                }
-                $replacement .= '</table>';
-            }
-        } elseif ( preg_match( '/#_PDF_URL\{(\d+)\}/', $result, $matches ) ) {
-            $template_id = intval( $matches[1] );
-            $generated_pdf = eme_generate_member_pdf( $member, $membership, $template_id );
-            if ( ! empty( $generated_pdf ) ) {
-                $replacement = EME_UPLOAD_URL . '/members/' . $member['member_id'] . '/' . basename( $generated_pdf[1] );
-            }
-        } elseif ( preg_match( '/#_PAYMENTID/', $result ) ) {
-            $replacement = $member['payment_id'];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PAYMENT_URL/', $result ) ) {
-            $payment = eme_get_payment( $member['payment_id'] );
-            if ( $payment ) {
-                $replacement = eme_payment_url( $payment );
-                if ( $target == 'html' ) {
-                    $replacement = esc_url( $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_QRCODE(\{.+?\})?$/', $result, $matches ) ) {
-            if ( isset( $matches[1] ) ) {
-                // remove { and } (first and last char of second match)
-                $size = substr( $matches[1], 1, -1 );
-            } else {
-                $size = 'medium';
-            }
-            $targetBasePath             = EME_UPLOAD_DIR . '/members/' . $member['member_id'];
-            $targetBaseUrl              = EME_UPLOAD_URL . '/members/' . $member['member_id'];
-            $url_to_encode              = eme_member_url( $member );
-            [$target_file, $target_url] = eme_generate_qrcode( $url_to_encode, $targetBasePath, $targetBaseUrl, $size );
-            if ( is_file( $target_file ) ) {
-                [$width, $height, $type, $attr] = getimagesize( $target_file );
-                $replacement = "<img width='$width' height='$height' src='$target_url'>";
-            }
-        } elseif ( preg_match( '/#_DYNAMICFIELD\{(.+?)\}$/', $result, $matches ) ) {
-            $field_key = $matches[1];
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $dyn_answers ) ) {
-                foreach ( $dyn_answers as $answer ) {
-                    if ( $answer['field_id'] != $formfield['field_id'] ) {
-                        continue;
-                    }
-                    if ( $target == 'html' ) {
-                        $replacement .= eme_answer2readable( $answer['answer'], $formfield, 1, '<br>', $target );
-                    } else {
-                        $replacement .= eme_answer2readable( $answer['answer'], $formfield, 1, '||', $target ) . "\n";
-                    }
-                }
-                $replacement = eme_translate( $replacement, $lang );
-                if ( $target == 'html' ) {
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_DYNAMICDATA$/', $result ) ) {
-            if ( ! empty( $dyn_answers ) ) {
-                if ( $target == 'html' ) {
-                    $replacement = "<table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
-                }
-                $old_grouping = 1;
-                $old_occurence    = 0;
-                foreach ( $dyn_answers as $answer ) {
-                    $grouping      = $answer['eme_grouping'];
-                    $occurence     = $answer['occurence'];
-                    //$class         = 'eme_print_formfield' . $answer['field_id'];
-                    $tmp_formfield = eme_get_formfield( $answer['field_id'] );
-                    if ( ! empty( $tmp_formfield ) ) {
-                        if ( $target == 'html' ) {
-                            if ( $old_grouping != $grouping || $old_occurence != $occurence ) {
-                                $replacement  .= "</table><br><table style='border-collapse: collapse;border: 1px solid black;' class='eme_dyndata_table'>";
-                                $old_grouping  = $grouping;
-                                $old_occurence = $occurence;
-                            }
-                            $replacement .= "<tr class='eme_dyndata_row'><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_left'>" . esc_html( $tmp_formfield['field_name'] ) . ":</td><td style='border: 1px solid black;padding: 5px;' class='eme_dyndata_column_right'> " . eme_answer2readable( $answer['answer'], $tmp_formfield, 1, '<br>', $target ) . '</td></tr>';
-                        } else {
-                            $replacement .= $tmp_formfield['field_name'] . ': ' . eme_answer2readable( $answer['answer'], $tmp_formfield, 1, '||', $target ) . "\n";
-                        }
-                    }
-                }
-                // to close the last table
-                if ( $target == 'html' ) {
-                    $replacement .= '</table>';
-                }
-                $replacement = eme_translate( $replacement, $lang );
-                if ( $target == 'html' ) {
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            }
-        } elseif ( preg_match( '/#_FILES/', $result ) ) {
-            $res_files = [];
-            foreach ( $files as $file ) {
-                if ( $target == 'html' ) {
-                    $res_files[] = eme_get_uploaded_file_html( $file );
-                } else {
-                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
-                }
-            }
-            if ( $target == 'html' ) {
-                $replacement = join( '<br>', $res_files );
-            } else {
-                $replacement = join( "\n", $res_files );
-            }
-        } elseif ( preg_match( '/#_PERSONAL_FILES/', $result ) ) {
-            $res_files    = [];
-            $person_files = eme_get_uploaded_files( $member['person_id'], 'people' );
-            foreach ( $person_files as $file ) {
-                if ( $target == 'html' ) {
-                    $res_files[] = eme_get_uploaded_file_html( $file );
-                } else {
-                    $res_files[] = $file['name'] . ' [' . $file['url'] . ']';
-                }
-            }
-            if ( $target == 'html' ) {
-                $replacement = join( '<br>', $res_files );
-            } else {
-                $replacement = join( "\n", $res_files );
-            }
-        } elseif ( preg_match( '/#_FIELDNAME\{(.+?)\}/', $result, $matches ) ) {
-            $field_key = $matches[1];
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) ) {
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( eme_translate( $formfield['field_name'], $lang ) );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = eme_translate( $formfield['field_name'], $lang );
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            } else {
-                $found = 0;
-            }
-        } elseif ( preg_match( '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/', $result, $matches ) ) {
-            $field_key = $matches[2];
-            if ( isset( $matches[3] ) ) {
-                // remove { and } (first and last char of second match)
-                $sep = substr( $matches[3], 1, -1 );
-            } else {
-                $sep = '||';
-                if ( $target == 'html' ) {
-                    $eol_sep = '<br>';
-                } else {
-                    $eol_sep = "\n";
-                }
-            }
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) && in_array( $formfield['field_purpose'], [ 'generic', 'members' ] ) ) {
-                $matched_answers = [];
-                foreach ( $answers as $answer ) {
-                    if ( $answer['field_id'] == $formfield['field_id'] ) {
-                        if ( $matches[1] == 'VALUE' || $take_answers_from_post ) {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
-                        } else {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
-                        }
-                        if ( $target == 'html' ) {
-                            $matched_answers[] = apply_filters( 'eme_general', $field_replace );
-                        } else {
-                            $matched_answers[] = apply_filters( 'eme_text', $field_replace );
-                        }
-                        break;
-                    }
-                }
-                foreach ( $files as $file ) {
-                    if ( $file['field_id'] == $formfield['field_id'] ) {
-                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
-                            // for file, we can show the url. For multifile this would not make any sense
-                            if ( $target == 'html' ) {
-                                $matched_answers[] = esc_url($file['url']) ;
-                            } else {
-                                $matched_answers[] = $file['url'] ;
-                            }
-                        } else {
-                            if ( $target == 'html' ) {
-                                $matched_answers[] = eme_get_uploaded_file_html( $file );
-                            } else {
-                                $matched_answers[] = $file['name'] . ' [' . $file['url'] . ']';
-                            }
-                        }
-                    }
-                }
 
-                if ( empty( $matched_answers) && ! empty( $dyn_answers ) ) {
-                    foreach ( $dyn_answers as $answer ) {
-                        if ( $answer['field_id'] != $formfield['field_id'] ) {
-                            continue;
-                        }
-                        if ( $matches[1] == 'VALUE' || $take_answers_from_post ) {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
-                        } else {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
-                        }
-                        if ( $target == 'html' ) {
-                            $matched_answers[] = apply_filters( 'eme_general', $field_replace );
-                        } else {
-                            $matched_answers[] = apply_filters( 'eme_text', $field_replace );
-                        }
-                    }
+        $ctx = [
+            'member' => $member,
+            'membership' => $membership,
+            'target' => $target,
+            'orig_target' => $orig_target,
+            'lang' => $lang,
+            'answers' => $answers,
+            'files' => $files,
+            'dyn_answers' => $dyn_answers,
+            'total_member_price' => $total_member_price,
+            'need_escape' => $need_escape,
+            'take_answers_from_post' => $take_answers_from_post,
+        ];
+        foreach ( $ph_handlers as $pattern => $handler ) {
+            if ( preg_match( $pattern, $result, $matches ) ) {
+                $replacement = $handler( $result, $matches, $ctx );
+                if ( $replacement !== null ) {
+                    $found = 1;
+                    break;
                 }
-
-                $replacement = join($eol_sep, $matched_answers);
-                $replacement = eme_translate( $replacement, $lang );
-            } else {
-                // no members custom field? Then leave it alone
-                $found = 0;
             }
-        } else {
-            $found = 0;
         }
         if ( $found ) {
             // to be sure
@@ -5796,6 +5796,142 @@ function eme_replace_member_placeholders( $format, $membership, $member, $target
         $format = eme_replace_people_placeholders( $format, $person, $orig_target, $lang, $do_shortcode );
     }
     return do_shortcode( $format );
+}
+
+function eme_get_membership_placeholder_handler_definitions() {
+    static $handlers = [];
+    if ( ! empty( $handlers ) ) {
+        return $handlers;
+    }
+
+    $handlers = [
+        '/#_NAME/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['membership']['name'];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_DESCRIPTION/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['membership']['description'];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE$/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $membership['properties']['price'];
+            $currency = $membership['properties']['currency'];
+            $replacement = eme_localized_price( $price, $currency );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE_NO_VAT/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $membership['properties']['price'] / ( 1 + $membership['properties']['vat_pct'] / 100 );
+            $currency = $membership['properties']['currency'];
+            $replacement = eme_localized_price( $price, $currency );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE_VAT_ONLY/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $membership['properties']['price'];
+            $price = $price - $price / ( 1 + $membership['properties']['vat_pct'] / 100 );
+            $currency = $membership['properties']['currency'];
+            $replacement = eme_localized_price( $price, $currency );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE_VAT_PCT/' => function( $result, $matches, $ctx ) {
+            $replacement = $ctx['membership']['properties']['vat_pct'];
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_PRICE{{.+}}$/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $membership['properties']['price'];
+            $currency = $membership['properties']['currency'];
+            $charge = eme_payment_gateway_extra_charge( $price, $matches[1] );
+            $replacement = eme_localized_price( $price+$charge, $currency );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_CHARGE{{.+}}$/' => function( $result, $matches, $ctx ) {
+            $membership = $ctx['membership'];
+            $price = $membership['properties']['price'];
+            $currency = $membership['properties']['currency'];
+            $charge = eme_payment_gateway_extra_charge( $price, $matches[1] );
+            $replacement = eme_localized_price( $charge, $currency );
+            return eme_apply_output_filters( $replacement, $ctx['target'], true );
+        },
+        '/#_CONTACT/' => function( $result, $matches, $ctx ) {
+            $contact = eme_get_contact( $ctx['membership']['properties']['contact_id'] );
+            if ( $contact ) {
+                if ( $result == '#_CONTACTPERSON' ) {
+                    $t_format = '#_NAME';
+                } elseif ( $result == '#_CONTACTEMAIL' ) {
+                    $t_format = '#_EMAIL';
+                } else {
+                    $t_format = $result;
+                }
+                $t_format = str_replace( '#_CONTACT', '#_', $t_format );
+                $t_format = str_replace( '#_AUTHOR', '#_', $t_format );
+                $person   = eme_get_person_by_wp_id( $contact->ID );
+                if (empty($person)) {
+                    $person = eme_fake_person_by_wp_id( $contact->ID );
+                }
+                if ( $t_format == '#_NAME' ) {
+                    $t_format = '#_FULLNAME';
+                }
+                return eme_replace_people_placeholders( $t_format, $person, $ctx['target'], $ctx['lang'], 0 );
+            }
+            return '';
+        },
+        '/#_FIELDNAME\{(.+?)\}/' => function( $result, $matches, $ctx ) {
+            $field_key = $matches[1];
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) ) {
+                $replacement = eme_translate( $formfield['field_name'], $ctx['lang'] );
+                return eme_apply_output_filters( $replacement, $ctx['target'], true );
+            }
+            return null;
+        },
+        '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/' => function( $result, $matches, $ctx ) {
+            $field_key = $matches[2];
+            if ( isset( $matches[3] ) ) {
+                $sep = substr( $matches[3], 1, -1 );
+            } else {
+                $sep = '||';
+            }
+            $formfield = eme_get_formfield( $field_key );
+            if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'memberships' ) {
+                $field_id      = $formfield['field_id'];
+                $field_replace = '';
+                foreach ( $ctx['answers'] as $answer ) {
+                    if ( $answer['field_id'] == $field_id ) {
+                        if ( $matches[1] == 'VALUE' ) {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $ctx['target'] );
+                        } else {
+                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $ctx['target'] );
+                        }
+                        $field_replace = eme_apply_output_filters( $field_replace, $ctx['target'] );
+                    }
+                }
+                foreach ( $ctx['files'] as $file ) {
+                    if ( $file['field_id'] == $field_id ) {
+                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
+                            if ( $ctx['target'] == 'html' ) {
+                                $field_replace .= esc_url($file['url']) ;
+                            } else {
+                                $field_replace .= $file['url'] ;
+                            }
+                        } else {
+                            if ( $ctx['target'] == 'html' ) {
+                                $field_replace .= eme_get_uploaded_file_html( $file ) . '<br>';
+                            } else {
+                                $field_replace .= $file['name'] . ' [' . $file['url'] . ']' . "\n";
+                            }
+                        }
+                    }
+                }
+                return eme_translate( $field_replace, $ctx['lang'] );
+            }
+            return null;
+        },
+    ];
+
+    return $handlers;
 }
 
 function eme_replace_membership_placeholders( $format, $membership, $target = 'html', $lang = '', $do_shortcode = 1, $recursion_level = 0 ) {
@@ -5852,6 +5988,8 @@ function eme_replace_membership_placeholders( $format, $membership, $target = 'h
         $format = eme_replace_generic_placeholders( $format, $orig_target );
     }
 
+    $ph_handlers = eme_get_membership_placeholder_handler_definitions();
+
     $needle_offset = 0;
     preg_match_all( '/#(ESC|URL)?@?_?[A-Za-z0-9_]+(\{(?>[^{}]+|(?2))*\})*+/', $format, $placeholders, PREG_OFFSET_CAPTURE );
     foreach ( $placeholders[0] as $orig_result ) {
@@ -5859,174 +5997,27 @@ function eme_replace_membership_placeholders( $format, $membership, $target = 'h
         $orig_result_needle = $orig_result[1] - $needle_offset;
         $orig_result_length = strlen( $orig_result[0] );
         $replacement        = '';
-        $found              = 1;
+        $found              = 0;
 
         # support for #_MEMBERSHIPxxx and #_MEMBERSHIP_xxx
         $result = preg_replace( '/#_MEMBERSHIP(_)?/', '#_', $result );
 
-        if ( preg_match( '/#_NAME/', $result ) ) {
-            $replacement = $membership['name'];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_DESCRIPTION/', $result ) ) {
-            $replacement = $membership['description'];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE$/', $result ) ) {
-            $price       = $membership['properties']['price'];
-            $currency    = $membership['properties']['currency'];
-            $replacement = eme_localized_price( $price, $currency );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE_NO_VAT/', $result ) ) {
-            $price       = $membership['properties']['price'] / ( 1 + $membership['properties']['vat_pct'] / 100 );
-            $currency    = $membership['properties']['currency'];
-            $replacement = eme_localized_price( $price, $currency );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE_VAT_ONLY/', $result ) ) {
-            $price       = $membership['properties']['price'];
-            $price       = $price - $price / ( 1 + $membership['properties']['vat_pct'] / 100 );
-            $currency    = $membership['properties']['currency'];
-            $replacement = eme_localized_price( $price, $currency );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE_VAT_PCT/', $result ) ) {
-            $replacement = $membership['properties']['vat_pct'];
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_PRICE{{.+}}$/', $result, $matches ) ) {
-            $price       = $membership['properties']['price'];
-            $currency    = $membership['properties']['currency'];
-            $charge = eme_payment_gateway_extra_charge( $price, $matches[1] );
-            $replacement = eme_localized_price( $price+$charge, $currency );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CHARGE{{.+}}$/', $result, $matches ) ) {
-            $currency    = $membership['properties']['currency'];
-            $charge = eme_payment_gateway_extra_charge( $price, $matches[1] );
-            $replacement = eme_localized_price( $charge, $currency );
-            if ( $target == 'html' ) {
-                $replacement = esc_html( $replacement );
-                $replacement = apply_filters( 'eme_general', $replacement );
-            } else {
-                $replacement = apply_filters( 'eme_text', $replacement );
-            }
-        } elseif ( preg_match( '/#_CONTACT/', $result ) ) {
-            $contact = eme_get_contact( $membership['properties']['contact_id'] );
-            if ( $contact ) {
-                if ( $result == '#_CONTACTPERSON' ) {
-                    $t_format = '#_NAME';
-                } elseif ( $result == '#_CONTACTEMAIL' ) {
-                    $t_format = '#_EMAIL';
-                } else {
-                    $t_format = $result;
+        $ctx = [
+            'membership' => $membership,
+            'target' => $target,
+            'orig_target' => $orig_target,
+            'lang' => $lang,
+            'answers' => $answers,
+            'files' => $files,
+        ];
+        foreach ( $ph_handlers as $pattern => $handler ) {
+            if ( preg_match( $pattern, $result, $matches ) ) {
+                $replacement = $handler( $result, $matches, $ctx );
+                if ( $replacement !== null ) {
+                    $found = 1;
+                    break;
                 }
-                $t_format = str_replace( '#_CONTACT', '#_', $t_format );
-                $t_format = str_replace( '#_AUTHOR', '#_', $t_format );
-                $person   = eme_get_person_by_wp_id( $contact->ID );
-                if (empty($person)) {
-                    $person = eme_fake_person_by_wp_id( $contact->ID );
-                }
-                // to be consistent: #_CONTACTNAME returns the full name if not linked to an EME user, so we do that here too
-                if ( $t_format == '#_NAME' ) {
-                    $t_format = '#_FULLNAME';
-                }
-                $replacement = eme_replace_people_placeholders( $t_format, $person, $target, $lang, 0 );
             }
-        } elseif ( preg_match( '/#_FIELDNAME\{(.+?)\}/', $result, $matches ) ) {
-            $field_key = $matches[1];
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) ) {
-                if ( $target == 'html' ) {
-                    $replacement = esc_html( eme_translate( $formfield['field_name'], $lang ) );
-                    $replacement = apply_filters( 'eme_general', $replacement );
-                } else {
-                    $replacement = eme_translate( $formfield['field_name'], $lang );
-                    $replacement = apply_filters( 'eme_text', $replacement );
-                }
-            } else {
-                $found = 0;
-            }
-        } elseif ( preg_match( '/#_FIELD(VALUE)?\{(.+?)\}(\{.+?\})?/', $result, $matches ) ) {
-            $field_key = $matches[2];
-            if ( isset( $matches[3] ) ) {
-                // remove { and } (first and last char of second match)
-                $sep = substr( $matches[3], 1, -1 );
-            } else {
-                $sep = '||';
-            }
-            $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'memberships' ) {
-                $field_id      = $formfield['field_id'];
-                $field_replace = '';
-                foreach ( $answers as $answer ) {
-                    if ( $answer['field_id'] == $field_id ) {
-                        if ( $matches[1] == 'VALUE' ) {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
-                        } else {
-                            $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
-                        }
-                        if ( $target == 'html' ) {
-                            $field_replace = apply_filters( 'eme_general', $field_replace );
-                        } else {
-                            $field_replace = apply_filters( 'eme_text', $field_replace );
-                        }
-                    }
-                }
-                foreach ( $files as $file ) {
-                    if ( $file['field_id'] == $field_id ) {
-                        if ( $matches[1] == 'VALUE' && $formfield['field_type'] == 'file' ) {
-                            // for file, we can show the url. For multifile this would not make any sense
-                            if ( $target == 'html' ) {
-                                $field_replace .= esc_url($file['url']) ;
-                            } else {
-                                $field_replace .= $file['url'] ;
-                            }
-                        } else {
-                            if ( $target == 'html' ) {
-                                $field_replace .= eme_get_uploaded_file_html( $file ) . '<br>';
-                            } else {
-                                $field_replace .= $file['name'] . ' [' . $file['url'] . ']' . "\n";
-                            }
-                        }
-                    }
-                }
-                $replacement = eme_translate( $field_replace, $lang );
-            } else {
-                // no memberships custom field? Then leave it alone
-                $found = 0;
-            }
-        } else {
-            $found = 0;
         }
         if ( $found ) {
             // to be sure
@@ -6595,7 +6586,7 @@ function eme_ajax_memberships_list() {
         if ( empty( $item['name'] ) ) {
             $item['name'] = __( 'No name', 'events-made-easy' );
         }
-        $item['properties'] = eme_init_membership_props( eme_unserialize( $item['properties'] ) );
+        $item['properties'] = eme_init_membership_props( eme_json_decode_safe( $item['properties'] ) );
         $contact            = eme_get_contact( $item['properties']['contact_id'] );
         $contact_email      = $contact->user_email;
         $contact_name       = $contact->display_name;
@@ -6680,7 +6671,7 @@ function eme_ajax_members_list( ) {
         wp_die();
     }
 
-    $search_terms = eme_unserialize(eme_sanitize_request($_POST));
+    $search_terms = eme_json_decode_safe(eme_sanitize_request($_POST));
     $count_sql = eme_get_sql_members_searchfields( $search_terms, 1 );
     $sql       = eme_get_sql_members_searchfields( $search_terms);
 
@@ -6750,8 +6741,8 @@ function eme_ajax_members_list( ) {
         $record['membershipprice'] = eme_localized_price( $membership['properties']['price'], $membership['properties']['currency'] );
         $record['totalprice']      = eme_localized_price( eme_get_total_member_price( $item ), $membership['properties']['currency'] );
         $record['discount']        = eme_localized_price( $item['discount'], $membership['properties']['currency'] );
-        // dcodes_used is still eme_serialized here
-        $record['dcodes_used']   = eme_esc_html( eme_unserialize( $item['dcodes_used'] ) );
+        // dcodes_used is still eme_json_encode_safed here
+        $record['dcodes_used']   = eme_esc_html( eme_json_decode_safe( $item['dcodes_used'] ) );
         $record['renewal_count'] = intval( $item['renewal_count'] );
         $record['paid']          = ( $item['paid'] == 1 ) ? esc_html__( 'Yes', 'events-made-easy' ) : esc_html__( 'No', 'events-made-easy' );
         $record['payment_id']    = esc_html( $item['payment_id'] );
@@ -6871,7 +6862,7 @@ function eme_ajax_store_members_query() {
                 $search_terms[ $search_field ] = eme_sanitize_request( $_POST[ $search_field ] );
             }
         }
-        $group['search_terms'] = eme_serialize( $search_terms );
+        $group['search_terms'] = eme_json_encode_safe( $search_terms );
         $new_group_id = eme_db_insert_group($group);
         if ($new_group_id) {
             $fTableResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Dynamic group added', 'events-made-easy' ) . '</p></div>';
@@ -6984,7 +6975,7 @@ function eme_ajax_manage_memberships() {
         case 'showMembershipStats':
             $membershipstats = eme_get_membership_stats( $ids );
             $ajaxResult['Result']      = 'OK';
-            $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . $membershipstats . '</p></div>';
+            $ajaxResult['htmlmessage'] = "<div id='message'><p>" . $membershipstats . '</p></div>';
             print wp_json_encode( $ajaxResult );
             break;
         case 'deleteMemberships':

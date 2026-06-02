@@ -3,8 +3,8 @@ Contributors: liedekef
 Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
-Tested up to: 6.9
-Stable tag: 3.0.73
+Tested up to: 7.0
+Stable tag: 3.0.74
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -98,7 +98,11 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
-= 3.0.73  (2026/06/31) =
+= 3.0.74  (2026/06/02) =
+* Make sure eme_get_events can return all events during cron, important when searching for task submits
+* Make the placeholder #REQ_SEATS (with REQ prefix) work too
+
+= 3.0.73  (2026/06/01) =
 * fix value for add/cancel booking form placeholders if rsvp is not active
 
 = 3.0.72  (2026/05/30) =

@@ -2323,16 +2323,19 @@ function eme_replace_rsvp_formfields_placeholders( $form_id, $event, $booking, $
     $has_email    = $is_multibooking || preg_match( '/#(REQ|ESC)?_(EMAIL|HTML5_EMAIL)/', $format );
     $has_password = $eme_is_admin_request || $is_multibooking || empty( $event['event_properties']['rsvp_password'] ) || preg_match( '/#(REQ|ESC)?_PASSWORD/', $format );
 
-    preg_match_all( '/#_(SEATS|SPACES)(\{(\d+)\})?/', $format, $seats_matches );
-    $seats_found = count( $seats_matches[0] );
+    if ( eme_is_multi( $event['price'] ) ) {
+        $has_seats = preg_match( '/#(REQ|ESC)?_(SEATS|SPACES)\{(\d+)\}/', $format );
+    } else {
+        $has_seats = preg_match( '/#(REQ|ESC)?_(SEATS|SPACES)/', $format );
+    }
 
-    if ( ! $has_lastname || ! $has_email || ! $has_password || $seats_found < 1 ) {
+    if ( ! $has_lastname || ! $has_email || ! $has_password || ! $has_seats ) {
         $res = '';
-        if ( ! $has_lastname || ! $has_email || $seats_found < 1 ) {
+        if ( ! $has_lastname || ! $has_email || ! $has_seats ) {
             $res .= __( 'Not all required fields are present in the form. We need at least #_LASTNAME, #_EMAIL, #_SEATS and #_SUBMIT (or similar) placeholders.', 'events-made-easy' ) . '<br>';
         }
         if ( eme_is_multi( $event['price'] ) ) {
-            $res .= __( "Since this is a multiprice event, make sure you changed the setting 'Booking Form' for the event to include #_SEAT{xx} placeholders for each price.", 'events-made-easy' ) . '<br>';
+            $res .= __( "Since this is a multiprice event, make sure you changed the setting 'Booking Form' for the event to include #_SEATS{xx} placeholders for each price.", 'events-made-easy' ) . '<br>';
         }
         if ( ! $has_password && ! empty( $event['event_properties']['rsvp_password'] ) && ! $eme_is_admin_request ) {
             $res .= __( 'Check that the placeholder #_PASSWORD is present in the form.', 'events-made-easy' ) . '<br>';
@@ -2889,7 +2892,8 @@ function eme_replace_subscribeform_placeholders( $format, $unsubscribe = 0 ) {
         ? "<br><div class='eme_warning_wp_profile'><img style='vertical-align: middle;' src='" . esc_url( EME_PLUGIN_URL ) . "images/warning.png' alt='warning'>%s</div>"
         : '';
 
-    if ( ! str_contains( $format, '#_EMAIL' ) && ! str_contains( $format, '#_HTML5_EMAIL' ) ) {
+    $has_email     = preg_match( '/#(REQ|ESC)?_(EMAIL|HTML5_EMAIL)/', $format );
+    if ( ! $has_email ) {
         return "<div id='message' class='eme-message-error eme-rsvp-message-error'>"
             . __( 'Not all required fields are present in the form. We need at least #_EMAIL and #_SUBMIT (or similar) placeholders.', 'events-made-easy' )
             . '</div>';

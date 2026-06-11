@@ -427,7 +427,7 @@ function eme_formfields_edit_layout( $field_id = 0, $message = '', $t_formfield 
       </form>
 
    </div>
-   <p>" . esc_html__( 'For more information about form fields, see ', 'events-made-easy' ) . "<a target='_blank' href='https://www.e-dynamics.be/wordpress/eme-docs/custom-attributes/'>" . esc_html__( 'the documentation', 'events-made-easy' ) . '</a></p>
+   <p>" . esc_html__( 'For more information about form fields, see ', 'events-made-easy' ) . "<a target='_blank' rel='noopener noreferrer' href='https://www.e-dynamics.be/wordpress/eme-docs/custom-attributes/'>" . esc_html__( 'the documentation', 'events-made-easy' ) . '</a></p>
    ';
     echo $layout; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from hardcoded strings and translations
 }
@@ -2142,7 +2142,13 @@ function eme_replace_rsvp_formfields_placeholders( $form_id, $event, $booking, $
             if ( ! $min_allowed_is_multi && $min_allowed > 0 && $min_allowed == $max_allowed ) {
                 $replacement = "<input type='hidden' name='$fieldname' value='$min_allowed'>";
             } else {
-                $replacement = eme_ui_select( $entered_val, $fieldname, $booked_seats_options, '', 0, "$dynamic_price_class_basic $dfc_basic eme_snapselect" );
+                $empty_first = '';
+                $seats_options = $booked_seats_options;
+                if ( $ctx['required'] && $seats_options[0] == 0 ) {
+                    $seats_options = array_filter( $seats_options, fn( $k ) => $k !== 0, ARRAY_FILTER_USE_KEY );
+                    $empty_first = __( 'Select', 'events-made-easy');
+                }
+                $replacement = eme_ui_select( $entered_val, $fieldname, $seats_options, $empty_first, $ctx['required'], "$dynamic_price_class_basic $dfc_basic eme_snapselect" );
             }
             if ( $waitinglist && ! $editing_booking_from_backend ) {
                 $replacement .= "<span id='eme_waitinglist'><br>" . eme_translate( get_option( 'eme_rsvp_on_waiting_list_string' ) ) . '</span>';
@@ -2170,7 +2176,13 @@ function eme_replace_rsvp_formfields_placeholders( $form_id, $event, $booking, $
             if ( $min_allowed_is_multi && $multi_min_allowed[ $field_id - 1 ] > 0 && $multi_min_allowed[ $field_id - 1 ] == $multi_max_allowed[ $field_id - 1 ] ) {
                 $replacement = "<input type='hidden' name='$fieldname' value='{$multi_min_allowed[$field_id-1]}'>";
             } else {
-                $replacement = eme_ui_select( $entered_val, $fieldname, $booked_seats_options[ $field_id - 1 ], '', 0, "$dynamic_price_class_basic $dfc_basic eme_snapselect" );
+                $empty_first = '';
+                $seats_options = $booked_seats_options[ $field_id - 1 ];
+                if ( $ctx['required'] && $seats_options[0] == 0 ) {
+                    $seats_options = array_filter( $seats_options, fn( $k ) => $k !== 0, ARRAY_FILTER_USE_KEY );
+                    $empty_first = __( 'Select', 'events-made-easy');
+                }
+                $replacement = eme_ui_select( $entered_val, $fieldname, $seats_options, $empty_first, $ctx['required'], "$dynamic_price_class_basic $dfc_basic eme_snapselect" );
             }
         }
         return [ 'html' => $replacement ];
@@ -2387,10 +2399,10 @@ function eme_replace_rsvp_formfields_placeholders( $form_id, $event, $booking, $
                 $found = true;
                 $ret   = $handler( $result, $matches, $ctx );
                 if ( is_array( $ret ) ) {
-                    if ( ! empty( $ret['early_return'] ) )   { return $ret['early_return']; }
+                    if ( ! empty( $ret['early_return'] ) ) { return $ret['early_return']; }
                     $replacement = $ret['html'] ?? '';
-                    if ( ! empty( $ret['not_found'] ) )      { $found = false; }
-                    if ( ! empty( $ret['set_required'] ) ) { $required = true; $required_att = "required='required'"; }
+                    if ( ! empty( $ret['not_found'] ) )    { $found = false; }
+                    if ( ! empty( $ret['set_required'] ) ) { $required = true; } // to indicate the required flag in the found-section
                 } else {
                     $replacement = (string) $ret;
                 }

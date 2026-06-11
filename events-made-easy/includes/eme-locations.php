@@ -1933,7 +1933,6 @@ function eme_replace_event_location_placeholders( $format, $event, $target = 'ht
 }
 
 function eme_get_locations_placeholder_handler_definitions() {
-    global $wpdb;
     static $handlers = [];
     if ( ! empty( $handlers ) ) {
         return $handlers;
@@ -2243,6 +2242,7 @@ function eme_get_locations_placeholder_handler_definitions() {
             return '';
         },
         '/#_CATEGORIES\{(.*?)\}\{(.*?)\}/' => function( $result, $matches, $ctx ) {
+            global $wpdb;
             $target = $ctx['target'];
             $lang = $ctx['lang'];
             if ( ! get_option( 'eme_categories_enabled' ) ) {
@@ -2281,6 +2281,7 @@ function eme_get_locations_placeholder_handler_definitions() {
             return eme_apply_output_filters( $replacement, $target );
         },
         '/#_CATEGORIES_CSS\{(.*?)\}\{(.*?)\}/' => function( $result, $matches, $ctx ) {
+            global $wpdb;
             if ( ! get_option( 'eme_categories_enabled' ) ) {
                 return null;
             }
@@ -2305,6 +2306,7 @@ function eme_get_locations_placeholder_handler_definitions() {
             return eme_apply_output_filters( $replacement, $ctx['target'], true );
         },
         '/#_CATEGORYDESCRIPTIONS\{(.*?)\}\{(.*?)\}/' => function( $result, $matches, $ctx ) {
+            global $wpdb;
             if ( ! get_option( 'eme_categories_enabled' ) ) {
                 return null;
             }
@@ -2703,7 +2705,7 @@ function eme_add_directions_form( $location ) {
     $locale_code = substr( get_locale(), 0, 2 );
     $res         = '';
     if ( isset( $location['location_address1'] ) && isset( $location['location_city'] ) ) {
-        $res .= '<form action="//maps.google.com/maps" method="get" target="_blank" style="text-align:left;">';
+        $res .= '<form action="//maps.google.com/maps" method="get" target="_blank" rel="noopener noreferrer" style="text-align:left;">';
         $res .= '<div id="eme_direction_form"><label for="saddr">' . __( 'Your Street Address', 'events-made-easy' ) . '</label><br>';
         $res .= '<input type="text" name="saddr" id="saddr" value="">';
         $res .= '<input type="hidden" name="daddr" value="' . esc_attr( $location['location_address1'] . ', ' . $location['location_city'] ) . '">';

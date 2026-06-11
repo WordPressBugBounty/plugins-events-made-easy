@@ -244,22 +244,30 @@ function eme_load_friendlycaptcha_html() {
 }
 
 function eme_check_recaptcha() {
-    $eme_recaptcha     = get_option( 'eme_recaptcha_for_forms' );
-    $eme_recaptcha_key = get_option( 'eme_recaptcha_secret_key' );
-    if ( isset( $_POST['g-recaptcha-response'] ) && ! empty( $eme_recaptcha_key ) && $eme_recaptcha ) {
-        $url      = 'https://www.google.com/recaptcha/api/siteverify?secret=' . $eme_recaptcha_key . '&response=' . eme_sanitize_request( $_POST['g-recaptcha-response'] );
-        $response = wp_remote_get( $url );
+    $eme_recaptcha            = get_option( 'eme_recaptcha_for_forms' );
+    $eme_recaptcha_site_key   = get_option( 'eme_recaptcha_site_key' );
+    $eme_recaptcha_api_key    = get_option( 'eme_recaptcha_api_key' );
+    $eme_recaptcha_project_id = get_option( 'eme_recaptcha_project_id' );
+    if ( isset( $_POST['g-recaptcha-response'] ) && ! empty( $eme_recaptcha_api_key ) && ! empty( $eme_recaptcha_project_id ) && $eme_recaptcha ) {
+        $url  = 'https://recaptchaenterprise.googleapis.com/v1/projects/' . $eme_recaptcha_project_id . '/assessments?key=' . $eme_recaptcha_api_key;
+        $data = [
+            'event' => [
+                'token'   => eme_sanitize_request( $_POST['g-recaptcha-response'] ),
+                'siteKey' => $eme_recaptcha_site_key,
+            ],
+        ];
+        $response = wp_remote_post( $url, [
+            'headers' => [ 'Content-Type' => 'application/json' ],
+            'body'    => wp_json_encode( $data ),
+        ] );
         if ( is_wp_error( $response ) ) {
             return false;
-        } else {
-            $body = wp_remote_retrieve_body( $response );
-            $responseCaptchaData = json_decode( $body );
-            if ( $responseCaptchaData->success ) {
-                return true;
-            } else {
-                return false;
-            }
         }
+        $body                = json_decode( wp_remote_retrieve_body( $response ) );
+        $score               = $body->riskAnalysis->score ?? 0;
+        $valid               = $body->tokenProperties->valid ?? false;
+        $eme_recaptcha_score = get_option( 'eme_recaptcha_score', 0.5 );
+        return $valid && $score >= (float) $eme_recaptcha_score;
     } else {
         return false;
     }
@@ -321,7 +329,7 @@ function eme_check_friendlycaptcha() {
     $eme_friendlycaptcha           = get_option( 'eme_friendlycaptcha_for_forms' );
     $eme_friendlycaptcha_sitekey   = get_option( 'eme_friendlycaptcha_site_key' );
     $eme_friendlycaptcha_secretkey = get_option( 'eme_friendlycaptcha_secret_key' );
-    if ( isset( $_POST['frc-captcha-response'] ) && ! empty( $eme_friendlycaptcha_key ) && $eme_cfcaptcha ) {
+    if ( isset( $_POST['frc-captcha-response'] ) && ! empty( $eme_friendlycaptcha_secretkey ) && !empty($eme_friendlycaptcha_sitekey) && $eme_friendlycaptcha ) {
         $url      = 'https://global.frcapi.com/api/v2/captcha/siteverify';
         $data     = [
             'sitekey'  => $eme_friendlycaptcha_sitekey,
@@ -1407,18 +1415,10 @@ function eme_are_dates_valid( $dates ) {
 }
 
 function eme_is_date( $date ) {
-    // check the format yyyy-mm-dd
-    if ( strlen( $date ) != 10 ) {
-        return false;
-    }
-    $year  = intval( substr( $date, 0, 4 ) );
-    $month = intval( substr( $date, 5, 2 ) );
-    $day   = intval( substr( $date, 8 ) );
-    return ( checkdate( $month, $day, $year ) );
+    return eme_is_datetime( $date, 'Y-m-d');
 }
 
-function eme_is_datetime( $date ) {
-    $format = 'Y-m-d H:i:s';
+function eme_is_datetime( $date, $format = 'Y-m-d H:i:s' ) {
     $d      = DateTime::createFromFormat( $format, $date );
     return $d && $d->format( $format ) == $date;
 }
@@ -3303,7 +3303,7 @@ function eme_get_uploaded_file_html( $file, $new_tab = 1 ) {
     $name = esc_html($file['name']);
     $url  = esc_url($file['url']);
     if ( $new_tab ) {
-        return "<a href='$url' target='_blank'>$name</a><br>";
+        return "<a href='$url' target='_blank' rel='noopener noreferrer'>$name</a><br>";
     } else {
         return "<a href='$url'>$name</a><br>";
     }
@@ -3559,7 +3559,7 @@ function eme_get_attachment_link( $id ) {
                 if ( '' === trim( $link_text ) ) {
                     $link_text = pathinfo( get_attached_file( $_post->ID ), PATHINFO_BASENAME );
                 }
-                return "<a target='_blank' href='$url'>".esc_html($link_text)."</a>";
+                return "<a target='_blank' rel='noopener noreferrer' href='$url'>".esc_html($link_text)."</a>";
             }
         } elseif ( is_array( $id ) ){
             if (eme_is_empty_string($id[0])) {
@@ -3575,7 +3575,7 @@ function eme_get_attachment_link( $id ) {
                 $link_text = pathinfo( $id[0], PATHINFO_BASENAME );
             }
             $url = esc_url( str_replace( EME_UPLOAD_DIR, EME_UPLOAD_URL, $id[1] ) );
-            return "<a target='_blank' href='$url'>".esc_html($link_text)."</a>";
+            return "<a target='_blank' rel='noopener noreferrer' href='$url'>".esc_html($link_text)."</a>";
         } else {
             // not numeric ? Then it is a path
             $link_text = pathinfo( $id, PATHINFO_FILENAME );
@@ -3586,7 +3586,7 @@ function eme_get_attachment_link( $id ) {
             $link_text = preg_replace( '/.*-(qrcode.*)/', '$1', $link_text );
             $link_text .= ".$extension";
             $url = esc_url( str_replace( EME_UPLOAD_DIR, EME_UPLOAD_URL, $id ) );
-            return "<a target='_blank' href='$url'>".esc_html($link_text)."</a>";
+            return "<a target='_blank' rel='noopener noreferrer' href='$url'>".esc_html($link_text)."</a>";
         }
     }
     return '';
@@ -4302,7 +4302,7 @@ function eme_get_configured_captchas() {
     $captchas = wp_cache_get( 'eme_configured_captchas' );
     if ( $captchas === false ) {
         $captchas = [];
-        if ( ! empty( get_option( 'eme_recaptcha_for_forms' ) ) && ! empty( get_option( 'eme_recaptcha_site_key' ) ) )
+        if ( ! empty( get_option( 'eme_recaptcha_for_forms' ) ) && ! empty( get_option( 'eme_recaptcha_site_key' ) ) && ! empty( get_option( 'eme_recaptcha_api_key' ) ) && ! empty( get_option( 'eme_recaptcha_project_id' ) ) )
             $captchas['recaptcha'] = __('Google reCAPTCHA','events-made-easy');
         if ( ! empty( get_option( 'eme_hcaptcha_for_forms' ) ) && ! empty( get_option( 'eme_hcaptcha_site_key' ) ) )
             $captchas['hcaptcha'] = __('hCaptcha','events-made-easy');

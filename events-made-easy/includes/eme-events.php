@@ -5902,8 +5902,7 @@ function eme_import_csv_events() {
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
-        // translators: %s is the detected file MIME type
-        return sprintf( esc_html__( 'No CSV file detected: %s', 'events-made-easy' ), $_FILES['eme_csv']['type'] );
+        return esc_html__( 'No CSV file detected', 'events-made-easy' );
     }
     if ( ! is_uploaded_file( $_FILES['eme_csv']['tmp_name'] ) ) {
         return __( 'Problem detected while uploading the file', 'events-made-easy' );
@@ -10333,12 +10332,14 @@ function eme_ajax_manage_events() {
         if ( ! current_user_can( get_option( 'eme_cap_edit_events' ) ) ) {
             if ( current_user_can( get_option( 'eme_cap_author_event' ) ) ) {
                 $author_event_ids = eme_get_author_event_ids( $ids );
-                if (count($ids) != count($author_event_ids)) {
+                if ( count( $ids_arr ) != count( $author_event_ids ) ) {
                     $ajaxResult['Result']  = 'Error';
                     $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
                     print wp_json_encode( $ajaxResult );
                     wp_die();
                 }
+                $ids     = implode( ',', $author_event_ids );
+                $ids_arr = $author_event_ids;
             } else {
                 $ajaxResult['Result']  = 'Error';
                 $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
@@ -10741,7 +10742,7 @@ function eme_get_event_location_used_capacity( $event ) {
     }
 }
 
-function eme_get_author_event_ids( $event_ids, $userid = 0 ) {
+function eme_get_author_event_ids( $event_ids, $user_id = 0 ) {
     global $wpdb;
     $table = EME_DB_PREFIX . EME_EVENTS_TBNAME;
     if ( ! $user_id ) {

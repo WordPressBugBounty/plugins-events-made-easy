@@ -5337,8 +5337,7 @@ function eme_import_csv_payments() {
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
-        // translators: %s is the detected MIME type of the uploaded file
-        return sprintf( esc_html__( 'No CSV file detected: %s', 'events-made-easy' ), $_FILES['eme_csv']['type'] );
+        return esc_html__( 'No CSV file detected', 'events-made-easy' );
     }
     if ( ! is_uploaded_file( $_FILES['eme_csv']['tmp_name'] ) ) {
         return __( 'Problem detected while uploading the file', 'events-made-easy' );
@@ -7154,6 +7153,7 @@ function eme_generate_booking_pdf( $booking, $event, $template_id, $stream_direc
     // instantiate and use the dompdf class
     $options = new Dompdf\Options();
     $options->set( 'isRemoteEnabled', true );
+    $options->set( 'allowedRemoteHosts', [ wp_parse_url( site_url(), PHP_URL_HOST ) ] );
     $options->set( 'isHtml5ParserEnabled', true );
     $dompdf      = new Dompdf\Dompdf( $options );
     $margin_info = 'margin: ' . $template['properties']['pdf_margins'];
@@ -7220,6 +7220,7 @@ function eme_ajax_generate_booking_pdf( $ids_arr, $template_id, $template_id_hea
     // instantiate and use the dompdf class
     $options = new Dompdf\Options();
     $options->set( 'isRemoteEnabled', true );
+    $options->set( 'allowedRemoteHosts', [ wp_parse_url( site_url(), PHP_URL_HOST ) ] );
     $options->set( 'isHtml5ParserEnabled', true );
     $dompdf      = new Dompdf\Dompdf( $options );
     $margin_info = 'margin: ' . $template['properties']['pdf_margins'];

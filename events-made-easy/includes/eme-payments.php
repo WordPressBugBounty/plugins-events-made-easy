@@ -297,7 +297,7 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
         return $ret_string;
     }
     $person      = eme_get_person( $member['person_id'] );
-    $total_price = eme_get_member_payment_price( $payment_id );
+    $total_price = eme_get_payment_price( $payment_id );
     $membership  = eme_get_membership( $member['membership_id'] );
 
     $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
@@ -888,7 +888,7 @@ function eme_payment_form_braintree( $item_name, $payment, $baseprice, $cur, $mu
         <input type='hidden' name='price' value='$price'>
         <input type='hidden' name='cur' value='$cur'>
     ";
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_braintree_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
 
     if ( ! empty( $button_img_url ) ) {
         $form_html .= "<input type='image' alt='$button_label' title='$button_label' src='$button_img_url' class='button-primary eme_submit_button'><br>";
@@ -1089,7 +1089,7 @@ function eme_payment_form_stripe( $item_name, $payment, $baseprice, $cur, $multi
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_{$gateway}_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= '</form>';
     $form_html .= $button_below;
     return $form_html;
@@ -1204,7 +1204,7 @@ function eme_payment_form_instamojo( $item_name, $payment, $baseprice, $cur, $mu
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_{$gateway}_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= $button_below;
     $form_html .= '</form>';
     return $form_html;
@@ -1249,7 +1249,7 @@ function eme_payment_form_mollie( $item_name, $payment, $baseprice, $cur, $multi
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_{$gateway}_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= '</form>';
     $form_html .= $button_below;
     return $form_html;
@@ -1297,7 +1297,7 @@ function eme_payment_form_bancontactwero( $item_name, $payment, $baseprice, $cur
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_bancontactwero_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= '</form>';
     $form_html .= $button_below;
     return $form_html;
@@ -1344,7 +1344,7 @@ function eme_payment_form_paypal( $item_name, $payment, $baseprice, $cur, $multi
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_paypal_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= '</form>';
     $form_html .= $button_below;
     return $form_html;
@@ -1560,7 +1560,7 @@ function eme_payment_form_fondy( $item_name, $payment, $baseprice, $cur, $multi_
     } else {
         $form_html .= "<input type='submit' value='$button_label' class='button-primary eme_submit_button'><br>";
     }
-    $form_html .= wp_nonce_field( "$price$cur", "eme_{$gateway}_nonce", false, false );
+    $form_html .= wp_nonce_field( "eme_fondy_{$payment_id}_{$price}_{$cur}", "eme_{$gateway}_nonce", false, false );
     $form_html .= '</form>';
     $form_html .= $button_below;
     return $form_html;
@@ -1573,9 +1573,9 @@ function eme_complete_transaction_instamojo( $payment ) {
     require_once EME_PLUGIN_DIR . 'payment_gateways/instamojo/vendor/autoload.php';
     $mode = get_option( 'eme_instamojo_env' );
     if ( preg_match( '/sandbox/', $mode ) ) {
-            $api = new Instamojo\Instamojo( $instamojo_key, $instamojo_auth_token, 'https://test.instamojo.com/api/1.1/' );
+        $api = new Instamojo\Instamojo( $instamojo_key, $instamojo_auth_token, 'https://test.instamojo.com/api/1.1/' );
     } else {
-            $api = new Instamojo\Instamojo( $instamojo_key, $instamojo_auth_token );
+        $api = new Instamojo\Instamojo( $instamojo_key, $instamojo_auth_token );
     }
 
     $instamojo_requestid = eme_sanitize_request( $_GET['payment_request_id'] );
@@ -1583,17 +1583,24 @@ function eme_complete_transaction_instamojo( $payment ) {
     // small sanity check
     $payment_requestid = $payment['pg_pid'];
     if ( $instamojo_requestid != $payment_requestid ) {
-        return;
+        return false;
     }
     // now check the state
     try {
         $response = $api->paymentRequestPaymentStatus( $instamojo_requestid, $instamojo_paymentid );
         if ( $response['payment']['status'] == 'Credit' ) {
+            $expected_price = eme_get_payment_price( $payment['id'] );
+            $amount_paid = floatval( $response['payment']['amount'] );
+            if ( $amount_paid < $expected_price - 0.01 ) {
+                error_log( "EME instamojo completion price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
+            }
             eme_mark_payment_paid( $payment['id'], 1, $gateway, $instamojo_requestid );
+            return true;
         }
     } catch ( Exception $e ) {
-        return;
+        return false;
     }
+    return false;
 }
 
 function eme_complete_transaction_sumup( $payment ) {
@@ -1602,7 +1609,7 @@ function eme_complete_transaction_sumup( $payment ) {
     $eme_sumup_app_secret    = get_option( 'eme_sumup_app_secret' );
     $eme_sumup_merchant_code = get_option( 'eme_sumup_merchant_code' );
     if ( empty( $eme_sumup_app_id ) ) {
-        return;
+        return false;
     }
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/sumup/vendor/autoload.php';
@@ -1619,11 +1626,11 @@ function eme_complete_transaction_sumup( $payment ) {
         $accessToken = $sumup->getAccessToken();
         $value       = $accessToken->getValue();
     } catch ( \SumUp\Exceptions\SumUpAuthenticationException $e ) {
-        echo 'Authentication error: ' . esc_html( $e->getMessage() );
+        error_log( 'EME SumUp completion auth error: ' . $e->getMessage() );
     } catch ( \SumUp\Exceptions\SumUpResponseException $e ) {
-        echo 'Response error: ' . esc_html( $e->getMessage() );
+        error_log( 'EME SumUp completion response error: ' . $e->getMessage() );
     } catch ( \SumUp\Exceptions\SumUpSDKException $e ) {
-        echo 'SumUp SDK error: ' . esc_html( $e->getMessage() );
+        error_log( 'EME SumUp completion SDK error: ' . $e->getMessage() );
     }
 
     $checkout_id      = $payment['pg_pid'];
@@ -1634,15 +1641,15 @@ function eme_complete_transaction_sumup( $payment ) {
         $checkoutbody = $checkoutbody[0];
     }
     if ( $checkoutbody->status == 'PAID' ) {
-        eme_mark_payment_paid( $payment['id'], 1, $gateway, $checkout_id );
+            $expected_price = eme_get_payment_price( $payment['id'] );
+            $amount_paid = floatval( $checkoutbody->amount );
+            if ( $amount_paid < $expected_price - 0.01 ) {
+                error_log( "EME sumup completion price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
+            }
+            eme_mark_payment_paid( $payment['id'], 1, $gateway, $checkout_id );
+            return true;
     }
-    //if ($transaction->status=="SUCCESSFUL") {
-    //$transactionService = $sumup->getTransactionService();
-    //$transaction = $transactionService->findById($transaction_id);
-
-    //if ($transaction->status=="SUCCESSFUL") {
-    //     eme_mark_payment_paid($payment["id"],1,"sumup",$transaction_id);
-    //  }
+    return false;
 }
 
 function eme_complete_transaction_stripe( $payment ) {
@@ -1660,13 +1667,20 @@ function eme_complete_transaction_stripe( $payment ) {
         try {
             $stripe_pi = \Stripe\PaymentIntent::retrieve( $stripe_pi_id );
         } catch ( Exception $e ) {
-            return;
+            return false;
         }
         if ( $stripe_pi->status == 'succeeded' ) {
+            $expected_price = eme_get_payment_price( $payment_id );
+            $amount_paid = $stripe_session->amount_total / 100;
+            if ( $amount_paid < $expected_price - 0.01 ) {
+                error_log( "EME stripe completion price mismatch for payment $payment_id: paid $amount_paid, expected $expected_price" );
+            }
             // we store the payment intent id, so we can refund later
             eme_mark_payment_paid( $payment_id, 1, $gateway, $stripe_pi_id );
+            return true;
         }
     }
+    return false;
 }
 
 function eme_complete_transaction_paypal($payment) {
@@ -1680,13 +1694,18 @@ function eme_complete_transaction_paypal($payment) {
         $response = $client->capture_order( $paypal_orderid );
         if ( $response['status'] === 'COMPLETED' ) {
             $capture_id = $response['purchase_units'][0]['payments']['captures'][0]['id'] ?? $paypal_orderid;
+            $expected_price = eme_get_payment_price( $payment['id'] );
+            $amount_paid = floatval( $response['purchase_units'][0]['payments']['captures'][0]['amount']['value'] );
+            if ( $amount_paid < $expected_price - 0.01 ) {
+                error_log( "EME paypal completion price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
+            }
             eme_mark_payment_paid( $payment['id'], 1, 'paypal', $capture_id );
-            return 1;
+            return true;
         }
     } catch ( Exception $e ) {
         error_log( 'PayPal capture error: ' . $e->getMessage() );
     }
-    return 0;
+    return false;
 }
 
 function eme_notification_paypal() {
@@ -1724,7 +1743,11 @@ function eme_notification_paypal() {
         $order_id = $data['resource']['id'];
         $payment = eme_get_payment_by_pg_pid( $order_id );
         if ( $payment ) {
-            eme_complete_transaction_paypal( $payment );
+            $res = eme_complete_transaction_paypal( $payment );
+            if (!$res) {
+                http_response_code( 402 );
+                exit;
+            }
         }
     }
 
@@ -1736,11 +1759,11 @@ function eme_complete_transaction_fondy( $payment ) {
     $gateway = 'fondy';
     $eme_fondy_merchant_id = get_option( 'eme_fondy_merchant_id' );
     if ( ! $eme_fondy_merchant_id ) {
-        return 'No merchant ID';
+        return false;
     }
     $eme_fondy_secret_key = get_option( 'eme_fondy_secret_key' );
     if ( ! $eme_fondy_secret_key ) {
-        return 'No secret key';
+        return false;
     }
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/fondy/autoload.php';
@@ -1756,10 +1779,15 @@ function eme_complete_transaction_fondy( $payment ) {
     $order       = $orderStatus->getData();
 
     if ( $order['order_status'] == 'approved' ) {
+        $expected_price = eme_get_payment_price( $payment['id'] );
+        $amount_paid = $order['amount'] / 100;
+        if ( $amount_paid < $expected_price - 0.01 ) {
+            error_log( "EME fondy completion price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
+        }
         eme_mark_payment_paid( $payment['id'], $gateway, $order_id );
-        return 1;
+        return true;
     } else {
-        return 0;
+        return false;
     }
 }
 
@@ -1790,6 +1818,11 @@ function eme_notification_instamojo() {
     $mac_calculated = hash_hmac( 'sha1', implode( '|', $data ), $instamojo_salt );
     if ( $mac_provided == $mac_calculated ) {
         if ( $data['status'] == 'Credit' ) {
+            $expected_price = eme_get_payment_price( $payment['id'] );
+            $instamojo_amount = floatval( $data['amount'] );
+            if ( $instamojo_amount < $expected_price - 0.01 ) {
+                error_log( "EME instamojo notification price mismatch for payment {$payment['id']}: paid $instamojo_amount, expected $expected_price" );
+            }
             eme_mark_payment_paid( $payment['id'], 1, $gateway, $instamojo_requestid );
         }
     }
@@ -1929,6 +1962,24 @@ function eme_notification_legacypaypal() {
         The complete() method below logs the valid IPN to the places you choose
         */
         $payment_id = intval( $ipn->ipn['custom'] );
+        $payment    = eme_get_payment( $payment_id );
+        if ( ! $payment ) {
+            $ipn->complete();
+            return;
+        }
+        // Verify receiver email matches configured business email
+        $configured_email = get_option( 'eme_legacypaypal_business' );
+        $receiver_email   = isset( $ipn->ipn['receiver_email'] ) ? strtolower( $ipn->ipn['receiver_email'] ) : '';
+        if ( strtolower( $configured_email ) !== $receiver_email ) {
+            $ipn->complete();
+            return;
+        }
+        // Verify amount meets expectation
+        $expected_price  = eme_get_payment_price( $payment_id );
+        $received_amount = floatval( $ipn->ipn['mc_gross'] );
+        if ( $received_amount < $expected_price - 0.01 ) {
+            error_log( "EME paypal notification price mismatch for payment $payment_id: paid $received_amount, expected $expected_price" );
+        }
         eme_mark_payment_paid( $payment_id, 1, $gateway, $ipn->ipn['txn_id'] );
         $ipn->complete();
     }
@@ -1946,10 +1997,11 @@ function eme_notification_webmoney() {
         if ( $webmoney_purse != $wm_notif->payee_purse ) {
             die( 'Not the webmoney purse it should be ...' );
         }
-        #if ($price != $amount) {
-        #   die ('Not the webmoney amount I expected ...');
-        #}
         $payment_id = intval( $wm_notif->payment_no );
+        $expected_price = eme_get_payment_price( $payment_id );
+        if ( $amount < $expected_price - 0.01 ) {
+            error_log( "EME webmoney notification price mismatch for payment $payment_id: paid $amount, expected $expected_price" );
+        }
         if ( $wm_notif->CheckMD5( $webmoney_purse, $amount, $payment_id, $webmoney_secret ) == WM_RES_OK ) {
             eme_mark_payment_paid( $payment_id, 1, $gateway, $wm_notif->sys_invs_no );
         }
@@ -2011,8 +2063,10 @@ function eme_notification_fdgg() {
         wp_die( esc_html__( 'Hash Incorrect', 'events-made-easy' ) );
     }
 
-    // TODO: do some extra checks, like the price paid and such
-    #$price=eme_get_total_booking_price($booking);
+    $expected_price = eme_get_payment_price( $payment_id );
+    if ( $charge_total < $expected_price - 0.01 ) {
+        error_log( "EME mercadopago notification price mismatch for payment $payment_id: paid $charge_total, expected $expected_price" );
+    }
 
     if ( strtolower( $response_status ) == 'approved' ) {
         eme_mark_payment_paid( $payment_id, 1, $gateway, $payment_id );
@@ -2041,11 +2095,11 @@ function eme_notification_sumup() {
             $accessToken = $sumup->getAccessToken();
             $value       = $accessToken->getValue();
     } catch ( \SumUp\Exceptions\SumUpAuthenticationException $e ) {
-            echo 'Authentication error: ' . esc_html( $e->getMessage() );
+            error_log( 'EME SumUp notification auth error: ' . $e->getMessage() );
     } catch ( \SumUp\Exceptions\SumUpResponseException $e ) {
-            echo 'Response error: ' . esc_html( $e->getMessage() );
+            error_log( 'EME SumUp notification response error: ' . $e->getMessage() );
     } catch ( \SumUp\Exceptions\SumUpSDKException $e ) {
-            echo 'SumUp SDK error: ' . esc_html( $e->getMessage() );
+            error_log( 'EME SumUp notification SDK error: ' . $e->getMessage() );
     }
 
     $checkout_id      = eme_sanitize_request( $_POST['id'] );
@@ -2058,6 +2112,11 @@ function eme_notification_sumup() {
     if ( $checkoutbody->status == 'PAID' ) {
         $payment = eme_get_payment_by_pg_pid( $checkout_id );
         if ( ! empty( $payment ) ) {
+            $expected_price = eme_get_payment_price( $payment['id'] );
+            $amount_paid = floatval( $checkoutbody->amount );
+            if ( $amount_paid < $expected_price - 0.01 ) {
+                error_log( "EME sumup notification price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
+            }
             eme_mark_payment_paid( $payment['id'], 1, $gateway, $checkout_id );
         }
     }
@@ -2097,6 +2156,16 @@ function eme_notification_stripe() {
         $stripe_session = $event->data->object;
         $payment_id     = $stripe_session->client_reference_id;
         $stripe_pi_id   = $stripe_session->payment_intent;
+        $payment = eme_get_payment( $payment_id );
+        if ( ! $payment ) {
+            http_response_code( 400 );
+            return;
+        }
+        $expected_price = eme_get_payment_price( $payment_id );
+        $amount_paid = $stripe_session->amount_total / 100;
+        if ( $amount_paid < $expected_price - 0.01 ) {
+            error_log( "EME stripe notification price mismatch for payment $payment_id: paid $amount_paid, expected $expected_price" );
+        }
         eme_mark_payment_paid( $payment_id, 1, $gateway, $stripe_pi_id );
     }
     http_response_code( 200 );
@@ -2123,6 +2192,11 @@ function eme_notification_fondy() {
             $order_id = $result->getData()['order_id'];
             $payment  = eme_get_payment_by_pg_pid( $order_id );
             if ( $payment ) {
+                $fondy_amount = $result->getData()['amount'] / 100;
+                $expected_price = eme_get_payment_price( $payment['id'] );
+                if ( $fondy_amount < $expected_price - 0.01 ) {
+                    error_log( "EME fondy notification price mismatch for payment {$payment['id']}: paid $fondy_amount, expected $expected_price" );
+                }
                 eme_mark_payment_paid( $payment['id'], 1, $gateway, $order_id );
             }
         }
@@ -2217,16 +2291,26 @@ function eme_charge_paypal() {
     $client = new EME_PayPal_Client();
     if ( ! $client->is_configured() ) return 0;
 
-    $payment_id = intval($_POST['payment_id']);
-    $price = eme_sanitize_request($_POST['price']);
-    $cur = eme_sanitize_request($_POST['cur']);
-    $description = eme_sanitize_request($_POST['description']);
+    $payment_id = isset($_POST['payment_id']) ? intval( $_POST['payment_id'] ) : 0;
+    $price = isset($_POST['price']) ? floatval( $_POST['price'] ) : 0;
+    $cur   = isset($_POST['cur']) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description = isset($_POST['description']) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment = eme_get_payment($payment_id);
 
-    // Validate nonce
-    if (empty($_POST["eme_{$gateway}_nonce"]) || !wp_verify_nonce($_POST["eme_{$gateway}_nonce"], "$price$cur")) {
+    // Validate nonce (price+cur locked)
+    if (empty($_POST["eme_{$gateway}_nonce"]) || !wp_verify_nonce($_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}")) {
         wp_safe_redirect(eme_payment_return_url($payment, 1));
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     $success_link = eme_payment_return_url($payment, $gateway);
@@ -2248,18 +2332,29 @@ function eme_charge_paypal() {
 function eme_charge_stripe() {
     $gateway = "stripe";
     $events_page_link = eme_get_events_page();
-    $payment_id       = intval( $_POST['payment_id'] );
-    $price            = eme_sanitize_request( $_POST['price'] );
-    $cur              = eme_sanitize_request( $_POST['cur'] );
-    $description      = eme_sanitize_request( $_POST['description'] );
+    $payment_id       = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price            = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur              = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description      = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment          = eme_get_payment( $payment_id );
     $success_link     = eme_payment_return_url( $payment, $gateway );
     $cancel_link      = eme_payment_url( $payment );
+    $fail_link        = eme_payment_return_url( $payment, 1 );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2352,20 +2447,30 @@ function eme_charge_braintree() {
         return;
     }
 
-    $payment_id   = intval( $_POST['payment_id'] );
-    $price        = eme_sanitize_request( $_POST['price'] );
-    $cur          = eme_sanitize_request( $_POST['cur'] );
+    $payment_id   = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price        = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur          = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
     // braintree ignores the description, but let's act as usual
-    $description  = eme_sanitize_request( $_POST['description'] );
+    $description  = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment      = eme_get_payment( $payment_id );
 
     $success_link = eme_payment_return_url( $payment, 0 );
     $fail_link    = eme_payment_return_url( $payment, 1 );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2415,20 +2520,30 @@ function eme_charge_instamojo() {
     }
 
     $events_page_link  = eme_get_events_page();
-    $payment_id        = intval( $_POST['payment_id'] );
-    $price             = eme_sanitize_request( $_POST['price'] );
-    $cur               = eme_sanitize_request( $_POST['cur'] );
-    $description       = eme_sanitize_request( $_POST['description'] );
+    $payment_id        = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price             = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur               = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description       = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment           = eme_get_payment( $payment_id );
 
     $return_link       = eme_payment_return_url( $payment, $gateway );
     $fail_link         = eme_payment_return_url( $payment, 1 );
     $notification_link = add_query_arg( [ 'eme_eventAction' => "{$gateway}_notification" ], $events_page_link );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2481,7 +2596,7 @@ function eme_charge_mercadopago() {
 
     // we get the external reference back as a post
     // // we also get the mercado pago payment id, merchant order and status back as post, but we won't trust it
-    $payment_id   = intval( $_POST['external_reference'] );
+    $payment_id   = isset( $_POST['external_reference'] ) ? intval( $_POST['external_reference'] ) : 0;
     $payment      = eme_get_payment( $payment_id );
     $success_link = eme_payment_return_url( $payment, 0 );
     $fail_link    = eme_payment_return_url( $payment, 1 );
@@ -2520,10 +2635,10 @@ function eme_charge_fondy() {
         return;
     }
 
-    $payment_id  = intval( $_POST['payment_id'] );
-    $price       = eme_sanitize_request( $_POST['price'] );
-    $cur         = eme_sanitize_request( $_POST['cur'] );
-    $description = eme_sanitize_request( $_POST['description'] );
+    $payment_id  = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price       = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur         = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
 
     $payment = eme_get_payment( $payment_id );
 
@@ -2532,10 +2647,20 @@ function eme_charge_fondy() {
     $success_link      = eme_payment_return_url( $payment, 0 );
     $fail_link         = eme_payment_return_url( $payment, 1 );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2771,10 +2896,10 @@ function eme_refund_booking_braintree( $booking ) {
 function eme_charge_mollie() {
     $gateway = 'mollie';
     $events_page_link = eme_get_events_page();
-    $payment_id       = intval( $_POST['payment_id'] );
-    $price            = eme_sanitize_request( $_POST['price'] );
-    $cur              = eme_sanitize_request( $_POST['cur'] );
-    $description      = eme_sanitize_request( $_POST['description'] );
+    $payment_id       = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price            = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur              = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description      = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment          = eme_get_payment( $payment_id );
 
     $api_key = get_option( 'eme_mollie_api_key' );
@@ -2787,10 +2912,20 @@ function eme_charge_mollie() {
     $cancel_link       = eme_payment_url( $payment );
     $notification_link = add_query_arg( [ 'eme_eventAction' => "{$gateway}_notification" ], $events_page_link );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2859,7 +2994,7 @@ function eme_notification_mollie( $mollie_payment_id = 0 ) {
     $gateway = 'mollie';
     $api_key = get_option( 'eme_mollie_api_key' );
     if ( ! $api_key ) {
-        return;
+        return false;
     }
     // Avoid loading the Mollie API if it is already loaded by another plugin
     if ( ! class_exists( 'Mollie\Api\MollieApiClient' ) ) {
@@ -2882,28 +3017,36 @@ function eme_notification_mollie( $mollie_payment_id = 0 ) {
             $mollie_payment = $mollie->payments->get( $mollie_payment_id );
         }
     } catch ( Exception $e ) {
-        return;
+        return false;
     }
     $payment_id = $mollie_payment->metadata->payment_id;
     $payment    = eme_get_payment( $payment_id );
     if ( !$payment ) {
-        return; // payment doesn't exist, let's quit
+        return false; // payment doesn't exist, let's quit
     }
     // The payment is paid and isn't refunded or charged back
     if ( $mollie_payment->isPaid() && ! $mollie_payment->hasRefunds() && ! $mollie_payment->hasChargebacks() ) {
+        $expected_price = eme_get_payment_price( $payment_id );
+        $amount_paid = floatval( $mollie_payment->amount->value );
+        if ( $amount_paid < $expected_price - 0.01 ) {
+            error_log( "EME mollie completion price mismatch for payment $payment_id: paid $amount_paid, expected $expected_price" );
+        }
         eme_mark_payment_paid( $payment_id, 1, $gateway, $mollie_payment_id );
+        return true;
     }
+    return false;
 }
 
 function eme_charge_payconiq() {
     return eme_charge_bancontactwero();
 }
 function eme_charge_bancontactwero() {
+    $gateway          = 'bancontactwero';
     $events_page_link = eme_get_events_page();
-    $payment_id       = intval( $_POST['payment_id'] );
-    $price            = eme_sanitize_request( $_POST['price'] );
-    $cur              = eme_sanitize_request( $_POST['cur'] );
-    $description      = eme_sanitize_request( $_POST['description'] );
+    $payment_id       = isset( $_POST['payment_id'] ) ? intval( $_POST['payment_id'] ) : 0;
+    $price            = isset( $_POST['price'] ) ? floatval( $_POST['price'] ) : 0;
+    $cur              = isset( $_POST['cur'] ) ? eme_sanitize_request( $_POST['cur'] ) : '';
+    $description      = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
     $payment          = eme_get_payment( $payment_id );
     if ( $payment['target'] == 'member' ) {
         $bulkId = "members";
@@ -2912,8 +3055,6 @@ function eme_charge_bancontactwero() {
     } else {
         $bulkId = "bookings";
     }
-
-    $gateway = 'bancontactwero';
     $api_key = get_option( "eme_{$gateway}_api_key" );
     if ( ! $api_key ) {
         return;
@@ -2923,10 +3064,20 @@ function eme_charge_bancontactwero() {
     $fail_link         = eme_payment_return_url( $payment, $gateway );
     $notification_link = add_query_arg( [ 'eme_eventAction' => "{$gateway}_notification" ], $events_page_link );
 
-    // no cheating
-    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "$price$cur" ) ) {
+    // no cheating (price+cur locked)
+    if ( empty($_POST["eme_{$gateway}_nonce"]) || ! wp_verify_nonce( $_POST["eme_{$gateway}_nonce"], "eme_{$gateway}_{$payment_id}_{$price}_{$cur}" ) ) {
         wp_safe_redirect($fail_link);
         exit;
+    }
+
+    // Log mismatches between POST and DB values
+    $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
+    $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+    if ( abs( $expected_price - $price ) > 0.01 ) {
+        error_log( "EME $gateway price mismatch for payment $payment_id: POST price $price, DB price $expected_price" );
+    }
+    if ( $expected_cur !== $cur ) {
+        error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
     // avoid that people pay again after pressing "back" and arriving on the payment form again
@@ -2975,12 +3126,12 @@ function eme_complete_transaction_bancontactwero( $payment ) {
     $gateway     = 'bancontactwero';
     $api_key     = get_option( "eme_{$gateway}_api_key" );
     if ( ! $api_key ) {
-        return;
+        return false;
     }
 
     $bancontactwero_paymentid = $payment['pg_pid'];
     if ( ! $bancontactwero_paymentid ) {
-        return;
+        return false;
     }
     if ( ! class_exists( 'BancontactWero\Client' ) ) {
         require_once EME_PLUGIN_DIR . 'payment_gateways/BancontactWero/src/Client.php';
@@ -2993,20 +3144,22 @@ function eme_complete_transaction_bancontactwero( $payment ) {
     try {
         $bancontactwero_payment = $bancontactwero->retrievePayment( $bancontactwero_paymentid );
     } catch ( Exception $e ) {
-        return;
+        return false;
     }
 
     $payment_id = $bancontactwero_payment->reference;
     if ($payment_id != $payment['id']) {
         error_log("EME bancontactwero error: wrong payment id $payment_id, expected {$payment['id']}");
-        return;
+        return false;
     }
 
     $eme_price  = eme_get_payment_price( $payment_id );
     // The payment is paid and to be sure we also check the paid amount
     if ( $bancontactwero_payment->status == 'SUCCEEDED' && $bancontactwero_payment->amount / 100 >= $eme_price ) {
         eme_mark_payment_paid( $payment_id, 1, $gateway, $bancontactwero_paymentid );
+        return true;
     }
+    return false;
 }
 
 function eme_notification_payconiq() {
@@ -3150,6 +3303,16 @@ function eme_notification_worldpay() {
     $post_instid     = eme_sanitize_request( $_POST['instId'] );
     $worldpay_instid = eme_sanitize_request( get_option( 'eme_worldpay_instid' ) );
     $payment_id      = intval( $_POST['cartId'] );
+    $amount          = floatval( $_POST['amount'] );
+
+    $payment = eme_get_payment( $payment_id );
+    if ( ! $payment ) {
+        return;
+    }
+    $expected_price = eme_get_payment_price( $payment_id );
+    if ( $amount < $expected_price - 0.01 ) {
+        error_log( "EME worldpay notification price mismatch for payment $payment_id: paid $amount, expected $expected_price" );
+    }
     if ( $post_pwd == $worldpay_pwd && $trans_status == 'Y' && $test_mode == 0 && $post_instid == $worldpay_instid ) {
         eme_mark_payment_paid( $payment_id, 1, 'worldpay', $trans_id );
     }
@@ -3174,6 +3337,16 @@ function eme_notification_opayo() {
     if ( $decrypt && ! empty( $decryptArr ) ) {
         if ( $decryptArr['Status'] == 'OK' ) {
             $payment_id = $decryptArr['VendorTxCode'];
+            $amount     = floatval( $decryptArr['Amount'] );
+            $payment    = eme_get_payment( $payment_id );
+            if ( ! $payment ) {
+                return;
+            }
+            $cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
+            $expected_price = eme_get_payment_price( $payment_id );
+            if ( $amount < $expected_price - 0.01 ) {
+                error_log( "EME opayo notification price mismatch for payment $payment_id: paid $amount, expected $expected_price" );
+            }
             eme_mark_payment_paid( $payment_id, 1, 'opayo', $decryptArr['VPSTxId'] );
         }
     }
@@ -3521,7 +3694,7 @@ function eme_get_payment_seats( $payment ) {
     return $seats;
 }
 
-function eme_get_payment_price_novat( $payment_id ) {
+function eme_get_rsvp_payment_price_novat( $payment_id ) {
     $price    = 0;
     $bookings = eme_get_bookings_by_paymentid( $payment_id );
     foreach ( $bookings as $booking ) {
@@ -3537,7 +3710,7 @@ function eme_get_payment_price_novat( $payment_id ) {
     }
     return $price;
 }
-function eme_get_payment_price_vatonly( $payment_id ) {
+function eme_get_rsvp_payment_price_vatonly( $payment_id ) {
     $price    = 0;
     $bookings = eme_get_bookings_by_paymentid( $payment_id );
     foreach ( $bookings as $booking ) {
@@ -3554,7 +3727,7 @@ function eme_get_payment_price_vatonly( $payment_id ) {
     return $price;
 }
 
-function eme_get_payment_price( $payment_id ) {
+function eme_get_rsvp_payment_price( $payment_id ) {
     $price    = 0;
     $bookings = eme_get_bookings_by_paymentid( $payment_id );
     foreach ( $bookings as $booking ) {
@@ -3570,11 +3743,88 @@ function eme_get_payment_price( $payment_id ) {
     return $price;
 }
 
+function eme_get_fs_payment_price( $payment_id ) {
+    $eme_fs_options = get_option('eme_fs');
+    return $eme_fs_options['price'] ?? 0;
+}
+function eme_get_fs_payment_price_novat( $payment_id ) {
+    $vat_pct = get_option('eme_default_vat');
+    $price = eme_get_fs_payment_price( $payment_id );
+    return $price / ( 1 + $vat_pct / 100 );
+}
+function eme_get_fs_payment_price_vatonly( $payment_id ) {
+    $vat_pct = get_option('eme_default_vat');
+    $price = eme_get_fs_payment_price( $payment_id );
+    return $price - $price / ( 1 + $vat_pct / 100 );
+}
+
+function eme_get_payment_price( $payment_id ) {
+    $payment = eme_get_payment( $payment_id );
+    if ( empty( $payment ) ) {
+        return 0;
+    }
+    if ( $payment['target'] == 'member' ) {
+        return eme_get_member_payment_price( $payment_id );
+    }
+    if ( $payment['target'] == 'fs_event' ) {
+        return eme_get_fs_payment_price( $payment_id );
+    }
+    return eme_get_rsvp_payment_price( $payment_id );
+}
+function eme_get_payment_price_novat( $payment_id ) {
+    $payment = eme_get_payment( $payment_id );
+    if ( empty( $payment ) ) {
+        return 0;
+    }
+    if ( $payment['target'] == 'member' ) {
+        return eme_get_member_payment_price_novat( $payment_id );
+    }
+    if ( $payment['target'] == 'fs_event' ) {
+        return eme_get_fs_payment_price_novat( $payment_id );
+    }
+    return eme_get_rsvp_payment_price_novat( $payment_id );
+}
+function eme_get_payment_price_vatonly( $payment_id ) {
+    $payment = eme_get_payment( $payment_id );
+    if ( empty( $payment ) ) {
+        return 0;
+    }
+    if ( $payment['target'] == 'member' ) {
+        return eme_get_member_payment_price_vatonly( $payment_id );
+    }
+    if ( $payment['target'] == 'fs_event' ) {
+        return eme_get_fs_payment_price_vatonly( $payment_id );
+    }
+    return eme_get_rsvp_payment_price_vatonly( $payment_id );
+}
+
 function eme_get_member_payment_price( $payment_id ) {
     $price  = 0;
     $member = eme_get_member_by_paymentid( $payment_id );
     $price  = eme_get_total_member_price( $member );
     return $price;
+}
+function eme_get_member_payment_price_novat( $payment_id ) {
+    $price = 0;
+    $member = eme_get_member_by_paymentid( $payment_id );
+    if ( empty( $member ) ) {
+        return 0;
+    }
+    $membership = eme_get_membership( $member['membership_id'] );
+    $vat_pct = $membership['properties']['vat_pct'];
+    $price = eme_get_total_member_price( $member );
+    return $price / ( 1 + $vat_pct / 100 );
+}
+function eme_get_member_payment_price_vatonly( $payment_id ) {
+    $price = 0;
+    $member = eme_get_member_by_paymentid( $payment_id );
+    if ( empty( $member ) ) {
+        return 0;
+    }
+    $membership = eme_get_membership( $member['membership_id'] );
+    $vat_pct = $membership['properties']['vat_pct'];
+    $price = eme_get_total_member_price( $member );
+    return $price - $price / ( 1 + $vat_pct / 100 );
 }
 
 function eme_update_attendance_count( $booking_id ) {

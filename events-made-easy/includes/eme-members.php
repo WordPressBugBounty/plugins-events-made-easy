@@ -1113,10 +1113,10 @@ function eme_add_update_member( $member_id = 0, $send_mail = 1 ) {
         } elseif ( eme_is_empty_string( $_POST['lastname'] ) ) {
             // we need at least lastname
             $err = __( 'Please enter at least the last name for a new member', 'events-made-easy' );
-        } elseif ( ! $eme_is_admin_request && ! eme_is_email_frontend( sanitize_text_field( wp_unslash( $_POST['email'] ) ) ) ) {
+        } elseif ( ! $eme_is_admin_request && ! eme_is_email_frontend( eme_sanitize_email( $_POST['email'] ) ) ) {
             // we need an email
             $err = __( 'Please enter a valid email address', 'events-made-easy' );
-        } elseif ( $membership['properties']['create_wp_user'] && ! eme_is_email( sanitize_text_field( wp_unslash( $_POST['email'] ) ) ) ) {
+        } elseif ( $membership['properties']['create_wp_user'] && ! eme_is_email( eme_sanitize_email( $_POST['email'] ) ) ) {
             // we need an email
             $err = __( 'Please enter a valid email address', 'events-made-easy' );
         } else {
@@ -2838,7 +2838,7 @@ function eme_render_member_table_and_filters ($limit_to_group = 0 ) {
     if (empty($limit_to_group)) {
 ?>
     <button id="StoreQueryButton" class="button action eme_admin_button_middle"><?php esc_html_e( 'Store result as dynamic group', 'events-made-easy' ); ?></button>
-    <div id="StoreQueryDiv"><?php esc_html_e( 'Enter a name for this dynamic group', 'events-made-easy' ); ?> <input type="text" id="dynamicgroupname" name="dynamicgroupname" class="clearable" size=20>
+    <div id="StoreQueryDiv"><?php esc_html_e( 'Enter a name for this dynamic group', 'events-made-easy' ); ?> <input type="search" id="dynamicgroupname" name="dynamicgroupname" size=20>
         <button id="StoreQuerySubmitButton" class="button action"><?php esc_html_e( 'Store dynamic group', 'events-made-easy' ); ?></button>
     </div>
 <?php

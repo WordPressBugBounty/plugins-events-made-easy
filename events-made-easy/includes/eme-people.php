@@ -1987,7 +1987,7 @@ function eme_render_people_table_and_filters( $limit_to_group = 0) {
     if (empty($limit_to_group)) {
 ?>
         <button id="StoreQueryButton" class="button action eme_admin_button_middle"><?php esc_html_e( 'Store result as dynamic group', 'events-made-easy' ); ?></button>
-        <div id="StoreQueryDiv"><?php esc_html_e( 'Enter a name for this dynamic group', 'events-made-easy' ); ?> <input type="text" id="dynamicgroupname" name="dynamicgroupname" class="clearable" size=20>
+        <div id="StoreQueryDiv"><?php esc_html_e( 'Enter a name for this dynamic group', 'events-made-easy' ); ?> <input type="search" id="dynamicgroupname" name="dynamicgroupname" size=20>
     <button id="StoreQuerySubmitButton" class="button action"><?php esc_html_e( 'Store dynamic group', 'events-made-easy' ); ?></button>
         </div>
 <?php
@@ -2808,7 +2808,7 @@ function eme_group_edit_layout( $group_id = 0, $message = '', $group_type = 'sta
         </tr>
         <tr>
         <td><label for="People"><?php esc_html_e( 'People', 'events-made-easy' ); ?></label></td>
-        <td><?php echo eme_ui_multiselect( $grouppersons, 'persons', $mygroups, 5, '', 1, 'eme_snapselect_people_class' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect() ?></td>
+        <td><?php echo eme_ui_multiselect( $grouppersons, 'persons', $mygroups, 5, '', 0, 'eme_snapselect_people_class' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect() ?></td>
         </tr>
 <?php
             } elseif ( $group['type'] == 'dynamic_people' ) {

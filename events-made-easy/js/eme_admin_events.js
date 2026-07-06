@@ -654,10 +654,9 @@ document.addEventListener('DOMContentLoaded', function () {
         if (eventNameInput) {
             const eventName = eventNameInput.value;
             if (!eventName) {
-                title = emeadmin.translate_insertnewevent || 'Insert New Event';
+                title = emeadmin.translate_insertnewevent;
             } else {
-                title = emeadmin.translate_editeventstring || 'Edit Event: %s';
-                title = title.replace(/%s/g, eventName);
+                title = emeadmin.translate_editeventstring + ' ' + eventName;
             }
             document.title = eme_htmlDecode(title);
         }

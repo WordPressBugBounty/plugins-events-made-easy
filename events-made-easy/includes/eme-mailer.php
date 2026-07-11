@@ -675,7 +675,7 @@ function eme_mark_mail_sent( $id, $random_id = '' ) {
     }
 }
 
-function eme_mark_mail_fail( $id, $random_id = '', $error_msg = '' ) {
+function eme_mark_mail_fail( $id, $random_id = '', $error_msg = '', $bounce = false ) {
     global $wpdb;
     $mqueue_table            = EME_DB_PREFIX . EME_MQUEUE_TBNAME;
     $where                   = [];
@@ -687,7 +687,10 @@ function eme_mark_mail_fail( $id, $random_id = '', $error_msg = '' ) {
     }
     $fields['status']        = EME_MAIL_STATUS_FAILED;
     $fields['error_msg']     = $error_msg;
-    $fields['sent_datetime'] = current_time( 'mysql', false );
+    if (!$bounce) {
+        // when marking fail after bounce, don't change the sent datetime
+        $fields['sent_datetime'] = current_time( 'mysql', false );
+    }
     if ( $wpdb->update( $mqueue_table, $fields, $where ) === false ) {
         return false;
     } else {
@@ -2727,7 +2730,7 @@ function eme_emails_page() {
                         $member_ids = explode( ',', $conditions['eme_send_members'] );
                         $members    = eme_get_members( $member_ids );
                         foreach ( $members as $member ) {
-                            $mymembergroups[ $member['member_id'] ] = eme_format_full_name( $member['firstname'], $member['lastname'], $person['email'] );
+                            $mymembergroups[ $member['member_id'] ] = eme_format_full_name( $member['firstname'], $member['lastname'], $member['email'] );
                         }
                     }
                     if ( ! empty( $conditions['eme_genericmail_send_peoplegroups'] ) ) {
@@ -3646,5 +3649,73 @@ function eme_unsub_do( $email, $group_ids ) {
         eme_unsub_send_confirmation_mail( $email );
     }
     return $count;
+}
+
+function eme_process_bounces() {
+    if ( ! get_option( 'eme_imap_bounce_active' ) ) {
+        return [ 'error' => __( 'IMAP bounce handler is not active.', 'events-made-easy' ) ];
+    }
+    if ( ! eme_is_datamaster() ) {
+        return [ 'error' => __( 'Only the data master can process bounces.', 'events-made-easy' ) ];
+    }
+
+    $server    = get_option( 'eme_imap_bounce_server' );
+    $username  = get_option( 'eme_imap_bounce_username' );
+    $password  = get_option( 'eme_imap_bounce_password' );
+    if ( empty( $server ) || empty( $username ) || empty( $password ) ) {
+        return [ 'error' => __( 'IMAP bounce handler is not fully configured.', 'events-made-easy' ) ];
+    }
+
+    require_once __DIR__ . '/bounce-handler/BounceIMAP.php';
+    require_once __DIR__ . '/bounce-handler/BounceRules.php';
+    require_once __DIR__ . '/bounce-handler/BounceMailHandler.php';
+
+    $bounce = new BounceMailHandler\BounceMailHandler();
+    $bounce->mailhost        = $server;
+    $bounce->port            = intval( get_option( 'eme_imap_bounce_port', 993 ) );
+    $bounce->mailboxUserName = $username;
+    $bounce->mailboxPassword = $password;
+    $bounce->boxname         = get_option( 'eme_imap_bounce_mailbox', 'INBOX' );
+    $bounce->serviceOption   = get_option( 'eme_imap_bounce_encryption', 'ssl' );
+    $bounce->requiredXHeader = 'X-EME-mailid';
+    $bounce->verbose         = BounceMailHandler\BounceMailHandler::VERBOSE_QUIET;
+    $bounce->actionFunction  = 'eme_bounce_callback';
+    $bounce->sinceDate       = strtotime('-25 hours'); // summertime safe
+
+    if ( ! $bounce->openMailbox() ) {
+        return [ 'error' => $bounce->errorMessage ];
+    }
+
+    return $bounce->processMailbox();
+}
+
+function eme_bounce_callback( $msgnum, $bounce_type, $email, $subject, $xheader, $remove, $rule_reason, $rule_cat, $totalFetched, $body, $headerFull, $bodyFull, $status_code, $action, $diagnostic_code ) {
+    global $wpdb;
+
+    $mail_id = 0;
+    $random_id = $xheader; // xheader contains our randomid
+    $mail = eme_get_mail_by_rid( $random_id );
+    if ( $mail && (int) $mail['status'] === EME_MAIL_STATUS_SENT ) {
+        $mail_id = $mail['id'];
+    }
+
+    if ( ! $mail_id ) {
+        return;
+    }
+
+    $error_msg = sprintf( __( 'Bounced (type %s). Reason: %s', 'events-made-easy' ), $bounce_type, $rule_reason );
+    if ( $bounce_type === 'hard' ) {
+        eme_mark_mail_fail( $mail_id, $random_id, $error_msg, 1 ); // the last param so we don't change the sent datetime
+    } else {
+        $mqueue_table = EME_DB_PREFIX . EME_MQUEUE_TBNAME;
+        // if we want to keep all messages:
+        // "UPDATE $mqueue_table SET error_msg = CONCAT(IFNULL(error_msg,''), %s) WHERE id = %d",
+        $prepared_sql = $wpdb->prepare(
+            "UPDATE $mqueue_table SET error_msg = %s WHERE id = %d",
+            $error_msg,
+            $mail_id
+        );
+        $wpdb->query( $prepared_sql );
+    }
 }
 

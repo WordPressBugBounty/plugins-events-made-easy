@@ -1311,14 +1311,11 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
     }
 
     $event = $events[0];
-    if ( ! eme_is_empty_string( $event['event_properties']['rsvp_password'] ) && ! $eme_is_admin_request ) {
-        if ( ! isset( $_POST['rsvp_password'] ) ) {
-            $form_html = __( 'Password is missing', 'events-made-easy' );
-            return [
-                0 => $form_html,
-                1 => $booking_ids,
-            ];
-        } elseif ( eme_sanitize_request($_POST['rsvp_password']) != $event['event_properties']['rsvp_password'] ) {
+    $stored_password = $event['event_properties']['rsvp_password'];
+    if ( ! eme_is_empty_string( $stored_password) && ! $eme_is_admin_request ) {
+        $submitted_password = eme_sanitize_request( $_POST['rsvp_password'] );
+        // Check if password is empty or if passwords don't match
+        if ( empty( $submitted_password ) || ! hash_equals( $stored_password, $submitted_password ) ) {
             $form_html = __( 'Incorrect password given', 'events-made-easy' );
             return [
                 0 => $form_html,
@@ -5325,11 +5322,6 @@ function eme_registration_seats_page( $pending = 0 ) {
                 $update_message = __( 'During the time of your change, some free seats were taken leaving not enough free seats available anymore', 'events-made-easy' );
                 print "<div id='message' class='error notice is-dismissible'><p>" . wp_kses_post( $update_message ) . '</p></div>';
             }
-        } elseif ( $action == 'import_payments' && isset( $_FILES['eme_csv'] ) ) {
-            // eme_cap_cleanup is used for cleanup, cron and imports (should more be something like 'eme_cap_actions')
-            check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
-            $message = eme_import_csv_payments();
-            print "<div id='message' class='updated notice is-dismissible'><p>" . wp_kses_post( $message ) . '</p></div>';
         }
     }
 
@@ -5345,7 +5337,7 @@ function eme_import_csv_payments() {
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
-        return esc_html__( 'No CSV file detected', 'events-made-easy' );
+        return esc_html__( 'Invalid file type. Please upload a CSV file.', 'events-made-easy' );
     }
     if ( ! is_uploaded_file( $_FILES['eme_csv']['tmp_name'] ) ) {
         return __( 'Problem detected while uploading the file', 'events-made-easy' );
@@ -5528,23 +5520,6 @@ function eme_registration_seats_form_table( $pending = 0 ) {
         <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&trash=0$event_q_string" ) ); ?>"><?php esc_html_e( 'Show regular content', 'events-made-easy' ); ?></a><br>
     <?php } else { ?>
         <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&trash=1$event_q_string" ) ); ?>"><?php esc_html_e( 'Show trash content', 'events-made-easy' ); ?></a><br>
-        <span class="eme_import_form_img">
-        <?php esc_html_e( 'Click on the icon to show the import form to import payments', 'events-made-easy' ); ?>
-        <img src="<?php echo esc_url(EME_PLUGIN_URL); ?>images/showhide.png" class="showhidebutton" alt="show/hide" data-showhide="eme_div_import" style="cursor: pointer; vertical-align: middle; ">
-        </span>
-        <div id='eme_div_import' class='eme-hidden'>
-        <form id='payment-import' method='post' enctype='multipart/form-data' action='#'>
-        <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-        <input type="file" name="eme_csv">
-        <?php esc_html_e( 'Delimiter:', 'events-made-easy' ); ?> 
-        <input type="text" size=1 maxlength=1 name="delimiter" value=',' required='required'>
-        <?php esc_html_e( 'Enclosure:', 'events-made-easy' ); ?>
-        <input required="required" type="text" size=1 maxlength=1 name="enclosure" value='"' required='required'>
-        <input type="hidden" name="eme_admin_action" value="import_payments">
-        <input type="submit" value="<?php esc_html_e( 'Import', 'events-made-easy' ); ?>" name="doaction" id="doaction" class="button-primary action">
-        <?php esc_html_e( 'If you want, use this to import booking payments', 'events-made-easy' ); ?>
-        </form>
-        </div>
     <?php } ?>
 
     <div>
@@ -5586,8 +5561,8 @@ function eme_registration_seats_form_table( $pending = 0 ) {
 
         <input id="search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <a onclick='return false;' href='#'  class="showhidebutton" alt="show/hide" data-showhide="extra_searchfields"><?php esc_html_e( 'Show/hide extra filters', 'events-made-easy' ); ?></a>
-        <div id="extra_searchfields" class='eme-hidden'>
+        <button type="button" class="eme-filters-toggle" data-showhide="extra_searchfields"><span class="eme-filters-toggle-icon">&#9660;</span> <?php esc_html_e( 'Extra filters', 'events-made-easy' ); ?></button>
+        <div id="extra_searchfields" class='eme-filters-panel'>
 <?php
     } else {
 ?>
@@ -6296,8 +6271,8 @@ function eme_ajax_bookings_list() {
                 }
 
                 if ( $booked_seats > 0 || $pending_seats > 0 ) {
-                    $printable_address            = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] );
-                    $csv_address                  = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] );
+                    $printable_address            = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
+                    $csv_address                  = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
                     $event_name_info[ $event_id ] .= " <br>(<a id='booking_printable_" . $event['event_id'] . "' href='".esc_url($printable_address)."'>" . esc_html__( 'Printable view', 'events-made-easy' ) . '</a>)';
                     $event_name_info[ $event_id ] .= " (<a id='booking_csv_" . $event['event_id'] . "' href='".esc_url($csv_address)."'>" . esc_html__( 'CSV export', 'events-made-easy' ) . '</a>)';
                 }

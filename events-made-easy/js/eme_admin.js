@@ -9,6 +9,11 @@ function eme_activateTab(target) {
     if (targetTab) targetTab.classList.add('active');
     if (targetContent) targetContent.classList.add('active');
 
+    // Update URL hash for hash-based tab navigation
+    //if (target && window.history && window.history.replaceState) {
+    //    history.replaceState(null, '', '#' + target);
+    //}
+
     if (target === "tab-locationdetails" && emeadmin.translate_map_is_active === 'true') {
         setTimeout(() => {
             eme_SelectdisplayAddress();
@@ -16,35 +21,29 @@ function eme_activateTab(target) {
         }, 100);
     }
 
-    if (target === "tab-mailings") {
-        setTimeout(() => {
-            const container = EME.$('#MailingsTableContainer');
-            if (container && container.ftableInstance) {
-                //container.ftableInstance.recalcColumnWidthsOnce();
-                const loadButton = EME.$('#MailingsLoadRecordsButton');
-                if (loadButton) loadButton.click();
-            }
-        }, 100);
-    }
+    // Lazy-load: the ftable belonging to a tab only fetches its data once that tab becomes active.
+    const tabTableContainerIds = {
+        'tab-mailings':        'MailingsTableContainer',
+        'tab-mailingsarchive': 'ArchivedMailingsTableContainer',
+        'tab-allmail':         'MailsTableContainer',
+        'tab-events':          'EventsTableContainer',
+        'tab-recurrences':    'RecurrencesTableContainer',
+        'tab-eventstrash':     'TrashTableContainer',
+        'tab-people':          'PeopleTableContainer',
+        'tab-groups':          'GroupsTableContainer',
+        'tab-peopletrash':     'TrashedPeopleTableContainer',
+        'tab-countries':       'CountriesTableContainer',
+        'tab-states':          'StatesTableContainer',
+        'tab-discounts':       'DiscountsTableContainer',
+        'tab-dgroups':         'DiscountGroupsTableContainer',
+    };
 
-    if (target === "tab-mailingsarchive") {
+    const containerId = tabTableContainerIds[target];
+    if (containerId) {
         setTimeout(() => {
-            const container = EME.$('#ArchivedMailingsTableContainer');
+            const container = EME.$(`#${containerId}`);
             if (container && container.ftableInstance) {
-                //container.ftableInstance.recalcColumnWidthsOnce();
-                const loadButton = EME.$('#ArchivedMailingsLoadRecordsButton');
-                if (loadButton) loadButton.click();
-            }
-        }, 100);
-    }
-
-    if (target === "tab-allmail") {
-        setTimeout(() => {
-            const container = EME.$('#MailsTableContainer');
-            if (container && container.ftableInstance) {
-                //container.ftableInstance.recalcColumnWidthsOnce();
-                const loadButton = EME.$('#MailsLoadRecordsButton');
-                if (loadButton) loadButton.click();
+                container.ftableInstance.load();
             }
         }, 100);
     }
@@ -294,9 +293,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const tabsContainer = EME.$('.eme-tabs');
     if (tabsContainer) {
+        // Priority: data-showtab attribute > URL hash > page-specific default > first tab
         const preferredTab = tabsContainer.dataset.showtab;
+        const hashTab = window.location.hash ? window.location.hash.substring(1) : '';
         if (preferredTab) {
             eme_activateTab(preferredTab);
+        } else if (hashTab && EME.$(`.eme-tab[data-tab="${hashTab}"]`)) {
+            eme_activateTab(hashTab);
         } else if ($_GET['page'] && $_GET['page']=='eme-emails') {
             eme_activateTab('tab-genericmails');
         } else {
@@ -459,6 +462,24 @@ document.addEventListener('DOMContentLoaded', function () {
             const targetEl = EME.$(`#${elname}`);
             if (targetEl) {
                 targetEl.classList.toggle('eme-hidden');
+            }
+        });
+    });
+
+    // Collapsible filter panels
+    EME.$$('.eme-filters-toggle').forEach(btn => {
+        const targetId = btn.dataset.showhide;
+        const panel = EME.$(`#${targetId}`);
+        if (!panel) return;
+
+        btn.addEventListener('click', () => {
+            const isOpen = panel.classList.contains('active');
+            if (isOpen) {
+                panel.classList.remove('active');
+                btn.classList.remove('active');
+            } else {
+                panel.classList.add('active');
+                btn.classList.add('active');
             }
         });
     });

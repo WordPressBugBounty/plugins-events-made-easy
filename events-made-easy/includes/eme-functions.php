@@ -1361,12 +1361,14 @@ function eme_captcha_url( $file ) {
     if ( ! @is_dir( $tmp_dir ) || ! wp_is_writable( $tmp_dir ) ) {
         return false;
     }
+    $ts = time();
     // ts added to try and prevent initial caching
     $the_link = add_query_arg(
         [
-            'eme_captcha' => 'generate',
-            'f'           => $file,
-            'ts'          => time(),
+            'eme_captcha'  => 'generate',
+            'f'            => $file,
+            'ts'           => $ts,
+            'eme_ctoken'   => wp_hash( $file . '|' . $ts, 'nonce' ),
         ],
         $the_link
     );
@@ -2630,82 +2632,34 @@ function eme_get_editor_settings( $name, $tinymce = true, $quicktags = true, $me
 
 function eme_nl2br_save_html( $string ) {
     // empty or no \n found: do nothing
-    if (empty($string) || !str_contains($string, "\n")) {
+    if ( empty( $string ) || ! str_contains( $string, "\n" ) ) {
         return $string;
     }
 
-    // avoid looping if no html tags are in the string, just do nl2br
-    if ( ! preg_match( '#<.+>#', $string ) ) {
-        return nl2br( $string );
-    }
-
-    // replace other lineendings
-    $string = str_replace( [ "\r\n", "\r" ], "\n", $string );
-
     $htmleditor = get_option( 'eme_htmleditor' );
-    if ($htmleditor != 'tinymce') {
-        // if not tinmce and p, br, span, table tags exist, we consider it full-fledged html and no longer touch it
-        // this is normally always the case if not tinymce, but in case people switch between editors ...
-        if (str_contains($string, '<p') ||
-            str_contains($string, '<table') ||
-            str_contains($string, '<span') ||
-            str_contains($string, '<br') ) {
-            // the next avoids wordpress adding breaks via "the_content" filter
-            // while this seems weird, copy/paste from word can lead to words on another line that are meant to be separated by a space
-            // if not tinymce, no other changes anymore
-            //$string = str_replace( "\n", " ", $string );
-            return $string;
-        }
+    // If not tinymce and the string already looks like authored HTML,
+    // respect it as-is
+    if ( $htmleditor != 'tinymce' &&
+        ( str_contains( $string, '<p' ) || str_contains( $string, '<table' ) ||
+          str_contains( $string, '<span' ) || str_contains( $string, '<br' ) ) ) {
+        return $string;
     }
+    $string = str_replace( [ "\r\n", "\r" ], "\n", $string );
+    $string = wpautop( $string );
 
-    if ($htmleditor == 'tinymce') {
-        // remove unwanted empty lines after tr/td tags
-        $string = preg_replace('/(<tr[^>]*>)\s+/i', '$1', $string);   // after opening <tr>
-        $string = preg_replace('/\s+(<\/tr>)/i', '$1', $string);      // before closing </tr>
-        $string = preg_replace('/(<td[^>]*>)\s+/i', '$1', $string);   // after opening <td>
-        $string = preg_replace('/\s+(<\/td>)/i', '$1', $string);      // before closing </td>
-        // if br is found, replace it by BREAK
-        $string = preg_replace( '/\n*<br\W*?\/?>\n*/', '__EMEBREAKEME__', $string );
-    }
+    // wpautop's <p> wrapping isn't safe to keep: a blank line inside a
+    // <td>/<strong>/etc. still gets turned into <p>...</p>, which is
+    // invalid nested markup in that context
+    // So we flatten it to <br>-based layout unconditionally
+    $string = preg_replace( '#\s*</p>\s*<p>\s*#', '<br /><br />', $string );
+    $string = preg_replace( '#</?p[^>]*>#', '', $string );
 
-    $lines      = explode( "\n", $string );
-    $last_index = count( $lines ) - 1;
-    $add_br     = 1;
-    foreach ( $lines as $i => $line ) {
-        if ( $i != $last_index ) {
-            // no br if certain tags are found
-            if ( str_contains( $line, '<script' ) ) {
-                $add_br = 0;
-                continue;
-            }
-            if ( str_contains( $line, '</script>' ) ) {
-                $add_br = 1;
-                continue;
-            }
-            if ( $add_br ) {
-                // if the line finishes with a html opening or closing tag or an eme_if (or events_if), we don't add a br-tag
-                if ( ! preg_match( '#</?(\w+).*?>\s*$|\[\/?(eme|events)_if.*?\]\s*$#', $line ) ) {
-                    # add a br only if the next line doesn't begin with a opening or closing tag or eme_if (or events_if)
-                    if ( ! preg_match( '#^\s*</?|^\s*\[\/?(eme|events)_if#', $lines[ $i + 1 ] ) ) {
-                        $lines[ $i ] .= '<br>';
-                    }
-                } elseif ( preg_match( '#</a>\s*$#', $line ) && preg_match( '#^\s*$#', $lines[ $i + 1 ] ) ) {
-                    # add a br if one line ends on closing a and the next line is empty
-                    $lines[ $i ] .= '<br>';
-                } elseif ( preg_match( '#</span>\s*$#', $line ) && preg_match( '#^\s*<span#', $lines[ $i + 1 ] ) ) {
-                    # add a br if one line ends on closing span and the next starts with opening span too
-                    $lines[ $i ] .= '<br>';
-                }
-            }
-        }
-    }
-    // now that we added the needed br-tags, join back together and return the modified string
-    // since we call this function in eme_wysiwyg_textarea too, we keep the carriage returns
-    $res = implode( "\n", $lines );
-    if ($htmleditor == 'tinymce') {
-        $res = str_replace( '__EMEBREAKEME__', "<br>\n", $res );
-    }
-    return $res;
+    // Readability: every <br> tag should be followed by a newline
+    $string = preg_replace( '#(<br\s*/?>)(?!\n)#', "$1\n", $string );
+
+    $string = trim( $string );
+
+    return $string;
 }
 
 function eme_wp_date_format_php_to_datepicker_js( $php_format ) {
@@ -3693,7 +3647,11 @@ function eme_format_full_name( $firstname, $lastname, $email='' ) {
 }
 
 function eme_extra_event_headers( $event ) {
-    if ( $event['event_status'] != EME_EVENT_STATUS_PUBLIC && ! is_user_logged_in() ) {
+    $allowed_statuses = [ EME_EVENT_STATUS_PUBLIC, EME_EVENT_STATUS_PRIVATE, EME_EVENT_STATUS_UNLISTED ];
+    if ( ! in_array( $event['event_status'], $allowed_statuses, true ) ) {
+        return;
+    }
+    if ( $event['event_status'] == EME_EVENT_STATUS_PRIVATE && ! is_user_logged_in() ) {
         return;
     }
 
@@ -4385,7 +4343,7 @@ function eme_rightclickhint() {
     <?php esc_html_e( 'Hint: right-click on the column headers to show/hide columns', 'events-made-easy' );
 
     echo "<br>";
-    if ( !preg_match('/Mobi|Android/i',$_SERVER['HTTP_USER_AGENT'] ) ) {
+    if ( !isset( $_SERVER['HTTP_USER_AGENT'] ) || !preg_match('/Mobi|Android/i',$_SERVER['HTTP_USER_AGENT'] ) ) {
         esc_html_e( 'Use Ctrl-click to sort on multiple columns', 'events-made-easy' );
     } else {
         esc_html_e( 'All selected columns are used for sorting', 'events-made-easy' );

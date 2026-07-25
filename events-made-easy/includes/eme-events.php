@@ -339,13 +339,6 @@ function eme_events_page() {
 
     $current_userid = get_current_user_id();
 
-    if ( $action == 'import_events' && isset( $_FILES['eme_csv'] ) && current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
-        // eme_cap_cleanup is used for cleanup, cron and imports (should more be something like 'eme_cap_actions')
-        check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
-        $message = eme_import_csv_events();
-        eme_events_table( $message );
-    }
-
     // TRASH action (when the trash button is pushed while editing an event)
     if ( isset( $_POST['event_trash_button'] ) ) {
         check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
@@ -380,7 +373,7 @@ function eme_events_page() {
         } else {
             $feedback_message = __( 'You have no right to delete events!', 'events-made-easy' );
         }
-        eme_events_table( $feedback_message );
+        eme_events_table( $feedback_message, 'tab-recurrences' );
         return;
     }
 
@@ -394,11 +387,7 @@ function eme_events_page() {
         }
         if ( ! ( current_user_can( get_option( 'eme_cap_add_event' ) ) || current_user_can( get_option( 'eme_cap_edit_events' ) ) ) ) {
             $feedback_message = __( 'You have no right to insert or update events', 'events-made-easy' );
-            if ( $action == 'update_recurrence' ) {
-                eme_recurrences_table( $feedback_message );
-            } else {
-                eme_events_table( $feedback_message );
-            }
+            eme_events_table( $feedback_message );
             return;
         }
 
@@ -424,7 +413,7 @@ function eme_events_page() {
                     $location = eme_new_location();
                 }
             } else {
-                eme_events_table();
+                eme_events_table('', 'tab-recurrences');
                 return;
             }
         }
@@ -772,9 +761,10 @@ function eme_events_page() {
         // this gets reached in case event updates fails
         // or the option to stay on the edit page is not set
         if ( $action == 'insert_recurrence' || $action == 'update_recurrence' ) {
-            eme_recurrences_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
         } else {
-            eme_events_table( $feedback_message );
+            $target_tab = ( $event['event_status'] == EME_EVENT_STATUS_TRASH ) ? 'tab-eventstrash' : '';
+            eme_events_table( $feedback_message, $target_tab );
         }
         return;
     }
@@ -798,7 +788,7 @@ function eme_events_page() {
             eme_event_form( $event, $info, 1 );
         } else {
             $feedback_message = __( 'You have no right to add events!', 'events-made-easy' );
-            eme_events_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
         }
         return;
     }
@@ -850,7 +840,7 @@ function eme_events_page() {
         $event = eme_get_event( eme_get_recurrence_first_eventid( $recurrence_ID ) );
         if ( empty( $event ) ) {
             $feedback_message = __( 'No such event', 'events-made-easy' );
-            eme_events_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
             return;
         }
         // indicate this is a duplicate, we can use that further down the road for more actions
@@ -865,7 +855,7 @@ function eme_events_page() {
         } else {
             // translators: %s is the event name
             $feedback_message = sprintf( __( "You have no right to copy '%s'", 'events-made-easy' ), eme_translate( $event['event_name'] ) );
-            eme_events_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
         }
         return;
     }
@@ -874,7 +864,7 @@ function eme_events_page() {
         $event = eme_get_event( eme_get_recurrence_first_eventid( $recurrence_ID ) );
         if ( empty( $event ) ) {
             $feedback_message = __( 'No such event', 'events-made-easy' );
-            eme_events_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
             return;
         }
         if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
@@ -884,18 +874,14 @@ function eme_events_page() {
         } else {
             // translators: %s is the event name
             $feedback_message = sprintf( __( "You have no right to update '%s'", 'events-made-easy' ), eme_translate( $event['event_name'] ) );
-            eme_recurrences_table( $feedback_message );
+            eme_events_table( $feedback_message, 'tab-recurrences' );
         }
         return;
     }
 
     if ( $action == '-1' || $action == '' ) {
         // No action, only showing the events list
-        if ( ! empty( $_GET['recurrences'] ) ) {
-            eme_recurrences_table();
-        } else {
-            eme_events_table();
-        }
+        eme_events_table();
         return;
     }
 }
@@ -1370,11 +1356,11 @@ function eme_events_page_content() {
         return eme_display_single_event( $event_id );
     } elseif ( get_query_var( 'calendar_day' ) ) {
         $scope          = eme_sanitize_request( get_query_var( 'calendar_day' ) );
-        $location_id    = isset( $_GET['location_id'] ) ? eme_sanitize_request( urldecode( $_GET['location_id'] ) ) : '';
-        $category       = isset( $_GET['category'] ) ? eme_sanitize_request( urldecode( $_GET['category'] ) ) : '';
-        $notcategory    = isset( $_GET['notcategory'] ) ? eme_sanitize_request( urldecode( $_GET['notcategory'] ) ) : '';
-        $author         = isset( $_GET['author'] ) ? eme_sanitize_request( urldecode( $_GET['author'] ) ) : '';
-        $contact_person = isset( $_GET['contact_person'] ) ? eme_sanitize_request( urldecode( $_GET['contact_person'] ) ) : '';
+        $location_id    = isset( $_GET['location_id'] ) ? eme_sanitize_request( $_GET['location_id'] ) : '';
+        $category       = isset( $_GET['category'] ) ? eme_sanitize_request( $_GET['category'] ) : '';
+        $notcategory    = isset( $_GET['notcategory'] ) ? eme_sanitize_request( $_GET['notcategory'] ) : '';
+        $author         = isset( $_GET['author'] ) ? eme_sanitize_request( $_GET['author'] ) : '';
+        $contact_person = isset( $_GET['contact_person'] ) ? eme_sanitize_request( $_GET['contact_person'] ) : '';
         // the hash char and everything following it in a GET is not getting through a browser request, so if it passed through via the calendar, we used _MYSELF, and here we restore it again
         $author         = str_replace( '_MYSELF', '#_MYSELF', $author );
         $contact_person = str_replace( '_MYSELF', '#_MYSELF', $contact_person );
@@ -1387,7 +1373,7 @@ function eme_events_page_content() {
             $page_body = eme_get_calendar( full: 1 );
         }
         if ( get_option( 'eme_display_events_in_events_page' ) ) {
-            $scope      = isset( $_GET['scope'] ) ? urlencode( eme_sanitize_request( urldecode( $_GET['scope'] ) ) ) : 'future';
+            $scope      = isset( $_GET['scope'] ) ? urlencode( eme_sanitize_request( $_GET['scope'] ) ) : 'future';
             $page_body .= eme_get_events_list( limit: 0, scope: $scope );
         }
         return $page_body;
@@ -2409,7 +2395,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] ) );
+                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 return "<a href='$url'>" . esc_html__( 'Printable view of bookings', 'events-made-easy' ) . '</a>';
             }
             return '';
@@ -2418,7 +2404,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] );
+                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -2430,7 +2416,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] ) );
+                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 return "<a href='$url'>" . esc_html__( 'CSV view of bookings', 'events-made-easy' ) . '</a>';
             }
             return '';
@@ -2439,7 +2425,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] );
+                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -5902,7 +5888,7 @@ function eme_import_csv_events() {
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
-        return esc_html__( 'No CSV file detected', 'events-made-easy' );
+        return esc_html__( 'Invalid file type. Please upload a CSV file.', 'events-made-easy' );
     }
     if ( ! is_uploaded_file( $_FILES['eme_csv']['tmp_name'] ) ) {
         return __( 'Problem detected while uploading the file', 'events-made-easy' );
@@ -6017,27 +6003,48 @@ function eme_import_csv_events() {
                     $line['location_id'] = $location_id;
                 }
 
-                // also import attributes
-                foreach ( $line as $key => $value ) {
-                    if ( preg_match( '/^att_(.*)$/', $key, $matches ) ) {
-                        $att = $matches[1];
-                        if ( ! isset( $line['event_attributes'] ) ) {
-                            $line['event_attributes'] = [];
-                        }
-                        $line['event_attributes'][ $att ] = $value;
-                    }
-                }
+			// also import attributes
+				foreach ( $line as $key => $value ) {
+					if ( preg_match( '/^att_(.*)$/', $key, $matches ) ) {
+						$att = $matches[1];
+						if ( ! isset( $line['event_attributes'] ) ) {
+							$line['event_attributes'] = [];
+						}
+						$line['event_attributes'][ $att ] = eme_json_decode_safe( $value );
+					}
+				}
 
-                // also import properties
-                foreach ( $line as $key => $value ) {
-                    if ( preg_match( '/^prop_(.*)$/', $key, $matches ) ) {
-                        $prop = $matches[1];
-                        if ( ! isset( $line['event_properties'] ) ) {
-                            $line['event_properties'] = [];
+				// also import properties
+				foreach ( $line as $key => $value ) {
+					if ( preg_match( '/^prop_(.*)$/', $key, $matches ) ) {
+						$prop = $matches[1];
+						if ( ! isset( $line['event_properties'] ) ) {
+							$line['event_properties'] = [];
+						}
+						if ( array_key_exists( $prop, $empty_props ) ) {
+							$line['event_properties'][ $prop ] = eme_json_decode_safe( $value );
+						}
+					}
+				}
+
+                // also import categories: a 'category_names' column, pipe-separated (e.g. "Music||Concerts").
+                // Names are matched against existing categories; whether an unmatched name gets
+                // auto-created or just skipped is controlled by the 'auto_create_categories' checkbox.
+                if ( isset( $line['category_names'] ) ) {
+                    $auto_create_categories = ! empty( $_POST['auto_create_categories'] );
+                    $cat_ids                = [];
+                    foreach ( eme_convert_multi2array( $line['category_names'] ) as $cat_name ) {
+                        if ( $auto_create_categories ) {
+                            $cat_id = eme_get_or_create_category_id_by_name( $cat_name );
+                        } else {
+                            $cat_id = eme_get_category_id_by_name_slug( trim( $cat_name ) );
                         }
-                        if ( array_key_exists( $prop, $empty_props ) ) {
-                            $line['event_properties'][ $prop ] = $value;
+                        if ( $cat_id ) {
+                            $cat_ids[] = $cat_id;
                         }
+                    }
+                    if ( $cat_ids ) {
+                        $line['event_category_ids'] = implode( ',', $cat_ids );
                     }
                 }
 
@@ -6105,7 +6112,7 @@ function eme_import_csv_events() {
     return $result;
 }
 
-function eme_events_table( $message = '' ) {
+function eme_events_table( $message = '', $active_tab = '' ) {
     global $plugin_page;
 
     if ( empty( $message ) ) {
@@ -6119,146 +6126,20 @@ function eme_events_table( $message = '' ) {
     $scope_names['all']    = __( 'All events', 'events-made-easy' );
     $scope_names['future'] = __( 'Future events', 'events-made-easy' );
 
-    $categories         = eme_get_categories();
+    $recurrence_scope_names            = [];
+    $recurrence_scope_names['past']    = __( 'Past recurrences', 'events-made-easy' );
+    $recurrence_scope_names['all']     = __( 'All recurrences', 'events-made-easy' );
+    $recurrence_scope_names['ongoing'] = __( 'Ongoing recurrences', 'events-made-easy' );
 
-?>
+    $categories = eme_get_categories();
 
-<div class="wrap nosubsub">
-<div id="poststuff">
-    <div id="events-message" class="updated notice notice-success is-dismissible <?php echo $hidden_class; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded CSS class string ?>">
-                <p><?php echo wp_kses_post( $message ); ?></p>
-    </div>
-
-    <?php if ( current_user_can( get_option( 'eme_cap_add_event' ) ) ) : ?>
-    <h1><?php esc_html_e( 'Add a new event', 'events-made-easy' ); ?></h1>
-    <div class="wrap">
-        <form id="locations-filter" method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=eme-manager' ) ); ?>">
-        <input type="hidden" name="eme_admin_action" value="add_new_event">
-        <input type="submit" class="button-primary" name="submit" value="<?php esc_attr_e( 'Add event', 'events-made-easy' ); ?>">
-        </form>
-    </div>
-<?php endif; ?>
-
-    <h1><?php esc_html_e( 'Manage events', 'events-made-easy' ); ?>
-        <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&recurrences=1" ) ); ?>"><?php esc_html_e( 'Manage recurrences', 'events-made-easy' ); ?></a><br>
-    </h1>
-
-    <?php if ( isset( $_GET['trash'] ) && $_GET['trash'] == 1 ) { ?>
-        <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page" ) ); ?>"><?php esc_html_e( 'Show regular content', 'events-made-easy' ); ?></a><br>
-    <?php } else { ?>
-        <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&trash=1" ) ); ?>"><?php esc_html_e( 'Show trash content', 'events-made-easy' ); ?></a><br>
-        <?php if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) { ?>
-        <span class="eme_import_form_img">
-            <?php esc_html_e( 'Click on the icon to show the import form', 'events-made-easy' ); ?>
-        <img src="<?php echo esc_url(EME_PLUGIN_URL); ?>images/showhide.png" class="showhidebutton" alt="show/hide" data-showhide="eme_div_import" style="cursor: pointer; vertical-align: middle; ">
-        </span>
-        <div id='eme_div_import' class='eme-hidden'>
-        <form id='event-import' method='post' enctype='multipart/form-data' action='#'>
-            <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-        <input type="file" name="eme_csv">
-            <?php esc_html_e( 'Delimiter:', 'events-made-easy' ); ?>
-        <input type="text" size=1 maxlength=1 name="delimiter" value=',' required='required'>
-            <?php esc_html_e( 'Enclosure:', 'events-made-easy' ); ?>
-        <input required="required" type="text" size=1 maxlength=1 name="enclosure" value='"' required='required'>
-        <input type="hidden" name="eme_admin_action" value="import_events">
-        <input type="submit" value="<?php esc_attr_e( 'Import', 'events-made-easy' ); ?>" name="doaction" id="doaction" class="button-primary action">
-            <?php esc_html_e( 'If you want, use this to import events into the database', 'events-made-easy' ); ?>
-        </form>
-        </div>
-        <?php } ?>
-    <?php } ?>
-
-    <div>
-    <form method='post' action="#">
-    <select id="scope" name="scope">
-<?php
-    foreach ( $scope_names as $key => $value ) {
-        $selected = '';
-        if ( $key == 'future' ) {
-            $selected = "selected='selected'";
-        }
-        echo "<option value='".esc_attr($key)."' $selected>".esc_html($value)."</option>"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded
+    // Determine the active tab from the data-showtab attribute
+    $show_tab_attr = '';
+    if ( ! empty( $active_tab ) ) {
+        $show_tab_attr = ' data-showtab="' . esc_attr( $active_tab ) . '"';
     }
-?>
-    </select>
-    <select id="category" name="category">
-    <option value='0'><?php esc_html_e( 'All categories', 'events-made-easy' ); ?></option>
-    <option value='none'><?php esc_html_e( 'Events without category', 'events-made-easy' ); ?></option>
-<?php
-    foreach ( $categories as $category ) {
-        echo "<option value='" . esc_attr($category['category_id']) . "'>" . esc_html($category['category_name']) . '</option>';
-    }
-?>
-    </select>
-    <input type="search" name="search_name" id="search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
-    <input id="search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-    <input id="search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-    <a onclick='return false;' href='#'  class="showhidebutton" alt="show/hide" data-showhide="extra_searchfields"><?php esc_html_e( 'Show/hide extra filters', 'events-made-easy' ); ?></a>
-    <div id="extra_searchfields" class='eme-hidden'>
-<?php
-    if (empty( $_GET['trash'] ) ) {
-        $event_status_array = eme_status_array();
-        unset ($event_status_array[0]); // remove the trash status
-        echo eme_ui_select( '', 'status', $event_status_array, __( 'Event Status', 'events-made-easy' ));
-    }
-?>
-        <input type="search" name="search_location" id="search_location" placeholder="<?php esc_attr_e( 'Filter on location', 'events-made-easy' ); ?>" class="eme_searchfilter">
-<?php
-    $formfields_searchable = eme_get_searchable_formfields( 'events' );
-    if ( ! empty( $formfields_searchable ) ) {
-        echo '<input type="search" name="search_customfields" id="search_customfields" placeholder="' . esc_attr__( 'Custom field value to search', 'events-made-easy' ) . '" class="eme_searchfilter" size=20>';
-        $label = __( 'Custom fields to filter on', 'events-made-easy' );
-        $extra_attributes = 'aria-label="' . esc_html( $label ) . '" data-placeholder="' . esc_html( $label ) . '"';
-        echo eme_ui_multiselect_key_value( '', 'search_customfieldids', $formfields_searchable, 'field_id', 'field_name', 5, '', 0, 'eme_snapselect', $extra_attributes, 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value()
-    }
-?>
-    </div>
-    <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
-<?php
-    if ( ! empty( $formfields_searchable ) ) {
-?>
-    <div id="hint">
-        <?php esc_html_e( 'Hint: when searching for custom field values, you can optionally limit which custom fields you want to search in the "Custom fields to filter on" select-box shown.', 'events-made-easy' ); ?><br>
-    </div>
-<?php
-    }
-?>
-    </form>
-    </div>
-<?php
-    if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) || current_user_can( get_option( 'eme_cap_author_event' ) ) ) :
-?>
-    <div class="bulkactions">
-    <form action="#" method="post">
-    <select id="eme_admin_action" name="eme_admin_action">
-    <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
-        <?php if ( isset( $_GET['trash'] ) && $_GET['trash'] == 1 ) { ?>
-    <option value="untrashEvents"><?php esc_html_e( 'Restore selected events (to draft status)', 'events-made-easy' ); ?></option>
-    <option value="deleteEvents"><?php esc_html_e( 'Permanently delete selected events', 'events-made-easy' ); ?></option>
-    <?php } else { ?>
-    <option value="trashEvents"><?php esc_html_e( 'Delete selected events (move to trash bin)', 'events-made-easy' ); ?></option>
-    <option value="publicEvents"><?php esc_html_e( 'Publish selected events', 'events-made-easy' ); ?></option>
-    <option value="privateEvents" title="<?php esc_attr_e( 'Private events are only accessible to logged-in users', 'events-made-easy' ); ?>"><?php esc_html_e( 'Make selected events private', 'events-made-easy' ); ?></option>
-    <option value="hiddenEvents" title="<?php esc_attr_e( 'Hidden events are accessible to everyone but not shown in events lists or calendars.', 'events-made-easy' ); ?>"><?php esc_html_e( 'Make selected events hidden', 'events-made-easy' ); ?></option>
-    <option value="draftEvents"><?php esc_html_e( 'Make selected events draft', 'events-made-easy' ); ?></option>
-    <option value="addCategory"><?php esc_html_e( 'Add selected events to category', 'events-made-easy' ); ?></option>
-    <?php } ?>
-    </select>
-    <span id="span_sendtrashmails" class="eme-hidden">
-<?php
-        esc_html_e( 'Send emails for cancelled bookings too?', 'events-made-easy' );
-        echo eme_ui_select_binary( 0, 'send_trashmails' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
-?>
-    </span>
-    <span id="span_addtocategory" class="eme-hidden">
-        <?php echo eme_ui_select_key_value( '', 'addtocategory', $categories, 'category_id', 'category_name', __( 'Please select a category', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
-    </span>
-    <button id="EventsActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
-    <?php eme_rightclickhint(); ?>
-    </form>
-    </div>
-<?php
-    endif;
+
+    // Extra fields for events table
     $extrafields_arr          = [];
     $extrafieldnames_arr      = [];
     $extrafieldsearchable_arr = [];
@@ -6273,57 +6154,139 @@ function eme_events_table( $message = '' ) {
             $extrafieldsearchable_arr[] = $formfield['searchable'];
         }
     }
-    // these 2 values are used as data-fields to the container-div, and are used by the js to create extra columns
     $extrafields          = join( ',', $extrafields_arr );
     $extrafieldnames      = join( ',', $extrafieldnames_arr );
     $extrafieldsearchable = join( ',', $extrafieldsearchable_arr );
-?>
-    <div id="EventsTableContainer" data-extrafields='<?php echo esc_attr( $extrafields ); ?>' data-extrafieldnames='<?php echo esc_attr( $extrafieldnames ); ?>' data-extrafieldsearchable='<?php echo esc_attr( $extrafieldsearchable ); ?>'></div>
-</div>
-</div>
-<?php
-}
 
-function eme_recurrences_table( $message = '' ) {
-    global $plugin_page;
-
-    if ( empty( $message ) ) {
-        $hidden_class = 'eme-hidden';
-    } else {
-        $hidden_class = '';
-    }
-
-    $scope_names            = [];
-    $scope_names['past']    = __( 'Past recurrences', 'events-made-easy' );
-    $scope_names['all']     = __( 'All recurrences', 'events-made-easy' );
-    $scope_names['ongoing'] = __( 'Ongoing recurrences', 'events-made-easy' );
+    $formfields_searchable = eme_get_searchable_formfields( 'events' );
 
 ?>
 
 <div class="wrap nosubsub">
 <div id="poststuff">
-    <div id="recurrences-message" class="updated notice notice-success is-dismissible <?php echo $hidden_class; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded CSS class string ?>">
-        <p><?php echo wp_kses_post( $message ); ?></p>
+    <div id="events-message" class="updated notice notice-success is-dismissible <?php echo $hidden_class; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded CSS class string ?>">
+                <p><?php echo wp_kses_post( $message ); ?></p>
     </div>
 
-    <?php if ( current_user_can( get_option( 'eme_cap_add_event' ) ) ) : ?>
-    <h1><?php esc_html_e( 'Add a new recurrence', 'events-made-easy' ); ?></h1>
-    <div class="wrap">
-        <form id="locations-filter" method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=eme-manager' ) ); ?>">
-        <input type="hidden" name="eme_admin_action" value="add_new_recurrence">
-        <input type="submit" class="button-primary" name="submit" value="<?php esc_attr_e( 'Add recurrence', 'events-made-easy' ); ?>">
-        </form>
+    <div class="eme-tabs"<?php echo $show_tab_attr; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded data attribute ?>>
+    <div class="eme-tab" data-tab="tab-events"><?php esc_html_e( 'Events', 'events-made-easy' ); ?></div>
+    <div class="eme-tab" data-tab="tab-recurrences"><?php esc_html_e( 'Recurrences', 'events-made-easy' ); ?></div>
+    <div class="eme-tab" data-tab="tab-eventstrash"><?php esc_html_e( 'Trash', 'events-made-easy' ); ?></div>
     </div>
+
+    <!-- ==================== EVENTS TAB ==================== -->
+    <div class="eme-tab-content" id="tab-events">
+<?php if ( current_user_can( get_option( 'eme_cap_add_event' ) ) ) : ?>
+        <h1><?php esc_html_e( 'Add a new event', 'events-made-easy' ); ?></h1>
+        <div class="wrap">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=eme-manager' ) ); ?>">
+            <input type="hidden" name="eme_admin_action" value="add_new_event">
+            <input type="submit" class="button-primary" name="submit" value="<?php esc_attr_e( 'Add event', 'events-made-easy' ); ?>">
+            </form>
+        </div>
 <?php endif; ?>
 
-    <h1><?php esc_html_e( 'Manage recurrences', 'events-made-easy' ); ?>
-        <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page" ) ); ?>"><?php esc_html_e( 'Manage events', 'events-made-easy' ); ?></a><br>
-    </h1>
-
-    <form method='post' action="#">
-    <select id="scope" name="scope">
+        <div>
+        <form method='post' action="#">
+        <select id="events_scope" name="scope">
 <?php
     foreach ( $scope_names as $key => $value ) {
+        $selected = '';
+        if ( $key == 'future' ) {
+            $selected = "selected='selected'";
+        }
+        echo "<option value='".esc_attr($key)."' $selected>".esc_html($value)."</option>"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded
+    }
+?>
+        </select>
+        <select id="events_category" name="category">
+        <option value='0'><?php esc_html_e( 'All categories', 'events-made-easy' ); ?></option>
+        <option value='none'><?php esc_html_e( 'Events without category', 'events-made-easy' ); ?></option>
+<?php
+    foreach ( $categories as $category ) {
+        echo "<option value='" . esc_attr($category['category_id']) . "'>" . esc_html($category['category_name']) . '</option>';
+    }
+?>
+        </select>
+        <input type="search" name="search_name" id="events_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
+        <input id="events_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="events_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <button type="button" class="eme-filters-toggle" data-showhide="events_extra_searchfields"><span class="eme-filters-toggle-icon">&#9660;</span> <?php esc_html_e( 'Extra filters', 'events-made-easy' ); ?></button>
+        <div id="events_extra_searchfields" class='eme-filters-panel'>
+<?php
+    $event_status_array = eme_status_array();
+    unset ($event_status_array[0]); // remove the trash status
+    echo eme_ui_select( '', 'events_status', $event_status_array, __( 'Event Status', 'events-made-easy' ));
+?>
+            <input type="search" name="search_location" id="events_search_location" placeholder="<?php esc_attr_e( 'Filter on location', 'events-made-easy' ); ?>" class="eme_searchfilter">
+<?php
+    if ( ! empty( $formfields_searchable ) ) {
+        echo '<input type="search" name="search_customfields" id="events_search_customfields" placeholder="' . esc_attr__( 'Custom field value to search', 'events-made-easy' ) . '" class="eme_searchfilter" size=20>';
+        $label = __( 'Custom fields to filter on', 'events-made-easy' );
+        $extra_attributes = 'aria-label="' . esc_html( $label ) . '" data-placeholder="' . esc_html( $label ) . '"';
+        echo eme_ui_multiselect_key_value( '', 'events_search_customfieldids', $formfields_searchable, 'field_id', 'field_name', 5, '', 0, 'eme_snapselect', $extra_attributes, 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value()
+    }
+?>
+        </div>
+        <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
+<?php
+    if ( ! empty( $formfields_searchable ) ) {
+?>
+        <div id="hint">
+            <?php esc_html_e( 'Hint: when searching for custom field values, you can optionally limit which custom fields you want to search in the "Custom fields to filter on" select-box shown.', 'events-made-easy' ); ?><br>
+        </div>
+<?php
+    }
+?>
+        </form>
+        </div>
+<?php
+    if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) || current_user_can( get_option( 'eme_cap_author_event' ) ) ) :
+?>
+        <div class="bulkactions">
+        <form action="#" method="post">
+        <select id="events_eme_admin_action" name="eme_admin_action">
+        <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
+        <option value="trashEvents"><?php esc_html_e( 'Delete selected events (move to trash bin)', 'events-made-easy' ); ?></option>
+        <option value="publicEvents"><?php esc_html_e( 'Publish selected events', 'events-made-easy' ); ?></option>
+        <option value="privateEvents" title="<?php esc_attr_e( 'Private events are only accessible to logged-in users', 'events-made-easy' ); ?>"><?php esc_html_e( 'Make selected events private', 'events-made-easy' ); ?></option>
+        <option value="hiddenEvents" title="<?php esc_attr_e( 'Hidden events are accessible to everyone but not shown in events lists or calendars.', 'events-made-easy' ); ?>"><?php esc_html_e( 'Make selected events hidden', 'events-made-easy' ); ?></option>
+        <option value="draftEvents"><?php esc_html_e( 'Make selected events draft', 'events-made-easy' ); ?></option>
+        <option value="addCategory"><?php esc_html_e( 'Add selected events to category', 'events-made-easy' ); ?></option>
+        </select>
+        <span id="events_span_sendtrashmails" class="eme-hidden">
+<?php
+        esc_html_e( 'Send emails for cancelled bookings too?', 'events-made-easy' );
+        echo eme_ui_select_binary( 0, 'send_trashmails' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
+?>
+        </span>
+        <span id="events_span_addtocategory" class="eme-hidden">
+            <?php echo eme_ui_select_key_value( '', 'events_addtocategory', $categories, 'category_id', 'category_name', __( 'Please select a category', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
+        </span>
+        <button id="EventsActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
+        <?php eme_rightclickhint(); ?>
+        </form>
+        </div>
+<?php endif; ?>
+        <div id="EventsTableContainer" data-extrafields='<?php echo esc_attr( $extrafields ); ?>' data-extrafieldnames='<?php echo esc_attr( $extrafieldnames ); ?>' data-extrafieldsearchable='<?php echo esc_attr( $extrafieldsearchable ); ?>'></div>
+    </div>
+
+    <!-- ==================== RECURRENCES TAB ==================== -->
+    <div class="eme-tab-content" id="tab-recurrences">
+<?php if ( current_user_can( get_option( 'eme_cap_add_event' ) ) ) : ?>
+        <h1><?php esc_html_e( 'Add a new recurrence', 'events-made-easy' ); ?></h1>
+        <div class="wrap">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin.php?page=eme-manager' ) ); ?>">
+            <input type="hidden" name="eme_admin_action" value="add_new_recurrence">
+            <input type="submit" class="button-primary" name="submit" value="<?php esc_attr_e( 'Add recurrence', 'events-made-easy' ); ?>">
+            </form>
+        </div>
+<?php endif; ?>
+
+        <form method='post' action="#">
+        <select id="recurrences_scope" name="scope">
+<?php
+    foreach ( $recurrence_scope_names as $key => $value ) {
         $selected = '';
         if ( $key == 'ongoing' ) {
             $selected = "selected='selected'";
@@ -6331,32 +6294,71 @@ function eme_recurrences_table( $message = '' ) {
         echo "<option value='".esc_attr($key)."' $selected>".esc_html($value)."</option>"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded
     }
 ?>
-    </select>
-    <input type="search" name="search_name" id="search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
-    <input id="search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-    <input id="search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-    <button id="RecurrencesLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter recurrences', 'events-made-easy' ); ?></button>
-    </form>
-    <br>
-    <div class="bulkactions">
-    <form action="#" method="post">
-    <select id="eme_admin_action" name="eme_admin_action">
-    <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
-    <option value="deleteRecurrences"><?php esc_html_e( 'Delete selected recurrences (and move events to trash bin)', 'events-made-easy' ); ?></option>
-    <option value="publicRecurrences"><?php esc_html_e( 'Publish selected recurrences', 'events-made-easy' ); ?></option>
-    <option value="privateRecurrences"><?php esc_html_e( 'Make selected recurrences private', 'events-made-easy' ); ?></option>
-    <option value="draftRecurrences"><?php esc_html_e( 'Make selected recurrences draft', 'events-made-easy' ); ?></option>
-    <option value="extendRecurrences"><?php esc_html_e( 'Set new start/end date for selected recurrences', 'events-made-easy' ); ?></option>
-    </select>
-    <span id="span_extendrecurrences" class="eme-hidden">
-    <input id="rec_new_start_date" type="text" name="rec_new_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
-    <input id="rec_new_end_date" type="text" name="rec_new_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
-    </span>
-    <button id="RecurrencesActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
-    <?php eme_rightclickhint(); ?>
-    </form>
+        </select>
+        <input type="search" name="search_name" id="recurrences_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
+        <input id="recurrences_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="recurrences_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <button id="RecurrencesLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter recurrences', 'events-made-easy' ); ?></button>
+        </form>
+        <br>
+        <div class="bulkactions">
+        <form action="#" method="post">
+        <select id="recurrences_eme_admin_action" name="eme_admin_action">
+        <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
+        <option value="deleteRecurrences"><?php esc_html_e( 'Delete selected recurrences (and move events to trash bin)', 'events-made-easy' ); ?></option>
+        <option value="publicRecurrences"><?php esc_html_e( 'Publish selected recurrences', 'events-made-easy' ); ?></option>
+        <option value="privateRecurrences"><?php esc_html_e( 'Make selected recurrences private', 'events-made-easy' ); ?></option>
+        <option value="draftRecurrences"><?php esc_html_e( 'Make selected recurrences draft', 'events-made-easy' ); ?></option>
+        <option value="extendRecurrences"><?php esc_html_e( 'Set new start/end date for selected recurrences', 'events-made-easy' ); ?></option>
+        </select>
+        <span id="recurrences_span_extendrecurrences" class="eme-hidden">
+        <input id="rec_new_start_date" type="text" name="rec_new_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
+        <input id="rec_new_end_date" type="text" name="rec_new_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
+        </span>
+        <button id="RecurrencesActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
+        <?php eme_rightclickhint(); ?>
+        </form>
+        </div>
+        <div id="RecurrencesTableContainer"></div>
     </div>
-    <div id="RecurrencesTableContainer"></div>
+
+    <!-- ==================== TRASH TAB ==================== -->
+    <div class="eme-tab-content" id="tab-eventstrash">
+        <form method='post' action="#">
+        <select id="trash_scope" name="scope">
+<?php
+    foreach ( $scope_names as $key => $value ) {
+        $selected = '';
+        if ( $key == 'all' ) {
+            $selected = "selected='selected'";
+        }
+        echo "<option value='".esc_attr($key)."' $selected>".esc_html($value)."</option>"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded
+    }
+?>
+        </select>
+        <input type="search" name="search_name" id="trash_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
+        <input id="trash_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="trash_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <button id="TrashLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter trash', 'events-made-easy' ); ?></button>
+        </form>
+<?php
+    if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) || current_user_can( get_option( 'eme_cap_author_event' ) ) ) :
+?>
+        <div class="bulkactions">
+        <form action="#" method="post">
+        <select id="trash_eme_admin_action" name="eme_admin_action">
+        <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
+        <option value="untrashEvents"><?php esc_html_e( 'Restore selected events (to draft status)', 'events-made-easy' ); ?></option>
+        <option value="deleteEvents"><?php esc_html_e( 'Permanently delete selected events', 'events-made-easy' ); ?></option>
+        </select>
+        <button id="TrashActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
+        <?php eme_rightclickhint(); ?>
+        </form>
+        </div>
+<?php endif; ?>
+        <div id="TrashTableContainer" data-extrafields='<?php echo esc_attr( $extrafields ); ?>' data-extrafieldnames='<?php echo esc_attr( $extrafieldnames ); ?>' data-extrafieldsearchable='<?php echo esc_attr( $extrafieldsearchable ); ?>'></div>
+    </div>
+
 </div>
 </div>
 <?php
@@ -6698,23 +6700,26 @@ function eme_event_form( $event, $info, $edit_recurrence = 0 ) {
         <?php if ( $is_new_event ) { ?>
                   <input type="submit" class="button-primary eme_submit_button" id="event_update_button" name="event_update_button" value="<?php esc_attr_e( 'Save', 'events-made-easy' ); ?> &raquo;">
                   <br><?php esc_html_e( 'If pressing Save does not seem to be doing anything, then check all other tabs to make sure all required fields are filled out.', 'events-made-easy' ); ?>
-<?php
-    } else {
-        $trash_button_text           = __( 'Are you sure you want to move this event to the trash bin?', 'events-made-easy' );
-        $deleteRecurrence_button_text = __( 'Are you sure you want to delete this recurrence?', 'events-made-easy' );
-?>
+        <?php
+              } else {
+                  $trash_button_text           = __( 'Are you sure you want to move this event to the trash bin?', 'events-made-easy' );
+                  $deleteRecurrence_button_text = __( 'Are you sure you want to delete this recurrence?', 'events-made-easy' );
+        ?>
                   <input type="submit" class="button-primary eme_submit_button" id="event_update_button" name="event_update_button" value="<?php esc_attr_e( 'Update', 'events-made-easy' ); ?> &raquo;">
-                <?php if ( ! $edit_recurrence ) { ?>
-                        <input type="submit" class="button-primary" id="event_trash_button" name="event_trash_button" value="<?php esc_attr_e( 'Move event to trash bin', 'events-made-easy' ); ?> &raquo;" onclick="return confirm('<?php echo esc_js( $trash_button_text ); ?>');">
-<?php
-        $view_button_text = __( 'View', 'events-made-easy' );
-        $view_button      = sprintf(
-            '%s<span class="screen-reader-text"> %s</span> &raquo;',
-            $view_button_text,
-            /* translators: Accessibility text. */
-            __( '(opens in a new tab)', 'events-made-easy' )
-        );
-?>
+                  <?php if ( ! $edit_recurrence ) { ?>
+                        <?php
+                        if ( $event['event_status'] != EME_EVENT_STATUS_TRASH ) { ?>
+                                <input type="submit" class="button-primary" id="event_trash_button" name="event_trash_button" value="<?php esc_attr_e( 'Move event to trash bin', 'events-made-easy' ); ?> &raquo;" onclick="return confirm('<?php echo esc_js( $trash_button_text ); ?>');">
+                        <?php
+                        }
+                        $view_button_text = __( 'View', 'events-made-easy' );
+                        $view_button      = sprintf(
+                            '%s<span class="screen-reader-text"> %s</span> &raquo;',
+                            $view_button_text,
+                            /* translators: Accessibility text. */
+                            __( '(opens in a new tab)', 'events-made-easy' )
+                        );
+                        ?>
                         <a class="button-primary" href="<?php echo eme_event_url( $event ); ?>" target="wp-view-<?php echo intval($event['event_id']); ?>" id="event-view"><?php echo $view_button; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted sprintf() with __() ?></a>
                         <br><?php esc_html_e( 'If pressing Update does not seem to be doing anything, then check all other tabs to make sure all required fields are filled out.', 'events-made-easy' ); ?>
                     <?php } ?> 
@@ -6816,8 +6821,8 @@ function eme_event_form( $event, $info, $edit_recurrence = 0 ) {
                 $info_line .= ' ' . sprintf( __( '(%d waiting list seats included)', 'events-made-easy' ), $waitinglist_seats );
             }
             if ( $booked_seats > 0 || $pending_seats > 0 ) {
-                $printable_address     = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] ) );
-                $csv_address           = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] ) );
+                $printable_address     = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
+                $csv_address           = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 $info_line .= "<br>(<a id='booking_printable_" . $event['event_id'] . "' href='".$printable_address."'>" . esc_html__( 'Printable view', 'events-made-easy' ) . '</a>)';
                 $info_line .= " (<a id='booking_csv_" . $event['event_id'] . "' href='".$csv_address."'>" . esc_html__( 'CSV export', 'events-made-easy' ) . '</a>)';
             }
@@ -9557,7 +9562,7 @@ function eme_delete_event_answers( $event_id ) {
 function eme_check_event_external_ref( $id ) {
     global $wpdb;
     $table_name = EME_DB_PREFIX . EME_EVENTS_TBNAME;
-    $prepared_sql = $wpdb->prepare( "SELECT location_id FROM $table_name WHERE location_external_ref = %s", $id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $prepared_sql = $wpdb->prepare( "SELECT event_id FROM $table_name WHERE event_external_ref = %s", $id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     return $wpdb->get_var( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 
@@ -9820,6 +9825,7 @@ function eme_admin_enqueue_js() {
             'translate_action'                     => __( 'Action', 'events-made-easy' ),
             'translate_extrainfo'                  => __( 'Extra info', 'events-made-easy' ),
             'translate_report'                     => __( 'Report', 'events-made-easy' ),
+            'translate_recurrenceinfo'             => __( 'Recurrence info', 'events-made-easy' ),
             'translate_mailingreport'              => __( 'Mailing report', 'events-made-easy' ),
             'translate_mails'                      => __( 'Mails', 'events-made-easy' ),
             'translate_mailings'                   => __( 'Mailings', 'events-made-easy' ),
@@ -9862,7 +9868,6 @@ function eme_admin_enqueue_js() {
         'eme-countries' => ['eme-countries'],
         'eme-locations' => ['eme-locations'],
         'eme-people' => ['eme-people'],
-        'eme-groups' => ['eme-people', 'eme-members'],
         'eme-members', 'eme-memberships' => ['eme-members'],
         'eme-registration-approval', 'eme-registration-seats' => ['eme-rsvp'],
         'eme-categories' => ['eme-categories'],
@@ -10134,8 +10139,8 @@ function eme_ajax_events_list() {
                 $record['event_name'] .= ' ' . sprintf( __( '(%d waiting list seats included)', 'events-made-easy' ), $waitinglist_seats );
             }
             if ( $booked_seats > 0 || $pending_seats > 0 ) {
-                $printable_address     = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] ) );
-                $csv_address           = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] ) );
+                $printable_address     = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
+                $csv_address           = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 $record['event_name'] .= "<br>(<a id='booking_printable_" . $event['event_id'] . "' href='".$printable_address."'>" . esc_html__( 'Printable view', 'events-made-easy' ) . '</a>)';
                 $record['event_name'] .= " (<a id='booking_csv_" . $event['event_id'] . "' href='".$csv_address."'>" . esc_html__( 'CSV export', 'events-made-easy' ) . '</a>)';
             }

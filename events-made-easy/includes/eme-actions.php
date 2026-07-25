@@ -9,7 +9,25 @@ function eme_actions_early_init() {
     $eme_is_admin_request = eme_is_admin_request();
     if ( !empty( $_GET['eme_captcha'] ) && $_GET['eme_captcha'] == 'generate' && !empty( $_GET['f'] ) ) {
         $captcha_id = eme_sanitize_filenamechars( $_GET['f'] );
-        if ( $_GET['f']==$captcha_id && ! eme_is_empty_string( $captcha_id ) && get_option( 'eme_captcha_for_forms' ) ) {
+        $ts         = isset( $_GET['ts'] ) ? intval( $_GET['ts'] ) : 0;
+        $token      = isset( $_GET['eme_ctoken'] ) ? sanitize_text_field( wp_unslash( $_GET['eme_ctoken'] ) ) : '';
+        $ttl        = apply_filters( 'eme_captcha_token_ttl', 600 );
+        //$rate_limit = apply_filters( 'eme_captcha_rate_limit', 10 );
+
+        // rate limiting: max $rate_limit requests per minute per IP
+        //$ip          = $_SERVER['REMOTE_ADDR'] ?? '';
+        //$rate_key    = 'eme_captcha_rate_' . md5( $ip );
+        //$rate_count  = (int) get_transient( $rate_key );
+        //if ( $rate_count >= $rate_limit ) {
+        //    status_header( 429 );
+        //    echo 'Too many requests';
+        //    exit;
+        //}
+        //set_transient( $rate_key, $rate_count + 1, 60 );
+
+        if ( $_GET['f'] == $captcha_id && ! eme_is_empty_string( $captcha_id ) && get_option( 'eme_captcha_for_forms' )
+             && $ts > 0 && $ts >= time() - $ttl && $ts <= time()
+             && hash_equals( wp_hash( $captcha_id . '|' . $ts, 'nonce' ) , $token ) ) {
             eme_captcha_generate( $captcha_id );
         }
         exit;
@@ -139,29 +157,87 @@ function eme_actions_init() {
     }
 
     if ( isset( $_GET['eme_admin_action'] ) && $eme_is_admin_request ) {
-        if ( $_GET['eme_admin_action'] == 'autocomplete_locations' ) {
-            check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
-            $no_wp_die = 1;
-            eme_locations_search_ajax( $no_wp_die );
-            exit;
-        }
-        if ( $_GET['eme_admin_action'] == 'booking_printable' && isset( $_GET['event_id'] ) ) {
-            if ( current_user_can( get_option( 'eme_cap_list_events' ) ) ) {
-                eme_printable_booking_report( intval( $_GET['event_id'] ) );
-                exit();
-            }
-        }
-        if ( $_GET['eme_admin_action'] == 'booking_csv' && isset( $_GET['event_id'] ) ) {
-            if ( current_user_can( get_option( 'eme_cap_list_events' ) ) ) {
-                eme_csv_booking_report( intval( $_GET['event_id'] ) );
-                exit();
-            }
-        }
-        if ( $_GET['eme_admin_action'] == 'tasksignups_csv' && isset( $_GET['event_id'] ) ) {
-            if ( current_user_can( get_option( 'eme_cap_list_events' ) ) ) {
-                eme_csv_tasksignups_report( intval( $_GET['event_id'] ) );
-                exit();
-            }
+        switch ( $_GET['eme_admin_action'] ) {
+            case 'autocomplete_locations':
+                check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
+                $no_wp_die = 1;
+                eme_locations_search_ajax( $no_wp_die );
+                exit;
+            case 'booking_printable':
+                // accessible from backend and frontend, so we use wp_verify_nonce
+                $nonce = $_GET['eme_admin_nonce'] ?? '';
+                if ( ! wp_verify_nonce( $nonce, 'eme_admin' ) ) {
+                    wp_die( esc_html__( 'Access denied!', 'events-made-easy' ) );
+                }
+                if ( current_user_can( get_option( 'eme_cap_list_events' ) ) && isset( $_GET['event_id'] ) ) {
+                    eme_printable_booking_report( intval( $_GET['event_id'] ) );
+                    exit;
+                }
+                break;
+            case 'booking_csv':
+                // accessible from backend and frontend, so we use wp_verify_nonce
+                $nonce = $_GET['eme_admin_nonce'] ?? '';
+                if ( ! wp_verify_nonce( $nonce, 'eme_admin' ) ) {
+                    wp_die( esc_html__( 'Access denied!', 'events-made-easy' ) );
+                }
+                if ( current_user_can( get_option( 'eme_cap_list_events' ) ) && isset( $_GET['event_id'] ) ) {
+                    eme_csv_booking_report( intval( $_GET['event_id'] ) );
+                    exit;
+                }
+                break;
+            case 'tasksignups_csv':
+                // accessible from backend and frontend, so we use wp_verify_nonce
+                $nonce = $_GET['eme_admin_nonce'] ?? '';
+                if ( ! wp_verify_nonce( $nonce, 'eme_admin' ) ) {
+                    wp_die( esc_html__( 'Access denied!', 'events-made-easy' ) );
+                }
+                if ( current_user_can( get_option( 'eme_cap_list_events' ) ) && isset( $_GET['event_id'] ) ) {
+                    eme_csv_tasksignups_report( intval( $_GET['event_id'] ) );
+                    exit;
+                }
+                break;
+            case 'export_events':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_events();
+                }
+                exit;
+            case 'export_people':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_people();
+                }
+                exit;
+            case 'export_locations':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_locations();
+                }
+                exit;
+            case 'export_discounts':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_discounts();
+                }
+                exit;
+            case 'export_dgroups':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_discountgroups();
+                }
+                exit;
+            case 'export_countries':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_countries();
+                }
+                exit;
+            case 'export_states':
+                check_admin_referer( 'eme_admin_export', 'eme_admin_nonce' );
+                if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+                    eme_export_csv_states();
+                }
+                exit;
         }
     }
 
@@ -218,10 +294,10 @@ function eme_actions_admin_init() {
     eme_options_register();
 
     $user_id = $current_user->ID;
-    if ( isset( $_GET['eme_notice_ignore'] ) && ( $_GET['eme_notice_ignore'] == 'hello' ) ) {
+    if ( isset( $_GET['eme_notice_ignore'] ) && ( $_GET['eme_notice_ignore'] == 'hello' ) && isset( $_GET['_eme_nonce'] ) && wp_verify_nonce( $_GET['_eme_nonce'], 'eme_dismiss_notice' ) ) {
         update_user_meta( $user_id, 'eme_hello_notice_ignore', $eme_date_obj->format( 'Ymd' ) );
     }
-    if ( isset( $_GET['eme_notice_ignore'] ) && ( $_GET['eme_notice_ignore'] == 'donate' ) ) {
+    if ( isset( $_GET['eme_notice_ignore'] ) && ( $_GET['eme_notice_ignore'] == 'donate' ) && isset( $_GET['_eme_nonce'] ) && wp_verify_nonce( $_GET['_eme_nonce'], 'eme_dismiss_notice' ) ) {
         update_user_meta( $user_id, 'eme_donate_notice_ignore', EME_VERSION . $eme_date_obj->format( 'Ymd' ) );
     }
 
@@ -324,19 +400,19 @@ function eme_admin_register_scripts() {
     }
 
 
-    wp_register_script( 'eme-rsvp', EME_PLUGIN_URL . 'js/eme_admin_rsvp.js', [ 'eme-autocomplete-form' ], EME_VERSION );
-    wp_register_script( 'eme-holidays', EME_PLUGIN_URL . 'js/eme_admin_holidays.js', [ 'eme-autocomplete-form' ], EME_VERSION );
-    wp_register_script( 'eme-categories', EME_PLUGIN_URL . 'js/eme_admin_categories.js', [ 'eme-autocomplete-form' ], EME_VERSION );
-    wp_register_script( 'eme-sendmails', EME_PLUGIN_URL . 'js/eme_admin_sendmails.js', [], EME_VERSION );
-    wp_register_script( 'eme-discounts', EME_PLUGIN_URL . 'js/eme_admin_discounts.js', [], EME_VERSION );
-    wp_register_script( 'eme-countries', EME_PLUGIN_URL . 'js/eme_admin_countries.js', [], EME_VERSION );
-    wp_register_script( 'eme-people', EME_PLUGIN_URL . 'js/eme_admin_people.js', [], EME_VERSION );
-    wp_register_script( 'eme-templates', EME_PLUGIN_URL . 'js/eme_admin_templates.js', [], EME_VERSION );
-    wp_register_script( 'eme-tasksignups', EME_PLUGIN_URL . 'js/eme_admin_tasksignups.js', [], EME_VERSION );
-    wp_register_script( 'eme-members', EME_PLUGIN_URL . 'js/eme_admin_members.js', [], EME_VERSION );
-    wp_register_script( 'eme-events', EME_PLUGIN_URL . 'js/eme_admin_events.js', [], EME_VERSION );
-    wp_register_script( 'eme-locations', EME_PLUGIN_URL . 'js/eme_admin_locations.js', [], EME_VERSION );
-    wp_register_script( 'eme-attendances', EME_PLUGIN_URL . 'js/eme_admin_attendances.js', [], EME_VERSION );
+    wp_register_script( 'eme-rsvp', EME_PLUGIN_URL . 'js/eme_admin_rsvp.js', [ 'eme-admin', 'eme-autocomplete-form' ], EME_VERSION );
+    wp_register_script( 'eme-holidays', EME_PLUGIN_URL . 'js/eme_admin_holidays.js', [ 'eme-admin', 'eme-autocomplete-form' ], EME_VERSION );
+    wp_register_script( 'eme-categories', EME_PLUGIN_URL . 'js/eme_admin_categories.js', [ 'eme-admin', 'eme-autocomplete-form' ], EME_VERSION );
+    wp_register_script( 'eme-sendmails', EME_PLUGIN_URL . 'js/eme_admin_sendmails.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-discounts', EME_PLUGIN_URL . 'js/eme_admin_discounts.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-countries', EME_PLUGIN_URL . 'js/eme_admin_countries.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-people', EME_PLUGIN_URL . 'js/eme_admin_people.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-templates', EME_PLUGIN_URL . 'js/eme_admin_templates.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-tasksignups', EME_PLUGIN_URL . 'js/eme_admin_tasksignups.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-members', EME_PLUGIN_URL . 'js/eme_admin_members.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-events', EME_PLUGIN_URL . 'js/eme_admin_events.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-locations', EME_PLUGIN_URL . 'js/eme_admin_locations.js', [ 'eme-admin' ], EME_VERSION );
+    wp_register_script( 'eme-attendances', EME_PLUGIN_URL . 'js/eme_admin_attendances.js', [ 'eme-admin' ], EME_VERSION );
     wp_register_style( 'eme_textsec', EME_PLUGIN_URL . 'css/text-security/text-security-disc.css', [], EME_VERSION );
     wp_register_style( 'eme_stylesheet', EME_PLUGIN_URL . 'css/eme.css', [], EME_VERSION );
     $eme_css_name = get_stylesheet_directory() . '/eme.css';

@@ -57,13 +57,7 @@ function eme_init_location_props( $props = [] ) {
 
 function eme_locations_page() {
     $current_userid = get_current_user_id();
-    if ( isset( $_POST['eme_admin_action'] ) && $_POST['eme_admin_action'] == 'import_locations' && isset( $_FILES['eme_csv'] ) && current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
-        // eme_cap_cleanup is used for cleanup, cron and imports (should more be something like 'eme_cap_actions')
-        check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
-        $message = eme_import_csv_locations();
-        eme_locations_table( $message );
-
-    } elseif ( isset( $_GET['eme_admin_action'] ) && $_GET['eme_admin_action'] == 'edit_location' ) {
+    if ( isset( $_GET['eme_admin_action'] ) && $_GET['eme_admin_action'] == 'edit_location' ) {
         $location_id = eme_sanitize_request( $_GET['location_id'] );
         $location    = eme_get_location( $location_id );
         if ( ! empty( $location ) && ( current_user_can( get_option( 'eme_cap_edit_locations' ) ) ||
@@ -218,7 +212,7 @@ function eme_import_csv_locations() {
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
-        return esc_html__( 'No CSV file detected', 'events-made-easy' );
+        return esc_html__( 'Invalid file type. Please upload a CSV file.', 'events-made-easy' );
     }
     if ( ! is_uploaded_file( $_FILES['eme_csv']['tmp_name'] ) ) {
         return __( 'Problem detected while uploading the file', 'events-made-easy' );
@@ -268,29 +262,29 @@ function eme_import_csv_locations() {
             $line        = eme_array_remove_empty_elements( $line );
             $location_id = 0;
             if ( isset( $line['location_name'] ) && isset( $line['location_address1'] ) && isset( $line['location_city'] ) ) {
-                // also import attributes
-                foreach ( $line as $key => $value ) {
-                    if ( preg_match( '/^att_(.*)$/', $key, $matches ) ) {
-                        $att = $matches[1];
-                        if ( ! isset( $line['location_attributes'] ) ) {
-                            $line['location_attributes'] = [];
-                        }
-                        $line['location_attributes'][ $att ] = $value;
-                    }
-                }
+			// also import attributes
+				foreach ( $line as $key => $value ) {
+					if ( preg_match( '/^att_(.*)$/', $key, $matches ) ) {
+						$att = $matches[1];
+						if ( ! isset( $line['location_attributes'] ) ) {
+							$line['location_attributes'] = [];
+						}
+						$line['location_attributes'][ $att ] = eme_json_decode_safe( $value );
+					}
+				}
 
-                // also import properties
-                foreach ( $line as $key => $value ) {
-                    if ( preg_match( '/^prop_(.*)$/', $key, $matches ) ) {
-                        $prop = $matches[1];
-                        if ( ! isset( $line['location_properties'] ) ) {
-                            $line['location_properties'] = [];
-                        }
-                        if ( array_key_exists( $prop, $empty_props ) ) {
-                            $line['location_properties'][ $prop ] = $value;
-                        }
-                    }
-                }
+				// also import properties
+				foreach ( $line as $key => $value ) {
+					if ( preg_match( '/^prop_(.*)$/', $key, $matches ) ) {
+						$prop = $matches[1];
+						if ( ! isset( $line['location_properties'] ) ) {
+							$line['location_properties'] = [];
+						}
+						if ( array_key_exists( $prop, $empty_props ) ) {
+							$line['location_properties'][ $prop ] = eme_json_decode_safe( $value );
+						}
+					}
+				}
 
                 // if the location already exists: update it
                 if ( isset( $line['external_ref'] ) ) {
@@ -853,26 +847,6 @@ function eme_locations_table( $message = '' ) {
             <div id="message" class="updated notice notice-success is-dismissible">
                 <p><?php echo wp_kses_post( $message ); ?></p>
             </div>
-        <?php } ?>
-
-        <?php if ( current_user_can( get_option( 'eme_cap_cleanup' ) ) ) { ?>
-        <span class="eme_import_form_img">
-            <?php esc_html_e( 'Click on the icon to show the import form', 'events-made-easy' ); ?>
-        <img src="<?php echo esc_url(EME_PLUGIN_URL); ?>images/showhide.png" class="showhidebutton" alt="show/hide" data-showhide="eme_div_import" style="cursor: pointer; vertical-align: middle; ">
-        </span>
-        <div id='eme_div_import' class='eme-hidden'>
-        <form id='location-import' method='post' enctype='multipart/form-data' action='#'>
-            <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-        <input type="file" name="eme_csv">
-            <?php esc_html_e( 'Delimiter:', 'events-made-easy' ); ?>
-        <input type="text" size=1 maxlength=1 name="delimiter" value=',' required='required'>
-            <?php esc_html_e( 'Enclosure:', 'events-made-easy' ); ?>
-        <input required="required" type="text" size=1 maxlength=1 name="enclosure" value='"' required='required'>
-        <input type="hidden" name="eme_admin_action" value="import_locations">
-        <input type="submit" value="<?php esc_html_e( 'Import', 'events-made-easy' ); ?>" name="doaction" id="doaction" class="button-primary action">
-            <?php esc_html_e( 'If you want, use this to import locations into the database', 'events-made-easy' ); ?>
-        </form>
-        </div>
         <?php } ?>
 
     <form action="#" method="post">

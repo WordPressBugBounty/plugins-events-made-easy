@@ -62,6 +62,16 @@ function eme_people_page() {
 
     $current_userid = get_current_user_id();
 
+    // CANCEL action (Cancel button pushed while editing a person or group)
+    if ( isset( $_POST['eme_cancel_button'] ) ) {
+        $eme_current_tab = isset( $_POST['eme_current_tab'] ) ? eme_sanitize_request( $_POST['eme_current_tab'] ) : 'tab-people';
+        if ( ! in_array( $eme_current_tab, [ 'tab-people', 'tab-groups' ], true ) ) {
+            $eme_current_tab = 'tab-people';
+        }
+        eme_people_table( '', $eme_current_tab );
+        return;
+    }
+
     if ( isset( $_POST['eme_admin_action'] ))
         check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
     if ( isset( $_POST['eme_admin_action'] ) && eme_sanitize_request($_POST['eme_admin_action']) == 'do_addperson' ) {
@@ -126,8 +136,7 @@ function eme_people_page() {
         }
     } elseif ( isset( $_GET['eme_admin_action'] ) && eme_sanitize_request($_GET['eme_admin_action']) == 'verify_people' ) {
         if ( current_user_can( get_option( 'eme_cap_edit_people' ) ) ) {
-            eme_person_verify_layout();
-            return;
+            $active_tab = 'tab-verify';
         } else {
             $message = eme_message_error_div(esc_html__( 'You have no right to update people!', 'events-made-easy' ));
         }
@@ -989,7 +998,7 @@ function eme_csv_tasksignups_report( $event_id ) {
     if ( ! ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
         ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ($event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid) ) ) ) {
         echo esc_html__( 'No access', 'events-made-easy' );
-        die;
+        return;
     }
 
     $delimiter = get_option( 'eme_csv_delimiter' );
@@ -1149,7 +1158,6 @@ function eme_csv_tasksignups_report( $event_id ) {
     }
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- CSV export
     fclose( $out );
-    die();
 }
 
 function eme_csv_booking_report( $event_id ) {
@@ -1168,7 +1176,7 @@ function eme_csv_booking_report( $event_id ) {
     if ( ! ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
         ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ($event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid) ) ) ) {
         echo esc_html__( 'No access', 'events-made-easy' );
-        die;
+        return;
     }
 
     $delimiter = get_option( 'eme_csv_delimiter' );
@@ -1436,7 +1444,6 @@ function eme_csv_booking_report( $event_id ) {
     }
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- CSV export
     fclose( $out );
-    die();
 }
 
 function eme_printable_booking_report( $event_id ) {
@@ -1448,7 +1455,7 @@ function eme_printable_booking_report( $event_id ) {
     if ( ! ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
         ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ($event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid) ) ) ) {
         echo esc_html__( 'No access', 'events-made-easy' );
-        die;
+        return;
     }
 
     $is_multiprice   = eme_is_multi( $event['price'] );
@@ -1820,7 +1827,6 @@ function eme_printable_booking_report( $event_id ) {
     </body>
     </html>
 <?php
-        die();
 }
 
 function eme_person_verify_layout() {
@@ -2352,6 +2358,7 @@ function eme_people_table( $message = '', $active_tab = 'tab-people' ) {
     <div class="eme-tab" data-tab="tab-people"><?php esc_html_e( 'People', 'events-made-easy' ); ?></div>
     <div class="eme-tab" data-tab="tab-groups"><?php esc_html_e( 'Groups', 'events-made-easy' ); ?></div>
     <div class="eme-tab" data-tab="tab-peopletrash"><?php esc_html_e( 'Trash', 'events-made-easy' ); ?></div>
+    <div class="eme-tab" data-tab="tab-verify"><?php esc_html_e( 'Integrity verification', 'events-made-easy' ); ?></div>
     </div>
 
     <!-- ==================== PEOPLE TAB ==================== -->
@@ -2368,9 +2375,6 @@ function eme_people_table( $message = '', $active_tab = 'tab-people' ) {
 <?php endif; ?>
 
     <h1><?php esc_html_e( 'Manage people', 'events-made-easy' ); ?></h1>
-    <?php // translators: %s is the URL to verify EME people integrity ?>
-    <?php printf( wp_kses_post( __( "Click <a href='%s'>here</a> to verify the integrity of EME people", 'events-made-easy' ) ), esc_url( admin_url( "admin.php?page=$plugin_page&eme_admin_action=verify_people" ) ) ); ?><br>
-
 <?php 
     eme_render_people_table_and_filters();
 ?>
@@ -2430,6 +2434,20 @@ function eme_people_table( $message = '', $active_tab = 'tab-people' ) {
     </form>
     </div>
     <div id="GroupsTableContainer"></div>
+    </div>
+
+    <!-- ==================== VERIFY TAB ==================== -->
+    <div class="eme-tab-content" id="tab-verify">
+<?php if ( current_user_can( get_option( 'eme_cap_edit_people' ) ) ) :
+    if ( isset( $_GET['eme_admin_action'] ) && eme_sanitize_request($_GET['eme_admin_action']) == 'verify_people' ) :
+        eme_person_verify_layout();
+    else :
+        // translators: %s is the URL to verify EME people integrity
+        printf( wp_kses_post( __( "Click <a href='%s'>here</a> to verify the integrity of EME people", 'events-made-easy' ) ), esc_url( admin_url( "admin.php?page=$plugin_page&eme_admin_action=verify_people" ) ) );
+    endif;
+else : ?>
+    <p><?php esc_html_e( 'You have no right to verify people!', 'events-made-easy' ); ?></p>
+<?php endif; ?>
     </div>
 </div>
 </div>
@@ -2744,7 +2762,10 @@ function eme_person_edit_layout( $person_id = 0, $message = '' ) {
     <?php if ( $readonly ) { ?>
     </fieldset>
     <?php } else { ?>
-    <p class="submit"><input type="submit" class="button-primary" name="submit" value="<?php if ( $action == 'add' ) { esc_html_e( 'Add person', 'events-made-easy' ); } else { esc_html_e( 'Update person', 'events-made-easy' ); } ?>"></p>
+    <p class="submit"><input type="submit" class="button-primary" name="submit" value="<?php if ( $action == 'add' ) { esc_html_e( 'Add person', 'events-made-easy' ); } else { esc_html_e( 'Update person', 'events-made-easy' ); } ?>">
+    <input type="hidden" name="eme_current_tab" value="tab-people">
+    <input type="submit" formnovalidate class="button" id="person_cancel_button" name="eme_cancel_button" value="<?php esc_attr_e( 'Cancel', 'events-made-easy' ); ?>">
+    </p>
     </form>
     <?php } ?>
     </div>
@@ -2862,7 +2883,10 @@ function eme_group_edit_layout( $group_id = 0, $message = '', $group_type = 'sta
         </table>
         </div>
     </div>
-    <p class="submit"><input type="submit" class="button-primary" name="submit" value="<?php if ( $action == 'add' ) { esc_html_e( 'Add group', 'events-made-easy' ); } else { esc_html_e( 'Update group', 'events-made-easy' ); } ?>"></p>
+    <p class="submit"><input type="submit" class="button-primary" name="submit" value="<?php if ( $action == 'add' ) { esc_html_e( 'Add group', 'events-made-easy' ); } else { esc_html_e( 'Update group', 'events-made-easy' ); } ?>">
+    <input type="hidden" name="eme_current_tab" value="tab-groups">
+    <input type="submit" formnovalidate class="button" id="group_cancel_button" name="eme_cancel_button" value="<?php esc_attr_e( 'Cancel', 'events-made-easy' ); ?>">
+    </p>
     </div>
     </form>
 <?php

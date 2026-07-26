@@ -323,6 +323,17 @@ function eme_init_event_props( $props = [], $new_event=0 ) {
 
 function eme_events_page() {
     $press_back       = __( 'Press the back-button in your browser to return to the previous screen and correct your errors', 'events-made-easy' );
+
+    // CANCEL action (Cancel button pushed while editing an event or recurrence)
+    if ( isset( $_POST['event_cancel_button'] ) ) {
+        $eme_current_tab = isset( $_POST['eme_current_tab'] ) ? eme_sanitize_request( $_POST['eme_current_tab'] ) : 'tab-events';
+        if ( ! in_array( $eme_current_tab, [ 'tab-events', 'tab-recurrences' ], true ) ) {
+            $eme_current_tab = 'tab-events';
+        }
+        eme_events_table( '', $eme_current_tab );
+        return;
+    }
+
     if ( isset( $_POST['eme_admin_action'] ) ) {
         $action        = eme_sanitize_request( $_POST['eme_admin_action'] );
         $event_ID      = isset( $_POST['event_id'] ) ? eme_sanitize_request( $_POST['event_id'] ) : 0;
@@ -2395,7 +2406,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
+                $url = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 return "<a href='$url'>" . esc_html__( 'Printable view of bookings', 'events-made-easy' ) . '</a>';
             }
             return '';
@@ -2404,7 +2415,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
+                $replacement = admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_printable&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -2416,7 +2427,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $url = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
+                $url = esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
                 return "<a href='$url'>" . esc_html__( 'CSV view of bookings', 'events-made-easy' ) . '</a>';
             }
             return '';
@@ -2425,7 +2436,7 @@ function eme_get_event_placeholder_handler_definitions() {
             $event = $ctx['event'];
             if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
                 ( current_user_can( get_option( 'eme_cap_list_events' ) ) && ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] ) ) ) {
-                $replacement = admin_url( 'admin.php?page=eme-people&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
+                $replacement = admin_url( 'admin.php?page=eme-manager&eme_admin_action=booking_csv&event_id=' . $event['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -6211,6 +6222,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <input type="search" name="search_name" id="events_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
         <input id="events_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="events_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
         <button type="button" class="eme-filters-toggle" data-showhide="events_extra_searchfields"><span class="eme-filters-toggle-icon">&#9660;</span> <?php esc_html_e( 'Extra filters', 'events-made-easy' ); ?></button>
         <div id="events_extra_searchfields" class='eme-filters-panel'>
 <?php
@@ -6227,16 +6239,11 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         echo eme_ui_multiselect_key_value( '', 'events_search_customfieldids', $formfields_searchable, 'field_id', 'field_name', 5, '', 0, 'eme_snapselect', $extra_attributes, 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value()
     }
 ?>
-        </div>
-        <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
-<?php
-    if ( ! empty( $formfields_searchable ) ) {
-?>
-        <div id="hint">
+            <div id="hint">
             <?php esc_html_e( 'Hint: when searching for custom field values, you can optionally limit which custom fields you want to search in the "Custom fields to filter on" select-box shown.', 'events-made-easy' ); ?><br>
+            </div>
         </div>
 <?php
-    }
 ?>
         </form>
         </div>
@@ -6727,6 +6734,9 @@ function eme_event_form( $event, $info, $edit_recurrence = 0 ) {
                             <input type="submit" class="button-primary" id="event_deleteRecurrence_button" name="event_deleteRecurrence_button" value="<?php esc_attr_e( 'Delete Recurrence', 'events-made-easy' ); ?> &raquo;" onclick="return confirm('<?php echo esc_js( $deleteRecurrence_button_text ); ?>');">
                     <?php } ?> 
             <?php } ?>
+                    <?php $eme_current_tab = $edit_recurrence ? 'tab-recurrences' : 'tab-events'; ?>
+                    <input type="hidden" name="eme_current_tab" value="<?php echo esc_attr( $eme_current_tab ); ?>">
+                    <input type="submit" formnovalidate class="button" id="event_cancel_button" name="event_cancel_button" value="<?php esc_attr_e( 'Cancel', 'events-made-easy' ); ?>">
     </p>
     </div>
     <!-- END OF MAIN -->
@@ -9867,7 +9877,7 @@ function eme_admin_enqueue_js() {
         'eme-discounts' => ['eme-discounts'],
         'eme-countries' => ['eme-countries'],
         'eme-locations' => ['eme-locations'],
-        'eme-people' => ['eme-people'],
+        'eme-people' => ['eme-people','eme-members'], // we need members too when editing dynamic member groups
         'eme-members', 'eme-memberships' => ['eme-members'],
         'eme-registration-approval', 'eme-registration-seats' => ['eme-rsvp'],
         'eme-categories' => ['eme-categories'],
@@ -10476,6 +10486,19 @@ function eme_trash_events( $ids, $send_trashmails = 0 ) {
     } else {
         // this is more efficient, but doesn't execute the hook 'eme_trash_rsvp_action'
         eme_trash_bookings_for_event_ids( $ids );
+    }
+
+    if ( $send_trashmails ) {
+        $event_ids = explode( ',', $ids );
+        foreach ( $event_ids as $event_id ) {
+            $task_signups = eme_get_event_task_signups( $event_id );
+            foreach ( $task_signups as $signup_id => $signup ) {
+                eme_db_delete_task_signup( $signup_id );
+                eme_email_tasksignup_action( $signup, 'delete' );
+            }
+        }
+    } else {
+        eme_delete_tasksignups_for_event_ids( $ids );
     }
 }
 

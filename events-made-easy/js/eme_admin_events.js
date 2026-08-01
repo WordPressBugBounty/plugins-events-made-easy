@@ -282,13 +282,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateShowHideTasks() {
         const tasksChecked = EME.$('#event_tasks')?.checked;
         const container = EME.$('#tab-tasks-container');
+        const fieldset = EME.$('#eme_tasks_fieldset');
         if (container) {
             if (tasksChecked) {
                 container.style.opacity = '0';
                 eme_toggle(container, true);
                 container.style.transition = 'opacity 300ms';
                 requestAnimationFrame(() => container.style.opacity = '1');
+                if (fieldset) fieldset.disabled = false;
             } else {
+                if (fieldset) fieldset.disabled = true;
                 container.style.transition = 'opacity 300ms';
                 container.style.opacity = '0';
                 setTimeout(() => eme_toggle(container, false), 300);
@@ -299,13 +302,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function updateShowHideTodos() {
         const todosChecked = EME.$('#event_todos')?.checked;
         const container = EME.$('#tab-todos-container');
+        const fieldset = EME.$('#eme_todos_fieldset');
         if (container) {
             if (todosChecked) {
                 container.style.opacity = '0';
                 eme_toggle(container, true);
                 container.style.transition = 'opacity 300ms';
                 requestAnimationFrame(() => container.style.opacity = '1');
+                if (fieldset) fieldset.disabled = false;
             } else {
+                if (fieldset) fieldset.disabled = true;
                 container.style.transition = 'opacity 300ms';
                 container.style.opacity = '0';
                 setTimeout(() => eme_toggle(container, false), 300);
@@ -975,8 +981,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 category: EME.$('#events_category')?.value || '',
                 search_name: EME.$('#events_search_name')?.value || '',
                 search_location: EME.$('#events_search_location')?.value || '',
-                search_start_date: EME.$('#events_search_start_date')?.value || '',
-                search_end_date: EME.$('#events_search_end_date')?.value || '',
+                search_start_date: EME.$('[name=events_search_start_date]')?.value || '',
+                search_end_date: EME.$('[name=events_search_end_date]')?.value || '',
                 search_customfields: eme_getValue(EME.$('#events_search_customfields')),
                 search_customfieldids: eme_getValue(EME.$('#events_search_customfieldids'))
             }),
@@ -1004,8 +1010,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 eme_admin_nonce: emeadmin.translate_adminnonce,
                 scope: EME.$('#recurrences_scope')?.value || '',
                 search_name: EME.$('#recurrences_search_name')?.value || '',
-                search_start_date: EME.$('#recurrences_search_start_date')?.value || '',
-                search_end_date: EME.$('#recurrences_search_end_date')?.value || ''
+                search_start_date: EME.$('[name=recurrences_search_start_date]')?.value || '',
+                search_end_date: EME.$('[name=recurrences_search_end_date]')?.value || ''
             }),
             fields: {
                 recurrence_id: {
@@ -1117,8 +1123,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 category: '',
                 search_name: EME.$('#trash_search_name')?.value || '',
                 search_location: '',
-                search_start_date: EME.$('#trash_search_start_date')?.value || '',
-                search_end_date: EME.$('#trash_search_end_date')?.value || '',
+                search_start_date: EME.$('[name=trash_search_start_date]')?.value || '',
+                search_end_date: EME.$('[name=trash_search_end_date]')?.value || '',
                 search_customfields: '',
                 search_customfieldids: ''
             }),

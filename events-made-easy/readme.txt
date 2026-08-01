@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.1.10
+Stable tag: 3.2.0
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,6 +99,18 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.2.0  (2026/08/01) =
+* Update MercadoPago
+* Update Jodit
+* Improve bounce detection
+* Add the option to add task signups in the backend
+* If tasks/todos are activated for an event, you're required to enter at least 1 task/todo
+* If using the function eme_search_events (you shouldn't): the signature has changed, see the code
+* Allow cleanup of people based on last_seen date
+* Added placeholder #_LASTSEEN for people
+* Fix sending of cancel mails after deleting an event
+* When deleting events or the automatic cleanup of unpaid bookings, the wrong email template was used: the cancel-email was being sent, while it should be the trashed-email. Per the doc, the cancel-email is user-initiated, the trash-email is admin-initiated
+
 = 3.1.10  (2026/07/26) =
 * Upgrade dompdf to fix security advisories
 * include missing eme-import.php

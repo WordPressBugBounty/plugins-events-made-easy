@@ -684,6 +684,13 @@ div#eme_div_import {
     border: 1px solid grey;
 }
 
+.eme_assign_section {
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+.eme_assign_section select {
+    vertical-align: top;
+}
 .bulkactions {
     display: grid;
     padding-top: 5px;
@@ -827,4 +834,9 @@ a.nav-tab {
     max-height: 500px;
     opacity: 1;
     margin-top: 8px;
+}
+
+/* for the cleanup hr */
+.eme_cleanup_hr {
+    border: 1px solid grey;
 }

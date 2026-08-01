@@ -1697,6 +1697,8 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
                         eme_update_booking_discounts( $booking );
                     }
 
+                    // update the person's last_seen
+                    eme_update_person_lastseen( $person_id );
                     // everything ok? So then we add the user in WP if desired
                     // this will only do it if the booker is not logged in and his email doesn't exist in wp yet
                     // we don't check the result of the eme_create_wp_user function
@@ -3158,7 +3160,7 @@ function eme_are_multiseats_available_for( $event_id, $multiseats, $exclude_wait
 function eme_get_bookingids_for( $event_id ) {
     global $wpdb;
     $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
-    $prepared_sql   = $wpdb->prepare( "SELECT booking_id FROM $bookings_table WHERE status IN (%d,%d,%d) AND event_id=%d", EME_RSVP_STATUS_PENDING, EME_RSVP_STATUS_USERPENDING, EME_RSVP_STATUS_APPROVED, $event_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $prepared_sql   = $wpdb->prepare( "SELECT booking_id FROM $bookings_table WHERE status != %d AND event_id=%d", EME_RSVP_STATUS_TRASH, $event_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     return $wpdb->get_col( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 

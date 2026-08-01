@@ -26,6 +26,51 @@ function eme_cleanup_people() {
     return $count;
 }
 
+function eme_get_cleanup_people_lastseen( $eme_number, $eme_period, $exclude_group_ids = '' ) {
+    global $wpdb;
+
+    $people_table     = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
+    $usergroups_table = EME_DB_PREFIX . EME_USERGROUPS_TBNAME;
+
+    if ( $eme_number < 1 ) {
+        $eme_number = 1;
+    }
+    $eme_date_obj = new emeExpressiveDate( 'now', EME_TIMEZONE );
+    switch ( $eme_period ) {
+    case 'day':
+        $eme_date_obj->minusDays( $eme_number );
+        break;
+    case 'week':
+        $eme_date_obj->minusWeeks( $eme_number );
+        break;
+    default:
+        $eme_date_obj->minusMonths( $eme_number );
+        break;
+    }
+    $datetime = $eme_date_obj->getDateTime();
+    $sql      = "SELECT $people_table.person_id, $people_table.firstname, $people_table.lastname, $people_table.email, $people_table.creation_date, $people_table.modif_date, $people_table.last_seen FROM $people_table WHERE last_seen IS NOT NULL AND last_seen < %s AND status != %d AND $people_table.wp_id=0";
+    if ( ! empty( $exclude_group_ids ) ) {
+        $group_ids = explode( ',', $exclude_group_ids );
+        $group_ids = array_map( 'intval', $group_ids );
+        $group_ids = join( ',', $group_ids );
+        $sql      .= " AND NOT EXISTS (SELECT 1 FROM $usergroups_table WHERE $usergroups_table.person_id=$people_table.person_id AND $usergroups_table.group_id IN ($group_ids) )";
+    }
+    $sql         .= ' ORDER BY ' . $people_table . '.last_seen';
+    $prepared_sql = $wpdb->prepare( $sql, $datetime, EME_PEOPLE_STATUS_TRASH ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    return $wpdb->get_results( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+}
+
+function eme_cleanup_people_lastseen( $eme_number, $eme_period, $exclude_group_ids = '' ) {
+    $people = eme_get_cleanup_people_lastseen( $eme_number, $eme_period, $exclude_group_ids );
+    $count  = count( $people );
+    if ( $count > 0 ) {
+        $person_ids = array_column( $people, 'person_id' );
+        $tmp_ids    = join( ',', $person_ids );
+        eme_trash_people( $tmp_ids );
+    }
+    return $count;
+}
+
 function eme_cleanup_trashed_people( $eme_number, $eme_period ) {
     global $wpdb;
 
@@ -150,7 +195,7 @@ function eme_cleanup_unpaid( $eme_number ) {
         if ( ! empty( $event ) ) {
             eme_trash_booking( $booking_id );
             eme_manage_waitinglist( $event );
-            eme_email_booking_action( $booking, 'cancelBooking' );
+            eme_email_booking_action( $booking, 'trashBooking' );
         }
     }
 }
@@ -274,6 +319,35 @@ function eme_cleanup_page() {
                 $count   = eme_cleanup_people();
                 // translators: %d is the number of people trashed
                 $message = sprintf( __( 'Cleanup done: %d people who are no longer referenced in bookings, memberships or groups are now trashed.', 'events-made-easy' ), $count );
+            } elseif ( $_POST['eme_admin_action'] == 'eme_cleanup_people_lastseen_preview' ) {
+                $eme_number       = intval( $_POST['eme_number'] );
+                $eme_period       = eme_sanitize_request( $_POST['eme_period'] );
+                $exclude_group_ids = isset( $_POST['exclude_group_ids'] ) ? eme_sanitize_request( $_POST['exclude_group_ids'] ) : '';
+                if ( ! in_array( $eme_period, [ 'day', 'week', 'month' ] ) ) {
+                    $eme_period = 'month';
+                }
+                if ( $eme_number > 0 ) {
+                    $preview_people = eme_get_cleanup_people_lastseen( $eme_number, $eme_period, $exclude_group_ids );
+                    $count          = count( $preview_people );
+                    if ( $count === 0 ) {
+                        $message = __( 'No people found that would be moved to the trash bin based on the last seen date.', 'events-made-easy' );
+                    } else {
+                        eme_cleanup_form( '', $preview_people, true );
+                        return;
+                    }
+                }
+            } elseif ( $_POST['eme_admin_action'] == 'eme_cleanup_people_lastseen' ) {
+                $eme_number       = intval( $_POST['eme_number'] );
+                $eme_period       = eme_sanitize_request( $_POST['eme_period'] );
+                $exclude_group_ids = isset( $_POST['exclude_group_ids'] ) ? eme_sanitize_request( $_POST['exclude_group_ids'] ) : '';
+                if ( ! in_array( $eme_period, [ 'day', 'week', 'month' ] ) ) {
+                    $eme_period = 'month';
+                }
+                if ( $eme_number > 0 ) {
+                    $count   = eme_cleanup_people_lastseen( $eme_number, $eme_period, $exclude_group_ids );
+                    // translators: %1$d is the number of people, %2$d is the number of time units, %3$s is the time period
+                    $message = sprintf( __( 'Cleanup done: %1$d people whose last seen date is older than %2$d %3$s(s) have been moved to the trash.', 'events-made-easy' ), $count, $eme_number, $eme_period );
+                }
             } elseif ( $_POST['eme_admin_action'] == 'eme_empty_queue' ) {
                 eme_cancel_all_queued();
                 $message = __( 'The mail queue has been cleared.', 'events-made-easy' );
@@ -291,7 +365,7 @@ function eme_cleanup_page() {
     eme_cleanup_form( $message );
 }
 
-function eme_cleanup_form( $message = '', $preview_people = null ) {
+function eme_cleanup_form( $message = '', $preview_people = null, $use_lastseen = false ) {
     $areyousure = esc_html__( 'Are you sure you want to do this?', 'events-made-easy' );
 ?>
 <div class="wrap">
@@ -301,12 +375,18 @@ function eme_cleanup_form( $message = '', $preview_people = null ) {
     <p><?php echo wp_kses_post( $message ); ?></p>
     </div>
 <?php } ?>
-<?php if ( ! empty( $preview_people ) ) { ?>
+<?php if ( ! empty( $preview_people ) ) {
+    $confirm_action = $use_lastseen ? 'eme_cleanup_people_lastseen' : 'eme_cleanup_people';
+?>
 <h1><?php esc_html_e( 'Preview: People to be trashed', 'events-made-easy' ); ?></h1>
 <div id='message' class='updated eme-message-admin'>
 <p><?php
-// translators: %d is the number of people to be trashed
-echo esc_html( sprintf( __( 'The following %d people are no longer referenced in any bookings, memberships or groups and will be moved to the trash bin:', 'events-made-easy' ), count( $preview_people ) ) ); ?></p>
+if ( $use_lastseen ) {
+    echo esc_html( sprintf( __( 'The following %d people have not been seen for the selected period and will be moved to the trash bin:', 'events-made-easy' ), count( $preview_people ) ) );
+} else {
+    // translators: %d is the number of people to be trashed
+    echo esc_html( sprintf( __( 'The following %d people are no longer referenced in any bookings, memberships or groups and will be moved to the trash bin:', 'events-made-easy' ), count( $preview_people ) ) );
+} ?></p>
 <table class="widefat striped" style="margin-bottom:1em;">
 <thead><tr>
     <th><?php esc_html_e( 'ID', 'events-made-easy' ); ?></th>
@@ -315,6 +395,7 @@ echo esc_html( sprintf( __( 'The following %d people are no longer referenced in
     <th><?php esc_html_e( 'Email', 'events-made-easy' ); ?></th>
     <th><?php esc_html_e( 'Created on', 'events-made-easy' ); ?></th>
     <th><?php esc_html_e( 'Modified on', 'events-made-easy' ); ?></th>
+    <th><?php esc_html_e( 'Last seen on', 'events-made-easy' ); ?></th>
 </tr></thead>
 <tbody>
 <?php foreach ( $preview_people as $person ) {
@@ -327,6 +408,7 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <?php } ?>
     <td> <?php echo esc_html( $person['creation_date'] ); ?></td>
     <td> <?php echo esc_html( $person['modif_date'] ); ?></td>
+    <td> <?php echo esc_html( $person['last_seen'] ); ?></td>
 </tr>
 <?php } ?>
 </tbody>
@@ -334,7 +416,12 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
 <form action="" method="post">
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
     <input type='hidden' name='page' value='eme-cleanup'>
-    <input type='hidden' name='eme_admin_action' value='eme_cleanup_people'>
+    <input type='hidden' name='eme_number' value='<?php echo isset( $_POST['eme_number'] ) ? intval( $_POST['eme_number'] ) : ''; ?>'>
+    <input type='hidden' name='eme_period' value='<?php echo isset( $_POST['eme_period'] ) ? esc_attr( eme_sanitize_request( $_POST['eme_period'] ) ) : ''; ?>'>
+    <?php if ( $use_lastseen && isset( $_POST['exclude_group_ids'] ) ) { ?>
+    <input type='hidden' name='exclude_group_ids' value='<?php echo esc_attr( eme_sanitize_request( $_POST['exclude_group_ids'] ) ); ?>'>
+    <?php } ?>
+    <input type='hidden' name='eme_admin_action' value='<?php echo esc_attr($confirm_action); ?>'>
     <input type="submit" value="<?php esc_attr_e( 'Confirm: Move all to trash', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction_confirm" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     &nbsp;
     <a href="<?php echo esc_url( admin_url( 'admin.php?page=eme-cleanup' ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'events-made-easy' ); ?></a>
@@ -356,7 +443,7 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <label for="eme_number"><?php esc_html_e( 'Remove unpaid pending bookings older than', 'events-made-easy' ); ?></label>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
@@ -367,7 +454,7 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <label for="eme_number"><?php esc_html_e( 'Remove unconfirmed bookings older than', 'events-made-easy' ); ?></label>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
@@ -378,7 +465,7 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <?php esc_html_e( 'Move people who are no longer referenced in bookings, groups or memberships to the trash bin', 'events-made-easy' ); ?>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
@@ -388,7 +475,27 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <br><?php esc_html_e( 'Tip: If you want to avoid certain people from being trashed through automatic cleanup, put them in a group.', 'events-made-easy' ); ?>
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
+    <form action="" method="post">
+    <label for="eme_number"><?php esc_html_e( 'Move people whose last seen date is older than', 'events-made-easy' ); ?></label>
+    <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
+    <input type='hidden' name='page' value='eme-cleanup'>
+    <input type='hidden' name='eme_admin_action' value='eme_cleanup_people_lastseen_preview'>
+    <input type="number" id="eme_number" name="eme_number" size="3" maxlength="3" min="1" max="999" step="1" >
+    <select name="eme_period">
+    <option value="day" selected="selected"><?php esc_html_e( 'Day(s)', 'events-made-easy' ); ?></option>
+    <option value="week"><?php esc_html_e( 'Week(s)', 'events-made-easy' ); ?></option>
+    <option value="month"><?php esc_html_e( 'Month(s)', 'events-made-easy' ); ?></option>
+    </select>
+    <input type="submit" value="<?php esc_attr_e( 'Preview', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action">
+    <br>
+    <?php esc_html_e( 'Exclude people belonging to these groups:', 'events-made-easy' ); ?>
+    <?php echo eme_ui_multiselect_key_value( '', 'exclude_group_ids', eme_get_groups(), 'group_id', 'name', 5, '', 0, 'eme_snapselect', 'data-placeholder="' . esc_attr__( 'Select one or more groups to exclude', 'events-made-easy' ) . '"' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value() ?>
+    <br>
+    <br><?php esc_html_e( 'Tip: After this action, people will still be in the trash bin and can be restored. Use the permanent delete action below to remove them forever.', 'events-made-easy' ); ?>
+    </form>
+
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <label for="eme_number"><?php esc_html_e( 'Remove people in thrash older than', 'events-made-easy' ); ?></label>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
@@ -403,7 +510,7 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <label for="eme_number"><?php esc_html_e( 'Remove bookings in thrash older than', 'events-made-easy' ); ?></label>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
@@ -418,12 +525,13 @@ $edit_title = esc_attr__( 'Edit person', 'events-made-easy' );
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>
 
-<br><br>
+    <hr class="eme_cleanup_hr">
     <form action="" method="post">
     <?php esc_html_e( 'Remove all data concerning events, locations, memberships, people and bookings', 'events-made-easy' ); ?>
     <?php echo wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false, false ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field() returns safe HTML ?>
     <input type='hidden' name='page' value='eme-cleanup'>
     <input type='hidden' name='eme_admin_action' value='eme_cleanup_all_event_related_data'>
+    <br>
     <input id="other_data" type="checkbox" value="1" name="other_data"> <?php esc_html_e( 'Also delete defined categories, templates, holidays, discounts, states, countries and custom form fields', 'events-made-easy' ); ?><br>
     <input type="submit" value="<?php esc_attr_e( 'Apply', 'events-made-easy' ); ?>" name="doaction" id="eme_doaction" class="button-primary action" onclick="return confirm('<?php echo esc_attr( $areyousure ); ?>');">
     </form>

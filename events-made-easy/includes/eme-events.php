@@ -1167,6 +1167,7 @@ function eme_events_page_content() {
             $format     = "<div class='eme-message-success eme-rsvp-message-success'>$img ";
             if ( current_user_can( get_option( 'eme_cap_membercheck' ) ) || current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
                 eme_update_member_lastseen( $member_id );
+                eme_update_person_lastseen( $member['person_id'] );
                 $eme_membership_attendance_msg = eme_nl2br_save_html( get_option( 'eme_membership_attendance_msg' ) );
                 $format                       .= eme_replace_member_placeholders( $eme_membership_attendance_msg, $membership, $member );
                 if ( $membership['properties']['attendancerecord'] ) {
@@ -4874,7 +4875,7 @@ function eme_are_events_available( $scope = 'future', $order = 'ASC', $location_
     }
 }
 
-function eme_search_events( $name, $scope = 'future', $name_only = 0, $exclude_id = 0, $only_rsvp = 0, int $start=0, int $pagesize=0 ) {
+function eme_search_events( $name, $scope = 'future', $name_only = 0, $extra_conditions = [], int $start=0, int $pagesize=0 ) {
     global $wpdb;
     $table         = EME_DB_PREFIX . EME_EVENTS_TBNAME;
     $eme_date_obj  = new emeExpressiveDate( 'now', EME_TIMEZONE );
@@ -4887,11 +4888,22 @@ function eme_search_events( $name, $scope = 'future', $name_only = 0, $exclude_i
     } elseif ( $scope == 'future' ) {
         $where[] = $wpdb->prepare( 'event_start >= %s', $now);
     }
-    if ( $exclude_id ) {
-        $where[] = $wpdb->prepare( 'event_id != %d', $exclude_id);
-    }
-    if ( $only_rsvp ) {
-        $where[] = 'event_rsvp = 1';
+    if ( ! empty( $extra_conditions ) ) {
+        if ( ! empty( $extra_conditions['exclude_id'] ) ) {
+            $where[] = $wpdb->prepare( 'event_id != %d', intval( $extra_conditions['exclude_id'] ) );
+        }
+        if ( isset( $extra_conditions['event_rsvp'] ) ) {
+            $where[] = $wpdb->prepare( 'event_rsvp = %d', intval( $extra_conditions['event_rsvp'] ) );
+        }
+        if ( isset( $extra_conditions['event_tasks'] ) ) {
+            $where[] = $wpdb->prepare( 'event_tasks = %d', intval( $extra_conditions['event_tasks'] ) );
+        }
+        // for callers that already have prepared SQL fragments (e.g. admin datatable)
+        if ( ! empty( $extra_conditions['prepared'] ) ) {
+            foreach ( (array) $extra_conditions['prepared'] as $fragment ) {
+                $where[] = $fragment;
+            }
+        }
     }
     $where[] = $wpdb->prepare( 'event_status != %d', EME_EVENT_STATUS_TRASH);
 
@@ -6220,8 +6232,8 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 ?>
         </select>
         <input type="search" name="search_name" id="events_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
-        <input id="events_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <input id="events_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="events_search_start_date" type="text" name="events_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="events_search_end_date" type="text" name="events_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
         <button type="button" class="eme-filters-toggle" data-showhide="events_extra_searchfields"><span class="eme-filters-toggle-icon">&#9660;</span> <?php esc_html_e( 'Extra filters', 'events-made-easy' ); ?></button>
         <div id="events_extra_searchfields" class='eme-filters-panel'>
@@ -6264,7 +6276,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <span id="events_span_sendtrashmails" class="eme-hidden">
 <?php
         esc_html_e( 'Send emails for cancelled bookings too?', 'events-made-easy' );
-        echo eme_ui_select_binary( 0, 'send_trashmails' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
+        echo eme_ui_select_binary( 0, 'events_send_trashmails' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
         </span>
         <span id="events_span_addtocategory" class="eme-hidden">
@@ -6303,8 +6315,8 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 ?>
         </select>
         <input type="search" name="search_name" id="recurrences_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
-        <input id="recurrences_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <input id="recurrences_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="recurrences_search_start_date" type="text" name="recurrences_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="recurrences_search_end_date" type="text" name="recurrences_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <button id="RecurrencesLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter recurrences', 'events-made-easy' ); ?></button>
         </form>
         <br>
@@ -6344,8 +6356,8 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 ?>
         </select>
         <input type="search" name="search_name" id="trash_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
-        <input id="trash_search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <input id="trash_search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="trash_search_start_date" type="text" name="trash_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
+        <input id="trash_search_end_date" type="text" name="trash_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <button id="TrashLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter trash', 'events-made-easy' ); ?></button>
         </form>
 <?php
@@ -9615,6 +9627,7 @@ function eme_admin_enqueue_js() {
             'translate_confirmdelete'              => __( 'Confirm delete', 'events-made-easy' ),
             'translate_areyousuretodeleteselected' => __( 'Are you sure you want to delete the selected records?', 'events-made-easy' ),
             'translate_areyousuretodeletefile'     => __( 'Are you sure you want to delete this file?', 'events-made-easy' ),
+            'translate_selectperson'               => __( 'Select a person', 'events-made-easy' ),
             'translate_selectpersons'              => __( 'Select one or more persons', 'events-made-easy' ),
             'translate_selectmembers'              => __( 'Select one or more members', 'events-made-easy' ),
             'translate_addatachments'              => __( 'Add attachments', 'events-made-easy' ),
@@ -9769,6 +9782,7 @@ function eme_admin_enqueue_js() {
             'translate_bd_email'                   => __( 'Birthday Email', 'events-made-easy' ),
             'translate_publicgroup'                => __( 'Public group', 'events-made-easy' ),
             'translate_groupcount'                 => __( 'Nbr People', 'events-made-easy' ),
+            'translate_last_seen'                  => __( 'Last seen on', 'events-made-easy' ),
             // members
             'translate_nomatchmember'              => __( 'No matching member found', 'events-made-easy' ),
             'translate_members'                    => __( 'Members', 'events-made-easy' ),
@@ -9781,7 +9795,6 @@ function eme_admin_enqueue_js() {
             'translate_enddate'                    => __( 'End', 'events-made-easy' ),
             'translate_usage_count'                => __( 'Usage count', 'events-made-easy' ),
             'translate_registrationdate'           => __( 'Registered on', 'events-made-easy' ),
-            'translate_last_seen'                  => __( 'Last seen on', 'events-made-easy' ),
             'translate_paymentdate'                => __( 'Paid on', 'events-made-easy' ),
             'translate_uniquenbr'                  => __( 'Unique nbr', 'events-made-easy' ),
             'translate_paymentid'                  => __( 'Payment ID', 'events-made-easy' ),
@@ -9840,6 +9853,7 @@ function eme_admin_enqueue_js() {
             'translate_mails'                      => __( 'Mails', 'events-made-easy' ),
             'translate_mailings'                   => __( 'Mailings', 'events-made-easy' ),
             'translate_archivedmailings'           => __( 'Archived mailings', 'events-made-easy' ),
+            'translate_selectevent'                => __( 'Select an event', 'events-made-easy' ),
             'translate_selectevents'               => __( 'Select one or more events', 'events-made-easy' ),
             'translate_htmlmail'                   => get_option( 'eme_mail_send_html' ) ? 'yes' : 'no',
         ];
@@ -10448,26 +10462,24 @@ function eme_ajax_action_events_addcat( $ids, $category_id ) {
 
 function eme_trash_events( $ids, $send_trashmails = 0 ) {
     global $wpdb;
-    $table_name     = EME_DB_PREFIX . EME_EVENTS_TBNAME;
+    $table_name = EME_DB_PREFIX . EME_EVENTS_TBNAME;
     if (!eme_is_list_of_int( $ids ) ) {
         return;
     }
 
+    $event_ids = array_map( 'intval', explode( ',', $ids ) );
     if ( has_action( 'eme_trash_event_action' ) ) {
-        $event_ids = explode( ',', $ids );
         foreach ( $event_ids as $event_id ) {
             $event = eme_get_event( $event_id );
             do_action( 'eme_trash_event_action', $event );
         }
     }
 
-    $ids_arr      = array_map( 'intval', explode( ',', $ids ) );
-    $placeholders = implode( ',', array_fill( 0, count( $ids_arr ), '%d' ) );
-    $sql = $wpdb->prepare("UPDATE $table_name SET recurrence_id = 0, event_status = %d WHERE event_id IN ($placeholders)", array_merge( [ EME_EVENT_STATUS_TRASH ], $ids_arr ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $placeholders = implode( ',', array_fill( 0, count( $event_ids ), '%d' ) );
+    $sql = $wpdb->prepare("UPDATE $table_name SET recurrence_id = 0, event_status = %d WHERE event_id IN ($placeholders)", array_merge( [ EME_EVENT_STATUS_TRASH ], $event_ids ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     $wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 
     if ( $send_trashmails || has_action( 'eme_trash_rsvp_action' ) ) {
-        $event_ids = explode( ',', $ids );
         foreach ( $event_ids as $event_id ) {
             $booking_ids = eme_get_bookingids_for( $event_id );
             if ( ! empty( $booking_ids ) ) {
@@ -10478,7 +10490,7 @@ function eme_trash_events( $ids, $send_trashmails = 0 ) {
                     // this call also executes the hook 'eme_trash_rsvp_action'
                     eme_trash_booking( $booking_id );
                     if ($send_trashmails) {
-                        eme_email_booking_action( $booking, 'cancelBooking' );
+                        eme_email_booking_action( $booking, 'trashBooking' );
                     }
                 }
             }
@@ -10489,7 +10501,6 @@ function eme_trash_events( $ids, $send_trashmails = 0 ) {
     }
 
     if ( $send_trashmails ) {
-        $event_ids = explode( ',', $ids );
         foreach ( $event_ids as $event_id ) {
             $task_signups = eme_get_event_task_signups( $event_id );
             foreach ( $task_signups as $signup_id => $signup ) {
@@ -10726,9 +10737,17 @@ function eme_ajax_events_snapselect() {
     $mysql_pagesize = $pagesize+1;
     $start     = ( isset( $_REQUEST['page'] ) && intval( $_REQUEST['page'] ) > 0 ) ? ( intval( $_REQUEST['page'] ) - 1 ) * $pagesize : 0;
 
-    $exclude_id  = isset( $_REQUEST['exclude_id'] ) ? intval( $_REQUEST['exclude_id'] ) : 0;
-    $only_rsvp   = isset( $_REQUEST['only_rsvp'] ) ? intval( $_REQUEST['only_rsvp'] ) : 0;
-    $events      = eme_search_events( $q, $scope, 1, $exclude_id, $only_rsvp, $start, $mysql_pagesize );
+    $extra_conditions = [];
+    if ( !empty( $_REQUEST['exclude_id'] ) ) {
+        $extra_conditions['exclude_id'] = intval( $_REQUEST['exclude_id'] );
+    }
+    if ( !empty( $_REQUEST['only_rsvpable_events'] ) ) {
+        $extra_conditions['event_rsvp'] = 1;
+    }
+    if ( !empty( $_REQUEST['only_events_with_tasks'] ) ) {
+        $extra_conditions['event_tasks'] = 1;
+    }
+    $events      = eme_search_events( $q, $scope, 1, $extra_conditions, $start, $mysql_pagesize );
     $records     = [];
     foreach ( $events as $event ) {
         $records[] = [

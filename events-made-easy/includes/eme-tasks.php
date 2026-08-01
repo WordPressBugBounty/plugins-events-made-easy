@@ -25,18 +25,16 @@ function eme_handle_tasks_post_adminform( $event_id, $day_difference = 0 ) {
     }
     $seq_nbr       = 1;
     $task_nbr_seen = 0;
-    foreach ( wp_unslash( $_POST['eme_tasks'] ) as $eme_task ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $post_tasks    = eme_sanitize_request( $_POST['eme_tasks'] ); // sanitize immediately the whole array
+    foreach ( $post_tasks as $eme_task ) {
         if ( ! empty( $eme_task['task_nbr'] ) && intval( $eme_task['task_nbr'] ) > $task_nbr_seen ) {
             $task_nbr_seen = intval( $eme_task['task_nbr'] );
         }
     }
     $next_task_nbr = $task_nbr_seen + 1;
-    foreach ( wp_unslash( $_POST['eme_tasks'] ) as $eme_task ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-        $eme_task['name']       = eme_sanitize_request( $eme_task['name'] );
+    foreach ( $post_tasks as $eme_task ) {
         $eme_task['task_seq']   = $seq_nbr;
         $eme_task['event_id']   = $event_id;
-        $eme_task['task_start'] = eme_sanitize_request( $eme_task['task_start'] );
-        $eme_task['task_end']   = eme_sanitize_request( $eme_task['task_end'] );
         if ( eme_is_empty_string( $eme_task['name'] ) || eme_is_empty_datetime( $eme_task['task_start'] ) || eme_is_empty_datetime( $eme_task['task_end'] ) ) {
             continue;
         }
@@ -46,7 +44,6 @@ function eme_handle_tasks_post_adminform( $event_id, $day_difference = 0 ) {
             $eme_task['task_start'] = $eme_date_obj_start->addDays( $day_difference )->getDateTime();
             $eme_task['task_end']   = $eme_date_obj_end->addDays( $day_difference )->getDateTime();
         }
-        $eme_task['description'] = eme_sanitize_request( $eme_task['description'] );
         // we check for task nbr to know if we need an update or insert
         if ( empty( $eme_task['task_nbr'] ) ) {
             $eme_task['task_nbr'] = $next_task_nbr;
@@ -583,12 +580,21 @@ function eme_task_signups_page() {
 }
 
 function eme_task_signups_table_layout( ) {
-    echo "
-      <div class='wrap nosubsub'>
-      <div id='poststuff'>
-         <h1>" . esc_html__( 'Manage task signups', 'events-made-easy' ) . "</h1>\n ";
+?>
+    <div class='wrap nosubsub'>
+    <div id='poststuff'>
+    <h1><?php esc_html_e( 'Add task signup', 'events-made-easy' ); ?></h1>
+    <div class="eme_assign_section">
+    <form id="eme_task_assign_form" action="#" method="post">
+    <select id="eme_event_selector" class="eme_snapselect_event_with_tasks" name="eme_event_selector" style="min-width:200px;"></select>
+    <select id="eme_task_selector" class="eme_snapselect_event_tasks" name="eme_task_selector" style="min-width:250px;"></select>
+    <select id="eme_person_selector" class="eme_snapselect_chooseperson" name="eme_person_selector" style="min-width:200px;"></select>
+    <button id="AssignTaskButton" class="button-primary action" type="button"><?php esc_html_e( 'Assign', 'events-made-easy' ); ?></button>
+    <br><?php esc_html_e('No overlap or capacity checks happen here, to allow more freedom in task assignments.','events-made-easy'); ?>
+    </form>
+    </div>
 
-    ?>
+    <h1><?php esc_html_e( 'Manage task signups', 'events-made-easy' ); ?></h1>
 
     <form action="#" method="post">
     <?php if (isset($_GET['event_id'])) { ?>
@@ -916,6 +922,7 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
             print "<input type='number' id=task_offset name=task_offset><button type='button' name='change_task_days' id='change_task_days'>" . esc_html__( 'Change', 'events-made-easy' ) . '</button>';
         }
         ?>
+        <fieldset id="eme_tasks_fieldset" style="border:none;padding:0;margin:0">
         <table class="eme_tasks">
         <thead>
             <tr>
@@ -935,9 +942,6 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
             if ( ! is_array( $tasks ) || count( $tasks ) == 0 ) {
                 $info     = eme_new_task();
                 $tasks    = [ $info ];
-                $required = '';
-            } else {
-                $required = "required='required'";
             }
             foreach ( $tasks as $count => $task ) {
                 ?>
@@ -952,8 +956,7 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
                 <?php endif; ?>
                 </td>
                 <td>
-                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $required is hardcoded attribute ?>
-                <input <?php echo $required; ?> id="eme_tasks_<?php echo esc_attr( $count ); ?>_name" name="eme_tasks[<?php echo esc_attr( $count ); ?>][name]" size="15" aria-label="name" value="<?php echo esc_attr( $task['name'] ); ?>">
+                <input required='required' type='text' id="eme_tasks_<?php echo esc_attr( $count ); ?>_name" name="eme_tasks[<?php echo esc_attr( $count ); ?>][name]" size="15" aria-label="name" value="<?php echo esc_attr( $task['name'] ); ?>">
 <?php
                 if (!empty($task['task_id'])) {
                     $count_signups = eme_count_task_signups($task['task_id']);
@@ -967,16 +970,13 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
 ?>
                 </td>
                 <td>
-                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $required is hardcoded attribute ?>
-                <input <?php echo $required; ?> type='text' readonly='readonly' name='eme_tasks[<?php echo esc_attr( $count ); ?>][task_start]' id='eme_tasks_<?php echo esc_attr( $count ); ?>_task_start' data-date='<?php if ( $task['task_start'] ) { echo esc_attr( eme_js_datetime( $task['task_start'] ) );} ?>'  class='eme_formfield_fdatetime'>
+                <input required='required' type='text' readonly='readonly' name='eme_tasks[<?php echo esc_attr( $count ); ?>][task_start]' id='eme_tasks_<?php echo esc_attr( $count ); ?>_task_start' data-date='<?php if ( $task['task_start'] ) { echo esc_attr( eme_js_datetime( $task['task_start'] ) );} ?>'  class='eme_formfield_fdatetime'>
                 </td>
                 <td>
-                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $required is hardcoded attribute ?>
-                <input <?php echo $required; ?> type='text' readonly='readonly' name='eme_tasks[<?php echo esc_attr( $count ); ?>][task_end]' id='eme_tasks_<?php echo esc_attr( $count ); ?>_task_end' data-date='<?php if ( $task['task_end'] ) { echo esc_attr( eme_js_datetime( $task['task_end'] ) );} ?>' class='eme_formfield_fdatetime'>
+                <input required='required' type='text' readonly='readonly' name='eme_tasks[<?php echo esc_attr( $count ); ?>][task_end]' id='eme_tasks_<?php echo esc_attr( $count ); ?>_task_end' data-date='<?php if ( $task['task_end'] ) { echo esc_attr( eme_js_datetime( $task['task_end'] ) );} ?>' class='eme_formfield_fdatetime'>
                 </td>
                 <td>
-                <?php // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $required is hardcoded attribute ?>
-                <input <?php echo $required; ?> id="eme_tasks_<?php echo esc_attr( $count ); ?>_spaces" name="eme_tasks[<?php echo esc_attr( $count ); ?>][spaces]" size="12" aria-label="spaces" value="<?php echo esc_attr( $task['spaces'] ); ?>">
+                <input required='required' type='text' id="eme_tasks_<?php echo esc_attr( $count ); ?>_spaces" name="eme_tasks[<?php echo esc_attr( $count ); ?>][spaces]" size="12" aria-label="spaces" value="<?php echo esc_attr( $task['spaces'] ); ?>">
                 </td>
                 <td>
                 <textarea class="eme_fullresizable" id="eme_tasks_<?php echo esc_attr( $count ); ?>_description" name="eme_tasks[<?php echo esc_attr( $count ); ?>][description]" ><?php echo esc_html( $task['description'] ); ?></textarea>
@@ -990,7 +990,8 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
             ?>
         </tbody>
         </table>
-        <?php esc_html_e( 'If name, start date or end date of a task is empty, it will be ignored.', 'events-made-easy' );
+        </fieldset>
+        <?php 
         esc_html_e( 'If the number of spaces for a task is 0, the task description will be treated as a section header for the next set of tasks.', 'events-made-easy' ); ?>
         <?php
         if ( $edit_recurrence ) {
@@ -1952,6 +1953,8 @@ function eme_tasks_ajax() {
                 ];
                 $signup_id = eme_db_insert_task_signup( $signup );
                 if ($signup_id) {
+                    // update the person's last_seen
+                    eme_update_person_lastseen( $person_id );
                     // re-get the signup, since the random id is now in it too
                     $signup = eme_get_task_signup($signup_id);
                     if ( $signup_status == 0 ) {
@@ -2034,7 +2037,7 @@ function eme_ajax_task_signups_list() {
     header( 'Content-type: application/json; charset=utf-8' );
     if ( ! current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
         $ajaxResult            = [];
-        $ajaxResult['Result']  = 'Error';
+        $ajaxResult['Result']  = 'ERROR';
         $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
         print wp_json_encode( $ajaxResult );
         wp_die();
@@ -2159,7 +2162,7 @@ function eme_ajax_task_signups_list() {
         $fTableResult['Records']          = $rows;
         $fTableResult['TotalRecordCount'] = $recordCount;
     } else {
-        $fTableResult['Result']  = 'Error';
+        $fTableResult['Result']  = 'ERROR';
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
     }
     print wp_json_encode( $fTableResult );
@@ -2170,7 +2173,7 @@ function eme_ajax_manage_task_signups() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     if ( ! current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
         $ajaxResult            = [];
-        $ajaxResult['Result']  = 'Error';
+        $ajaxResult['Result']  = 'ERROR';
         $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
         print wp_json_encode( $ajaxResult );
         wp_die();
@@ -2272,6 +2275,107 @@ function eme_count_pending_tasksignups() {
     $now              = $eme_date_obj_now->getDateTime();
     $prepared_sql     = $wpdb->prepare( "SELECT COUNT(signups.id) FROM $signups_table AS signups LEFT JOIN $events_table AS events ON signups.event_id=events.event_id WHERE signups.signup_status=0 AND events.event_end >= %s", $now ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     return $wpdb->get_var( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+}
+
+add_action( 'wp_ajax_eme_event_tasks_snapselect', 'eme_ajax_event_tasks_snapselect' );
+function eme_ajax_event_tasks_snapselect() {
+	check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
+	header( 'Content-type: application/json; charset=utf-8' );
+	if ( ! current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'Message' => esc_html__( 'Access denied!', 'events-made-easy' ) ] );
+		wp_die();
+	}
+
+	$event_id = isset( $_REQUEST['event_id'] ) ? intval( $_REQUEST['event_id'] ) : 0;
+	if ( ! $event_id ) {
+		print wp_json_encode( [ 'Records' => [], 'hasMore' => false ] );
+		wp_die();
+	}
+
+	$tasks = eme_get_event_tasks( $event_id );
+
+	$records = [];
+	foreach ( $tasks as $task ) {
+		$count = eme_count_task_signups( $task['task_id'] );
+		if ( $task['spaces'] > 0 ) {
+			$text = sprintf( '%s (%d/%d)', $task['name'], $count, $task['spaces'] );
+		} else {
+			$text = $task['name'];
+		}
+		$records[] = [
+			'id'   => intval( $task['task_id'] ),
+			'text' => esc_html( $text ),
+		];
+	}
+
+	print wp_json_encode( [ 'Records' => $records, 'hasMore' => false ] );
+	wp_die();
+}
+
+add_action( 'wp_ajax_eme_assign_task_signup', 'eme_ajax_assign_task_signup' );
+function eme_ajax_assign_task_signup() {
+	check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
+	header( 'Content-type: application/json; charset=utf-8' );
+	if ( ! current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'Message' => esc_html__( 'Access denied!', 'events-made-easy' ) ] );
+		wp_die();
+	}
+
+	$task_id   = isset( $_POST['task_id'] ) ? intval( $_POST['task_id'] ) : 0;
+	$person_id = isset( $_POST['person_id'] ) ? intval( $_POST['person_id'] ) : 0;
+
+	if ( ! $task_id || ! $person_id ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Please select a task and a person.', 'events-made-easy' ) . '</p></div>' ] );
+		wp_die();
+	}
+
+	$task = eme_get_task( $task_id );
+	if ( ! $task ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Invalid task.', 'events-made-easy' ) . '</p></div>' ] );
+		wp_die();
+	}
+	$person = eme_get_person( $person_id );
+	if ( ! $person ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Invalid person.', 'events-made-easy' ) . '</p></div>' ] );
+		wp_die();
+	}
+
+	$existing = eme_count_person_task_signups( $task_id, $person_id );
+	if ( $existing > 0 ) {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'This person is already signed up for this task.', 'events-made-easy' ) . '</p></div>' ] );
+		wp_die();
+	}
+
+    /* No overlap check or full check in the admin
+    $allow_overlap = $event['event_properties']['task_allow_overlap'];
+    if ( ! $allow_overlap && eme_check_task_signup_overlap( $task, $person_id ) ) {
+        print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Signup overlap with another task detected.', 'events-made-easy' ) . '</p></div>' ] );
+        wp_die();
+    }
+
+	if ( $task['spaces'] > 0 ) {
+		$approved = eme_count_task_approved_signups( $task_id );
+		if ( $approved >= $task['spaces'] ) {
+			print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'This task is full.', 'events-made-easy' ) . '</p></div>' ] );
+			wp_die();
+		}
+	}
+     */
+
+	$signup = [
+		'task_id'       => $task_id,
+		'person_id'     => $person_id,
+		'event_id'      => $task['event_id'],
+		'signup_status' => 1,
+	];
+
+	$res = eme_db_insert_task_signup( $signup );
+	if ( $res ) {
+		print wp_json_encode( [ 'Result' => 'OK', 'htmlmessage' => '<div class="updated"><p>' . esc_html__( 'Task assigned successfully.', 'events-made-easy' ) . '</p></div>' ] );
+	} else {
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'There was a problem assigning the task.', 'events-made-easy' ) . '</p></div>' ] );
+	}
+	wp_die();
 }
 
 ?>

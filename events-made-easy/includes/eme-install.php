@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // we define all db-constants here, this also means the uninstall can include this file and use it
 // and doesn't need to include the main file
-define( 'EME_DB_VERSION', 432 ); // increase this if the db schema changes or the options change
+define( 'EME_DB_VERSION', 434 ); // increase this if the db schema changes or the options change
 define( 'EME_EVENTS_TBNAME', 'eme_events' );
 define( 'EME_RECURRENCE_TBNAME', 'eme_recurrence' );
 define( 'EME_LOCATIONS_TBNAME', 'eme_locations' );
@@ -854,11 +854,13 @@ function eme_create_people_table( $charset, $collate, $db_version, $db_prefix ) 
          modif_date datetime,
          gdpr_date date,
          random_id varchar(50),
+         last_seen datetime DEFAULT NULL,
          UNIQUE KEY (person_id),
          KEY (status)
          ) $charset $collate;";
 		maybe_create_table( $table_name, $sql );
 	} else {
+		maybe_add_column( $table_name, 'last_seen', "ALTER TABLE $table_name ADD last_seen datetime DEFAULT NULL;" );
 		maybe_add_column( $table_name, 'random_id', "ALTER TABLE $table_name ADD random_id varchar(50);" );
 		maybe_add_column( $table_name, 'gdpr', "ALTER TABLE $table_name ADD gdpr bool DEFAULT 0;" );
 		maybe_add_column( $table_name, 'gdpr_date', "ALTER TABLE $table_name ADD gdpr_date date;" );
@@ -905,6 +907,9 @@ function eme_create_people_table( $charset, $collate, $db_version, $db_prefix ) 
 		if ( $db_version < 306 ) {
             eme_add_index_if_not_exists($table_name, 'related_person_id');
 		}
+        if ( $db_version < 433 ) {
+            $wpdb->query( $wpdb->prepare( "UPDATE $table_name SET last_seen = %s WHERE last_seen IS NULL", current_time( 'mysql', false ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is a safe variable
+        }
 	}
 
 	// now the groups table
@@ -1696,7 +1701,8 @@ function eme_create_task_tables( $charset, $collate, $db_version, $db_prefix ) {
          comment text,
          random_id varchar(50),
          UNIQUE KEY  (id),
-         KEY  (event_id)
+         KEY  (event_id),
+         KEY  (person_id)
          ) $charset $collate;";
 		maybe_create_table( $table_name, $sql );
 	} else {
@@ -1704,6 +1710,9 @@ function eme_create_task_tables( $charset, $collate, $db_version, $db_prefix ) {
 		maybe_add_column( $table_name, 'signup_date', "ALTER TABLE $table_name ADD signup_date datetime;" );
 		if ( $db_version < 367 ) {
 			$wpdb->query( "ALTER TABLE $table_name ADD signup_status BOOL DEFAULT 1;" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is a safe variable
+		}
+		if ( $db_version < 434 ) {
+            eme_add_index_if_not_exists( $table_name, 'person_id' );
 		}
 	}
 }

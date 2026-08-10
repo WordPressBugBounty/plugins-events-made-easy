@@ -5,21 +5,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 function eme_load_textdomain() {
-        $domain = 'events-made-easy';
-        $locale = determine_locale();
-        $moFile = $domain . '-' . $locale . '.mo';
-        $path = EME_PLUGIN_DIR . '/langs';
-        if ( file_exists( $path ) ) {
-            // the locale is optional, but we already have the info, so it makes the function just a bit faster
-            load_textdomain($domain, $path . '/' . $moFile, $locale);
-        }
+    // loading should not be needed
+    // but WP has issues with multisite and users with custom language and not-wp hosted plugins
+ 
+    $domain = 'events-made-easy';
+    $locale = determine_locale();
+    $moFile = $domain . '-' . $locale . '.mo';
+
+    /* currently commented out since the languages are not up to date there
+    // 1. Check WordPress.org language pack directory (global plugins folder)
+    $path = WP_LANG_DIR . '/plugins/';
+    if ( file_exists( $path . $mo_file ) ) {
+        load_textdomain( $domain, $path . $mo_file );
+        return;
+    }
+     */
+
+    // 2. Take own
+    $path = EME_PLUGIN_DIR . '/langs/';
+    if ( file_exists( $path . $moFile ) ) {
+        // the locale is optional, but we already have the info, so it makes the function just a bit faster
+        load_textdomain($domain, $path . $moFile, $locale);
+    }
 }
 
 function eme_detect_lang() {
 	$language = wp_cache_get( 'eme_language' );
 	if ( $language === false ) {
-        if ( ! empty( $_GET['lang'] ) ) {
-            $language = eme_sanitize_request( $_GET['lang'] );
+        if ( ! empty( $_REQUEST['lang'] ) ) {
+            $language = eme_sanitize_request( $_REQUEST['lang'] );
         } else {
             $language = substr( determine_locale(), 0, 2 );
         }
@@ -37,34 +51,42 @@ function eme_lang_url_mode() {
 	}
 
 	// should be an option
+	// check for a known multilingual plugin first: its own configured mode is authoritative
+	// and shouldn't be overridden by a stray/leftover ?lang= on the current request
 	$url_mode = 0;
-	if ( isset( $_GET['lang'] ) ) {
-		$url_mode = 1;
-	} elseif ( function_exists( 'mqtranslate_conf' ) ) {
-		// only some functions in mqtrans are different, but the options are named the same as for qtranslate
-		$url_mode = get_option( 'mqtranslate_url_mode' );
-	} elseif ( function_exists( 'qtrans_getLanguage' ) ) {
-		$url_mode = get_option( 'qtranslate_url_mode' );
-	} elseif ( function_exists( 'ppqtrans_getLanguage' ) ) {
-		$url_mode = get_option( 'pqtranslate_url_mode' );
-	} elseif ( function_exists( 'qtranxf_getLanguage' ) ) {
-		$url_mode = get_option( 'qtranslate_url_mode' );
-		if ( empty( $url_mode ) ) {
-			$url_mode = 2;
-		}
-	} elseif ( function_exists( 'pll_current_language' ) ) {
-		$url_mode = 2;
+    if ( function_exists( 'pll_current_language' ) ) {
+        $url_mode = 2;
+    } elseif ( function_exists( 'qtranxf_getLanguage' ) ) {
+        $url_mode = get_option( 'qtranslate_url_mode' );
+        if ( empty( $url_mode ) ) {
+            $url_mode = 2;
+        }
+    } elseif ( isset( $_REQUEST['lang'] ) ) {
+        $url_mode = 1;
 	}
 	if ( empty( $url_mode ) ) {
+		// same reasoning as in eme_uri_add_lang(): anchor on the raw, unfiltered home url so a multisite
+		// subdir base path can't be mistaken for an already-appended language segment
 		$lang_regex = apply_filters( 'eme_language_regex', EME_LANGUAGE_REGEX );
 		$url        = eme_current_page_url();
-		$home_url   = preg_quote( preg_replace( "/\/$lang_regex\/?$/", '', home_url() ), '/' );
+		$home_url   = preg_quote( untrailingslashit( set_url_scheme( get_option( 'home' ) ) ), '/' );
 		if ( preg_match( "/$home_url\/($lang_regex)\//", $url ) ) {
 			$url_mode = 2;
 		}
 	}
-	wp_cache_set( 'eme_url_mode', $url_mode, '', 10 );
+	wp_cache_set( 'eme_url_mode', $url_mode, '', 60 ); // the mode should not change a lot, 60 seconds is even very conservative then ...
 	return $url_mode;
+}
+
+// swap the 'lang' query arg on an already-built url (removing any existing one first so we never end up
+// with it twice).
+function eme_add_lang_query_arg( $the_link, $language ) {
+	if ( empty( $language ) ) {
+		return $the_link;
+	}
+	$the_link = remove_query_arg( 'lang', $the_link );
+	$the_link = add_query_arg( [ 'lang' => $language ], $the_link );
+	return $the_link;
 }
 
 function eme_uri_add_lang( $name, $lang ) {
@@ -73,13 +95,18 @@ function eme_uri_add_lang( $name, $lang ) {
 	if ( ! empty( $lang ) ) {
 		$url_mode = eme_lang_url_mode();
 		if ( $url_mode == 2 ) {
-			$lang_regex = apply_filters( 'eme_language_regex', EME_LANGUAGE_REGEX );
-			$the_link   = preg_replace( "/\/$lang_regex\/?$/", '', $the_link );
-			$the_link   = trailingslashit( $the_link ) . "$lang/" . user_trailingslashit( $name );
+			// don't try to guess/strip a possibly already-appended language segment from the (filtered)
+			// home_url(): on a multisite path install the site's own base path (e.g. /etk/) can look just
+			// like a language slug and get stripped by mistake. Read the raw, unfiltered home url straight
+			// from the option instead: translation plugins only add the language via the 'home_url' filter,
+			// they never touch the stored option value, so this is reliable regardless of which plugin (or
+			// none) is active, and regardless of request context (also safe to use from cron/mail code).
+			$the_link = set_url_scheme( get_option( 'home' ) );
+			$the_link = trailingslashit( $the_link ) . "$lang/" . user_trailingslashit( $name );
 		} elseif ( $url_mode == 1 ) {
 			$the_link = trailingslashit( remove_query_arg( 'lang', $the_link ) );
 			$the_link = $the_link . user_trailingslashit( $name );
-			$the_link = add_query_arg( [ 'lang' => $lang ], $the_link );
+			$the_link = eme_add_lang_query_arg( $the_link, $lang );
 		} else {
 			// url_mode is 0, then we don't add the lang and let wp do it
 			$the_link = trailingslashit( $the_link ) . user_trailingslashit( $name );
@@ -104,33 +131,21 @@ function eme_translate( $value, $lang = '', $use_wp_trans = 1 ) {
 		return $value;
 	}
 	$translated = $value;
-	if ( function_exists( 'qtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage' ) && function_exists( 'qtrans_use' ) ) {
-		if ( empty( $lang ) ) {
-			$translated = qtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage( $value );
-		} else {
-			$translated = qtrans_use( $lang, $value );
-		}
-	} elseif ( function_exists( 'ppqtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage' ) && function_exists( 'ppqtrans_use' ) ) {
-		if ( empty( $lang ) ) {
-			$translated = ppqtrans_useCurrentLanguageIfNotFoundUseDefaultLanguage( $value );
-		} else {
-			$translated = ppqtrans_use( $lang, $value );
-		}
-	} elseif ( function_exists( 'qtranxf_useCurrentLanguageIfNotFoundUseDefaultLanguage' ) && function_exists( 'qtranxf_use' ) ) {
-		if ( empty( $lang ) ) {
-			$translated = qtranxf_useCurrentLanguageIfNotFoundUseDefaultLanguage( $value );
-		} else {
-			$translated = qtranxf_use( $lang, $value );
-		}
-	} elseif ( function_exists( 'pll_translate_string' ) && function_exists( 'pll__' ) ) {
-		// pll language notation is different from what qtrans (and eme) support, so lets also translate the eme language tags
-		$value = eme_translate_string( $value, $lang );
-		if ( empty( $lang ) ) {
-			$translated = pll__( $value );
-		} else {
-			$translated = pll_translate_string( $value, $lang );
-		}
-	}
+    if ( function_exists( 'pll_translate_string' ) && function_exists( 'pll__' ) ) {
+        // pll language notation is different from what qtrans (and eme) support, so lets also translate the eme language tags
+        $value = eme_translate_string( $value, $lang );
+        if ( empty( $lang ) ) {
+            $translated = pll__( $value );
+        } else {
+            $translated = pll_translate_string( $value, $lang );
+        }
+    } elseif ( function_exists( 'qtranxf_useCurrentLanguageIfNotFoundUseDefaultLanguage' ) && function_exists( 'qtranxf_use' ) ) {
+        if ( empty( $lang ) ) {
+            $translated = qtranxf_useCurrentLanguageIfNotFoundUseDefaultLanguage( $value );
+        } else {
+            $translated = qtranxf_use( $lang, $value );
+        }   
+    }
 	if ( $translated != $value ) {
 		return $translated;
 	} else { 

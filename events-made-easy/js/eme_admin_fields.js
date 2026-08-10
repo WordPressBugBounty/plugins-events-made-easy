@@ -147,13 +147,14 @@ document.addEventListener('DOMContentLoaded', function () {
             selectingCheckboxes: true,
             actions: {
                 listAction: ajaxurl,
-                deleteAction: ajaxurl + '?action=eme_manage_formfields&do_action=deleteFormfield&eme_admin_nonce=' + emeadmin.translate_adminnonce
+                deleteAction: ajaxurl + '?action=eme_manage_formfields&do_action=deleteFormfield&lang=' + emeadmin.translate_locale + '&eme_admin_nonce=' + emeadmin.translate_adminnonce
             },
             listQueryParams: () => ({
                 action: 'eme_formfields_list',
                 search_name: EME.$('#search_name')?.value || '',
                 search_type: EME.$('#search_type')?.value || '',
                 search_purpose: EME.$('#search_purpose')?.value || '',
+                lang: emeadmin.translate_locale,
                 eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
@@ -198,49 +199,29 @@ document.addEventListener('DOMContentLoaded', function () {
                     sorting: false,
                     width: '2%'
                 }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_formfields',
+                button: '#FormfieldsActionsButton',
+                idField: 'field_id',
+                action: ajaxurl,
+                confirmActions: ['deleteFormfields'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_formfields',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(FormfieldsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                FormfieldsTable.showError(emeadmin.translate_problem);
             }
         });
         FormfieldsTable.load();
-    }
-
-    // --- Bulk Actions ---
-    const actionsButton = EME.$('#FormfieldsActionsButton');
-    if (actionsButton) {
-        actionsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = FormfieldsTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction==='deleteFormfields') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            actionsButton.textContent = emeadmin.translate_pleasewait;
-            actionsButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('field_id', idsJoined);
-            formData.append('action', 'eme_manage_formfields');
-            formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                FormfieldsTable.reload();
-                actionsButton.textContent = emeadmin.translate_apply;
-                actionsButton.disabled = false;
-                const msg = EME.$('#formfields-message');
-                if (msg) {
-                    msg.textContent = data.Message;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 3000);
-                }
-            });
-        });
     }
 
     // --- Reload Button ---

@@ -27,17 +27,6 @@ function eme_getValue(element) {
     return Array.from(element.selectedOptions).map(option => option.value);
 }
 
-function eme_postJSON(url, data, callback) {
-    fetch(url, {
-        method: 'POST',
-        body: data,
-        credentials: 'same-origin'
-    })
-        .then(r => r.json())
-        .then(callback)
-        .catch(err => console.error('AJAX Error:', err));
-}
-
 function eme_getQueryParams(qs) {
     qs = qs.split('+').join(' ');
     let params = {}, tokens, re = /[?&]?([^=]+)=([^&]*)/g;
@@ -463,7 +452,7 @@ function eme_dynamic_price_json(form_id, isBooking = true) {
         const span = form.querySelector(sel);
         if (span) {
             found = true;
-            span.innerHTML = '<img src="' + emebasic.translate_plugin_url + 'images/spinner.gif">';
+            span.innerHTML = '<span class="spinner">⟳</span>';
             alldata.set('action', action);
             alldata.set('eme_frontend_nonce', emebasic.translate_frontendnonce);
 
@@ -500,7 +489,7 @@ function eme_dynamic_data_json(form_id, isBooking = true) {
     const dataDiv = form.querySelector(dataDivSel);
 
     if (dataDiv) {
-        dataDiv.innerHTML = '<img src="' + emebasic.translate_plugin_url + 'images/spinner.gif">';
+        dataDiv.innerHTML = '<span class="spinner">⟳</span>';
         alldata.set('action', action);
         alldata.set('eme_frontend_nonce', emebasic.translate_frontendnonce);
 
@@ -532,7 +521,7 @@ function eme_dynamic_familymemberdata_json(form_id) {
     const dataDiv = form.querySelector('div#eme_dyndata_family');
 
     if (dataDiv) {
-        dataDiv.innerHTML = '<img src="' + emebasic.translate_plugin_url + 'images/spinner.gif">';
+        dataDiv.innerHTML = '<span class="spinner">⟳</span>';
         alldata.set('action', 'eme_dyndata_familymember');
         alldata.set('eme_frontend_nonce', emebasic.translate_frontendnonce);
 
@@ -556,10 +545,10 @@ function eme_dynamic_familymemberdata_json(form_id) {
 
 // Calendar navigation
 function loadCalendar(
-    tableDiv, fullcalendar = 0, htmltable, htmldiv, showlong_events = 0,
-    month = 0, year = 0, cat_chosen = '', author_chosen = '', contact_person_chosen = '',
+    tableDiv, fullcalendar = 0, htmltable, htmldiv, showlong_events = 0, month = 0,
+    year = 0, cat_chosen = '', author_chosen = '', contact_person_chosen = '',
     location_chosen = '', not_cat_chosen = '', template_chosen = 0, holiday_chosen = 0,
-    weekdays = '', language = ''
+    weekdays = ''
 ) {
     const formData = new FormData();
     formData.append('eme_frontend_nonce', emebasic.translate_frontendnonce);
@@ -578,7 +567,6 @@ function loadCalendar(
     formData.append('template_id', template_chosen);
     formData.append('holiday_id', holiday_chosen);
     formData.append('weekdays', weekdays);
-    formData.append('lang', language);
 
     fetch(emebasic.translate_ajax_url, {
         method: 'POST',
@@ -599,7 +587,7 @@ function attachCalendarHandlers() {
     EME.$$('a.eme-cal-prev-month, a.eme-cal-next-month').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
-            this.innerHTML = '<img src="' + emebasic.translate_plugin_url + 'images/spinner.gif">';
+            this.innerHTML = '<span class="spinner">⟳</span>';
             loadCalendar(
                 this.dataset.calendar_divid,
                 this.dataset.full,
@@ -615,8 +603,7 @@ function attachCalendarHandlers() {
                 this.dataset.notcategory,
                 this.dataset.template_id,
                 this.dataset.holiday_id,
-                this.dataset.weekdays,
-                this.dataset.language
+                this.dataset.weekdays
             );
         });
     });

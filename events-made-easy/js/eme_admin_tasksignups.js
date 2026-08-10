@@ -75,12 +75,13 @@ document.addEventListener('DOMContentLoaded', function () {
             printTable: true,
             actions: {
                 listAction: ajaxurl,
-                deleteAction: ajaxurl+'?action=eme_manage_task_signups&do_action=deleteTaskSignups&eme_admin_nonce='+emeadmin.translate_adminnonce
+                deleteAction: ajaxurl+'?action=eme_manage_task_signups&do_action=deleteTaskSignups&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce
             },
             listQueryParams: function () {
                 return {
                     action: 'eme_task_signups_list',
                     eme_admin_nonce: emeadmin.translate_adminnonce,
+                    lang: emeadmin.translate_locale,
                     search_name: eme_getValue(EME.$('#search_name')),
                     search_event: eme_getValue(EME.$('#search_event')),
                     search_eventid: eme_getValue(EME.$('#search_eventid')),
@@ -91,91 +92,41 @@ document.addEventListener('DOMContentLoaded', function () {
                     search_signup_status: eme_getValue(EME.$('#search_signup_status'))
                 };
             },
-            fields: taskSignupFields
+            fields: taskSignupFields,
+            bulkActions: {
+                select: '#eme_admin_action_tasksignups',
+                button: '#TaskSignupsActionsButton',
+                idField: 'id',
+                action: ajaxurl,
+                confirmActions: ['deleteTaskSignups'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                visibleWhen: {
+                    '#span_sendmails': ['approveTaskSignups', 'deleteTaskSignups']
+                },
+                extraData: () => ({
+                    action: 'eme_manage_task_signups',
+                    lang: emeadmin.translate_locale,
+                    send_mail: EME.$('#send_mail')?.value || 'no',
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                }),
+                handlers: {
+                    sendMails: ({ ids }) => eme_submit_hidden_form(emeadmin.translate_admin_sendmails_url, {
+                        tasksignup_ids: ids.join(','),
+                        eme_admin_action: 'new_mailing'
+                    })
+                }
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(TaskSignupsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                TaskSignupsTable.showError(emeadmin.translate_problem);
+            }
         });
 
         // Load the table
         TaskSignupsTable.load();
-    }
-
-    // --- Conditional UI: Show/hide "Send mails" based on selected action ---
-    function updateShowHideStuff() {
-        const actionSelect = EME.$('#eme_admin_action');
-        const sendMailSpan = EME.$('#span_sendmails');
-        if (!actionSelect || !sendMailSpan) return;
-
-        const action = actionSelect.value;
-        const show = ['approveTaskSignups', 'deleteTaskSignups'].includes(action);
-        eme_toggle(sendMailSpan, show);
-    }
-
-    const actionSelect = EME.$('#eme_admin_action');
-    if (actionSelect) {
-        actionSelect.addEventListener('change', updateShowHideStuff);
-        updateShowHideStuff(); // Initial call
-    }
-
-    // --- Bulk Actions Button ---
-    const actionsButton = EME.$('#TaskSignupsActionsButton');
-    if (actionsButton) {
-        actionsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = TaskSignupsTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action')?.value;
-            const sendMail = EME.$('#send_mail')?.value || 'no';
-
-            if (!selectedRows.length || !doAction) return;
-
-            if (doAction === 'deleteTaskSignups') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            actionsButton.textContent = emeadmin.translate_pleasewait;
-            actionsButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            // Special case: "Send Mails" redirects to mailing form
-            if (doAction === 'sendMails') {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = emeadmin.translate_admin_sendmails_url;
-                ['tasksignup_ids', 'eme_admin_action'].forEach(key => {
-                    const val = key === 'tasksignup_ids' ? idsJoined : 'new_mailing';
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = val;
-                    form.appendChild(input);
-                });
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            }
-
-            // Regular AJAX action
-            const formData = new FormData();
-            formData.append('id', idsJoined);
-            formData.append('action', 'eme_manage_task_signups');
-            formData.append('do_action', doAction);
-            formData.append('send_mail', sendMail);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                if (data.Result === 'ERROR') {
-                    TaskSignupsTable.showError(data.htmlmessage);
-                } else if (data.Result === 'WARNING') {
-                    TaskSignupsTable.showWarning(data.htmlmessage);
-                } else {
-                    TaskSignupsTable.showInfo(data.htmlmessage);
-                }
-                TaskSignupsTable.reload();
-                actionsButton.textContent = emeadmin.translate_apply;
-                actionsButton.disabled = false;
-            });
-        });
     }
 
     // --- Reload Button ---
@@ -208,19 +159,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (taskSelect.snapselectInstance) {
                     taskSelect.snapselectInstance.clear();
                     taskSelect.snapselectInstance.clearCache();
+                    taskSelect.snapselectInstance.setPlaceholder(emeadmin.translate_selecttask);
                 }
             },
             onItemDelete: function(value, text) {
                 if (taskSelect.snapselectInstance) {
                     taskSelect.snapselectInstance.clear();
                     taskSelect.snapselectInstance.clearCache();
+                    taskSelect.snapselectInstance.setPlaceholder(emeadmin.translate_selecteventfirst);
                 }
             }
         });
 
         // Task snapselect: tasks for selected event (dynamic event_id)
         initSnapSelectRemote(taskSelect, {
-            placeholder: emeadmin.translate_taskname,
+            placeholder: emeadmin.translate_selecteventfirst,
             showClearButton: true,
             data: function(search, page) {
                 const selectedEventId = eventSelect.value;

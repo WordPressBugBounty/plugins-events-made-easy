@@ -107,67 +107,39 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: 'eme_locations_list',
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 search_name: EME.$('#search_name')?.value || '',
                 search_customfields: EME.$('#search_customfields')?.value || '',
                 search_customfieldids: eme_getValue(EME.$('#search_customfieldids'))
             }),
-            fields: locationFields
+            fields: locationFields,
+            bulkActions: {
+                select: '#eme_admin_action_locations',
+                button: '#LocationsActionsButton',
+                idField: 'location_id',
+                action: ajaxurl,
+                confirmActions: ['deleteLocations'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                visibleWhen: {
+                    '#span_transferto': ['deleteLocations']
+                },
+                extraData: () => ({
+                    action: 'eme_manage_locations',
+                    lang: emeadmin.translate_locale,
+                    transferto_id: EME.$('#transferto_id')?.value || '',
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(LocationsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                LocationsTable.showError(emeadmin.translate_problem);
+            }
         });
 
         LocationsTable.load();
-    }
-
-    // --- Conditional UI: Show/hide transfer field ---
-    function updateShowHideStuff() {
-        const action = EME.$('#eme_admin_action')?.value || '';
-        eme_toggle(EME.$('#span_transferto'), ['trashLocations', 'deleteLocations'].includes(action));
-    }
-
-    EME.$('#eme_admin_action')?.addEventListener('change', updateShowHideStuff);
-    updateShowHideStuff();
-
-    // --- Bulk Actions ---
-    const actionsButton = EME.$('#LocationsActionsButton');
-    if (actionsButton) {
-        actionsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = LocationsTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-            const transfertoId = EME.$('#transferto_id')?.value || '';
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (['trashLocations', 'deleteLocations'].includes(doAction)) {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            actionsButton.textContent = emeadmin.translate_pleasewait;
-            actionsButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('location_id', idsJoined);
-            formData.append('action', 'eme_manage_locations');
-            formData.append('do_action', doAction);
-            formData.append('transferto_id', transfertoId);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                LocationsTable.reload();
-                actionsButton.textContent = emeadmin.translate_apply;
-                actionsButton.disabled = false;
-
-                const msg = EME.$('#locations-message');
-                if (msg) {
-                    msg.textContent = data.Message;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 5000);
-                }
-            });
-        });
     }
 
     // --- Reload Button ---

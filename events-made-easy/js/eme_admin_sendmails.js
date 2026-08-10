@@ -326,11 +326,9 @@ document.addEventListener('DOMContentLoaded', function () {
             formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
             formData.append('template_id', select.value);
 
-            fetch(ajaxurl, { method: 'POST', body: formData })
-                .then(r => r.json())
-                .then(data => {
-                    setEditorContent(targetSelector, editorType, editorTarget, data.htmlmessage);
-                });
+            eme_postJSON(ajaxurl, formData, (data) => {
+                setEditorContent(targetSelector, editorType, editorTarget, data.htmlmessage);
+            });
         });
     }
 
@@ -414,6 +412,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: "eme_mailingreport_list",
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 mailing_id: parseInt($_GET['id']),
                 search_name: EME.$('#search_name')?.value || ''
             }),
@@ -459,6 +458,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             listQueryParams: () => ({
                 action: "eme_mails_list",
+                lang: emeadmin.translate_locale,
                 search_text: EME.$('#search_text')?.value || '',
                 search_failed: EME.$('#search_failed')?.checked ? 1 : 0,
                 eme_admin_nonce: emeadmin.translate_adminnonce
@@ -478,6 +478,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 read_count: { title: emeadmin.translate_total_readcount, visibility: 'hidden' },
                 error_msg: { title: emeadmin.translate_errormessage, visibility: 'hidden', sorting: false },
                 action: { title: emeadmin.translate_action, listClass: 'eme-wsnobreak', visibility: 'fixed', sorting: false }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_mails',
+                button: '#MailsActionsButton',
+                idField: 'mail_ids',
+                action: ajaxurl,
+                confirmActions: ['deleteMails'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_mails',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                }),
+                handlers: {
+                    sendMails: ({ selectedRows }) => {
+                        const personids = selectedRows.map(row => row.recordData.person_id).join(',');
+                        eme_submit_hidden_form(emeadmin.translate_admin_sendmails_url, {
+                            person_ids: personids,
+                            eme_admin_action: 'new_mailing'
+                        });
+                    }
+                }
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(MailsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                MailsTable.showError(emeadmin.translate_problem);
             }
         });
 
@@ -490,58 +519,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 MailsTable.load();
             });
         }
-
-        EME.$('#MailsActionsButton')?.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = MailsTable.getSelectedRows();
-            const do_action = EME.$('#eme_admin_action_mails').value;
-            if (!selectedRows.length || !do_action) return;
-
-            if (do_action === 'deleteMails') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            this.textContent = emeadmin.translate_pleasewait;
-            this.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const personids = selectedRows.map(row => row.recordData.person_id);
-            const idsjoined = ids.join();
-
-            if (do_action === 'sendMails') {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = emeadmin.translate_admin_sendmails_url;
-                ['person_ids', 'eme_admin_action'].forEach(key => {
-                    const val = key === 'person_ids' ? personids.join() : 'new_mailing';
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = val;
-                    form.appendChild(input);
-                });
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('mail_ids', idsjoined);
-            formData.append('action', 'eme_manage_mails');
-            formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                MailsTable.reload();
-                this.textContent = emeadmin.translate_apply;
-                this.disabled = false;
-                const msg = EME.$('#mails-result');
-                msg.innerHTML = data.htmlmessage;
-                eme_toggle(msg, true);
-                setTimeout(() => eme_toggle(msg, false), 3000);
-            });
-        });
     }
 
     // --- ftable: Mailings Table ---
@@ -561,6 +538,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             listQueryParams: () => ({
                 action: "eme_mailings_list",
+                lang: emeadmin.translate_locale,
                 search_text: EME.$('#search_mailingstext')?.value || '',
                 eme_admin_nonce: emeadmin.translate_adminnonce
             }),
@@ -613,6 +591,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     columnResizable: false,
                     sorting: false
                 }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_mailings',
+                button: '#MailingsActionsButton',
+                idField: 'mailing_ids',
+                action: ajaxurl,
+                confirmActions: ['deleteMailings'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_mailings',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(MailingsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                MailingsTable.showError(emeadmin.translate_problem);
             }
         });
 
@@ -625,39 +623,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 MailingsTable.load();
             });
         }
-        EME.$('#MailingsActionsButton')?.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = MailingsTable.getSelectedRows();
-            const do_action = EME.$('#eme_admin_action_mailings').value;
-            if (!selectedRows.length || !do_action) return;
-
-            if (do_action === 'deleteMailings') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            this.textContent = emeadmin.translate_pleasewait;
-            this.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsjoined = ids.join();
-
-            const formData = new FormData();
-            formData.append('mailing_ids', idsjoined);
-            formData.append('action', 'eme_manage_mailings');
-            formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                MailingsTable.reload();
-                this.textContent = emeadmin.translate_apply;
-                this.disabled = false;
-                const msg = EME.$('#mailings-result');
-                msg.innerHTML = data.htmlmessage;
-                eme_toggle(msg, true);
-                setTimeout(() => eme_toggle(msg, false), 5000);
-            });
-        });
     }
 
     // --- ftable: Archived Mailings Table ---
@@ -678,6 +643,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: "eme_archivedmailings_list",
                 search_text: EME.$('#search_archivedmailingstext')?.value || '',
+                lang: emeadmin.translate_locale,
                 eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
@@ -718,6 +684,26 @@ document.addEventListener('DOMContentLoaded', function () {
                     columnResizable: false,
                     sorting: false
                 }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_archivedmailings',
+                button: '#ArchivedMailingsActionsButton',
+                idField: 'mailing_ids',
+                action: ajaxurl,
+                confirmActions: ['deleteArchivedMailings'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_archivedmailings',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(ArchivedMailingsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                ArchivedMailingsTable.showError(emeadmin.translate_problem);
             }
         });
 
@@ -730,40 +716,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 ArchivedMailingsTable.load();
             });
         }
-
-        EME.$('#ArchivedMailingsActionsButton')?.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = ArchivedMailingsTable.getSelectedRows();
-            const do_action = EME.$('#eme_admin_action_archivedmailings').value;
-            if (!selectedRows.length || !do_action) return;
-
-            if (do_action === 'deleteArchivedMailings') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            this.textContent = emeadmin.translate_pleasewait;
-            this.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsjoined = ids.join();
-
-            const formData = new FormData();
-            formData.append('mailing_ids', idsjoined);
-            formData.append('action', 'eme_manage_archivedmailings');
-            formData.append('do_action', do_action);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                ArchivedMailingsTable.reload();
-                this.textContent = emeadmin.translate_apply;
-                this.disabled = false;
-                const msg = EME.$('#archivedmailings-result');
-                msg.innerHTML = data.htmlmessage;
-                eme_toggle(msg, true);
-                setTimeout(() => eme_toggle(msg, false), 5000);
-            });
-        });
     }
 
     initSnapSelectRemote('select.eme_snapselect_events_class', {

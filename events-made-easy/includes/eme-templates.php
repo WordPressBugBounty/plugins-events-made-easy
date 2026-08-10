@@ -66,13 +66,13 @@ function eme_templates_page() {
     }
     if ( isset( $_GET['eme_admin_action'] ) && $_GET['eme_admin_action'] == 'edit_template' ) {
         // edit template
-        $template_id = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+        $template_id = intval( $_GET['id'] ?? 0 );
         eme_templates_edit_layout( $template_id );
         return;
     }
 
     if ( isset( $_GET['eme_admin_action'] ) && $_GET['eme_admin_action'] == 'copy_template' ) {
-        $template_id = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+        $template_id = intval( $_GET['id'] ?? 0 );
         $template    = eme_get_template( $template_id );
         if ( empty( $template ) ) {
             $template = eme_new_template();
@@ -185,7 +185,7 @@ function eme_templates_table_layout( $message = '' ) {
     <div class="bulkactions">
     <form id='templates-form' action="#" method="post">
     <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce', false ); ?>
-    <select id="eme_admin_action" name="eme_admin_action">
+    <select id="eme_admin_action_templates" name="eme_admin_action_templates">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <option value="deleteTemplates"><?php esc_html_e( 'Delete selected templates', 'events-made-easy' ); ?></option>
     </select>
@@ -444,9 +444,9 @@ function eme_ajax_templates_list() {
     $table          = EME_DB_PREFIX . EME_TEMPLATES_TBNAME;
     $template_types = eme_template_types();
     $fTableResult   = [];
-    $search_type    = isset( $_POST['search_type'] ) ? eme_sanitize_request( $_POST['search_type'] ) : '';
-    $search_content = isset( $_POST['search_content'] ) ? eme_sanitize_request( $_POST['search_content'] ) : '';
-    $search_name    = isset( $_POST['search_name'] ) ? eme_sanitize_request( $_POST['search_name'] ) : '';
+    $search_type    = eme_sanitize_request( $_POST['search_type'] ?? '' );
+    $search_content = eme_sanitize_request( $_POST['search_content'] ?? '' );
+    $search_name    = eme_sanitize_request( $_POST['search_name'] ?? '' );
 
     $where     = '';
     $where_arr = [];
@@ -490,7 +490,7 @@ function eme_ajax_templates_list() {
         $fTableResult['Records']          = $rows;
         $fTableResult['TotalRecordCount'] = $recordCount;
     } else {
-        $fTableResult['Result']  = 'Error';
+        $fTableResult['Result']  = 'ERROR';
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
     }
     print wp_json_encode( $fTableResult );
@@ -502,13 +502,11 @@ function eme_ajax_manage_templates() {
     if ( !current_user_can( get_option( 'eme_cap_templates' ) ) ) {
         wp_die();
     }
-    if ( isset( $_REQUEST['do_action'] ) ) {
-        $do_action = eme_sanitize_request( $_REQUEST['do_action'] );
-        switch ( $do_action ) {
-        case 'deleteTemplates':
-            eme_ajax_record_delete( EME_TEMPLATES_TBNAME, 'eme_cap_templates', 'id' );
-            break;
-        }
+    $do_action = eme_sanitize_request( $_REQUEST['do_action'] ?? '' );
+    switch ( $do_action ) {
+    case 'deleteTemplates':
+        eme_ajax_record_delete( EME_TEMPLATES_TBNAME, 'eme_cap_templates', 'id' );
+        break;
     }
     wp_die();
 }

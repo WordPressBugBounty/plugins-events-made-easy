@@ -7,6 +7,25 @@ document.addEventListener('DOMContentLoaded', function () {
     const TrashedPeopleTableContainer = EME.$('#TrashedPeopleTableContainer');
     let TrashedPeopleTable;
 
+    // --- Shared bulk-action helpers (People / Trashed People) ---
+    function eme_people_bulk_extra_data() {
+        return {
+            action: 'eme_manage_people',
+            lang: emeadmin.translate_locale,
+            transferto_id: EME.$('#transferto_id')?.value || '',
+            language: EME.$('#language')?.value || '',
+            pdf_template: EME.$('#pdf_template')?.value || '',
+            pdf_template_header: EME.$('#pdf_template_header')?.value || '',
+            pdf_template_footer: EME.$('#pdf_template_footer')?.value || '',
+            html_template: EME.$('#html_template')?.value || '',
+            html_template_header: EME.$('#html_template_header')?.value || '',
+            html_template_footer: EME.$('#html_template_footer')?.value || '',
+            addtogroup: EME.$('#addtogroup')?.value || '',
+            removefromgroup: EME.$('#removefromgroup')?.value || '',
+            eme_admin_nonce: emeadmin.translate_adminnonce
+        };
+    }
+
     // --- Initialize People Table ---
     if (PeopleTableContainer) {
         personFields = {
@@ -159,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: 'eme_people_list',
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 trash: '',
                 search_person: eme_getValue(EME.$('#search_person')),
                 search_groups: eme_getValue(EME.$('#search_groups')),
@@ -168,7 +188,47 @@ document.addEventListener('DOMContentLoaded', function () {
                 search_customfieldids: eme_getValue(EME.$('#search_customfieldids')),
                 search_exactmatch: EME.$('#search_exactmatch')?.checked ? 1 : 0
             }),
-            fields: personFields
+            fields: personFields,
+            bulkActions: {
+                select: '#eme_admin_action_people',
+                button: '#PeopleActionsButton',
+                idField: 'person_id',
+                action: ajaxurl,
+                confirmActions: ['trashPeople', 'deletePeople'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                visibleWhen: {
+                    '#span_language': ['changeLanguage'],
+                    '#span_addtogroup': ['addToGroup'],
+                    '#span_removefromgroup': ['removeFromGroup'],
+                    '#span_pdftemplate': ['pdf'],
+                    '#span_htmltemplate': ['html'],
+                    'span#span_transferto': ['trashPeople', 'deletePeople']
+                },
+                extraData: eme_people_bulk_extra_data,
+                handlers: {
+                    sendMails: ({ ids }) => eme_submit_hidden_form(emeadmin.translate_admin_sendmails_url, {
+                        person_ids: ids.join(','),
+                        eme_admin_action: 'new_mailing'
+                    }),
+                    pdf: ({ doAction, ids }) => eme_submit_hidden_form(ajaxurl, {
+                        person_id: ids.join(','),
+                        do_action: doAction,
+                        ...eme_people_bulk_extra_data()
+                    }),
+                    html: ({ doAction, ids }) => eme_submit_hidden_form(ajaxurl, {
+                        person_id: ids.join(','),
+                        do_action: doAction,
+                        ...eme_people_bulk_extra_data()
+                    })
+                }
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(PeopleTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                PeopleTable.showError(emeadmin.translate_problem);
+            }
         });
 
         // Don't auto-load: the active tab handler will trigger the load
@@ -192,8 +252,8 @@ document.addEventListener('DOMContentLoaded', function () {
             multiselect: true,
             selectingCheckboxes: true,
             actions: {
-                listAction: ajaxurl+'?action=eme_groups_list&eme_admin_nonce='+emeadmin.translate_adminnonce,
-                deleteAction: ajaxurl+'?action=eme_manage_groups&do_action=deleteGroups&eme_admin_nonce='+emeadmin.translate_adminnonce,
+                listAction: ajaxurl+'?action=eme_groups_list&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce,
+                deleteAction: ajaxurl+'?action=eme_manage_groups&do_action=deleteGroups&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce,
             },
             fields: {
                 'group_id': {
@@ -217,6 +277,28 @@ document.addEventListener('DOMContentLoaded', function () {
                     title: emeadmin.translate_groupcount,
                     sorting: false
                 }
+            },
+            // NOTE: The groups bulk-actions select uses its own id (#eme_admin_action_groups),
+            // so it must be referenced explicitly (the people-tab select is #eme_admin_action_people).
+            bulkActions: {
+                select: '#eme_admin_action_groups',
+                button: '#GroupsActionsButton',
+                idField: 'group_id',
+                action: ajaxurl,
+                confirmActions: ['deleteGroups'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_groups',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(GroupsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                GroupsTable.showError(emeadmin.translate_problem);
             }
         });
 
@@ -241,6 +323,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: 'eme_people_list',
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 trash: '1',
                 search_person: eme_getValue(EME.$('#trash_search_person')),
                 search_groups: '',
@@ -250,25 +333,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 search_customfieldids: '',
                 search_exactmatch: 0
             }),
-            fields: personFields
+            fields: personFields,
+            bulkActions: {
+                select: '#eme_admin_action_trash',
+                button: '#TrashedPeopleActionsButton',
+                idField: 'person_id',
+                action: ajaxurl,
+                confirmActions: ['deletePeople'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_people',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(TrashedPeopleTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                TrashedPeopleTable.showError(emeadmin.translate_problem);
+            }
         });
 
         // Don't auto-load: the active tab handler will trigger the load
     }
-
-    // --- Conditional UI: Show/hide based on action ---
-    function updateShowHideStuff() {
-        const action = EME.$('#eme_admin_action')?.value || '';
-        eme_toggle(EME.$('#span_language'), action === 'changeLanguage');
-        eme_toggle(EME.$('#span_addtogroup'), action === 'addToGroup');
-        eme_toggle(EME.$('#span_removefromgroup'), action === 'removeFromGroup');
-        eme_toggle(EME.$('#span_pdftemplate'), action === 'pdf');
-        eme_toggle(EME.$('#span_htmltemplate'), action === 'html');
-        eme_toggle(EME.$('span#span_transferto'), ['trashPeople', 'deletePeople'].includes(action));
-    }
-
-    EME.$('#eme_admin_action')?.addEventListener('change', updateShowHideStuff);
-    updateShowHideStuff();
 
     // --- Dynamic People Data (for dyngroups) ---
     function eme_dynamic_people_data_json(formId) {
@@ -342,176 +431,6 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         }
     });
-
-    // --- People Bulk Actions ---
-    const peopleButton = EME.$('#PeopleActionsButton');
-    if (peopleButton) {
-        peopleButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = PeopleTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (['trashPeople', 'deletePeople'].includes(doAction)) {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            peopleButton.textContent = emeadmin.translate_pleasewait;
-            peopleButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('person_id', idsJoined);
-            formData.append('action', 'eme_manage_people');
-            formData.append('do_action', doAction);
-            formData.append('transferto_id', EME.$('#transferto_id')?.value || '');
-            formData.append('language', EME.$('#language')?.value || '');
-            formData.append('pdf_template', EME.$('#pdf_template')?.value || '');
-            formData.append('pdf_template_header', EME.$('#pdf_template_header')?.value || '');
-            formData.append('pdf_template_footer', EME.$('#pdf_template_footer')?.value || '');
-            formData.append('html_template', EME.$('#html_template')?.value || '');
-            formData.append('html_template_header', EME.$('#html_template_header')?.value || '');
-            formData.append('html_template_footer', EME.$('#html_template_footer')?.value || '');
-            formData.append('addtogroup', EME.$('#addtogroup')?.value || '');
-            formData.append('removefromgroup', EME.$('#removefromgroup')?.value || '');
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            if (doAction === 'sendMails') {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = emeadmin.translate_admin_sendmails_url;
-                ['person_ids', 'eme_admin_action'].forEach(key => {
-                    const val = key === 'person_ids' ? idsJoined : 'new_mailing';
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = val;
-                    form.appendChild(input);
-                });
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            }
-
-            if (['pdf', 'html'].includes(doAction)) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = ajaxurl;
-                for (const [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
-                }
-                document.body.appendChild(form);
-                form.submit();
-                peopleButton.textContent = emeadmin.translate_apply;
-                peopleButton.disabled = false;
-                return;
-            }
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                PeopleTable.reload();
-                peopleButton.textContent = emeadmin.translate_apply;
-                peopleButton.disabled = false;
-
-                const msg = EME.$('#people-message');
-                if (msg) {
-                    msg.innerHTML = data.htmlmessage;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 5000);
-                }
-            });
-        });
-    }
-
-    // --- Trashed People Bulk Actions ---
-    const trashedPeopleButton = EME.$('#TrashedPeopleActionsButton');
-    if (trashedPeopleButton) {
-        trashedPeopleButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = TrashedPeopleTable.getSelectedRows();
-            const doAction = EME.$('#trash_eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction === 'deletePeople') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            trashedPeopleButton.textContent = emeadmin.translate_pleasewait;
-            trashedPeopleButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-
-            const formData = new FormData();
-            formData.append('person_id', ids.join(','));
-            formData.append('action', 'eme_manage_people');
-            formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                TrashedPeopleTable.reload();
-                trashedPeopleButton.textContent = emeadmin.translate_apply;
-                trashedPeopleButton.disabled = false;
-
-                const msg = EME.$('#people-message');
-                if (msg) {
-                    msg.innerHTML = data.htmlmessage;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 5000);
-                }
-            });
-        });
-    }
-
-    // --- Groups Bulk Actions ---
-    const groupsButton = EME.$('#GroupsActionsButton');
-    if (groupsButton) {
-        groupsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = GroupsTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction==='deleteGroups') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            groupsButton.textContent = emeadmin.translate_pleasewait;
-            groupsButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('group_id', idsJoined);
-            formData.append('action', 'eme_manage_groups');
-            formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                GroupsTable.reload();
-                groupsButton.textContent = emeadmin.translate_apply;
-                groupsButton.disabled = false;
-
-                const msg = EME.$('#groups-message');
-                if (msg) {
-                    msg.innerHTML = data.htmlmessage;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 5000);
-                }
-            });
-        });
-    }
 
     const storeQueryButton = EME.$('#StoreQueryButton');
     const storeQueryDiv = EME.$('#StoreQueryDiv');

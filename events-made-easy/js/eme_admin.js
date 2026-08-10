@@ -1,4 +1,60 @@
 // Main functions
+
+// Fires a fetch()-based ajax POST and hands the parsed JSON response to callback.
+// Used for the default ajax-then-reload flow (bulk actions, table updates, etc.).
+function eme_postJSON(url, data, callback, onError = null, onFinally = null) {
+    if (emeadmin.translate_locale && data instanceof FormData && !data.has('lang')) {
+        data.append('lang', emeadmin.translate_locale);
+    }
+    fetch(url, {
+        method: 'POST',
+        body: data,
+        credentials: 'same-origin'
+    })
+        .then(r => r.json())
+        .then(callback)
+        .catch(err => {
+            console.error('AJAX Error:', err);
+            if (onError) onError(err);
+        })
+        .finally(() => {
+            if (onFinally) onFinally();
+        });
+}
+
+// Builds & submits a real (non-ajax) POST form — used when the response must either
+// navigate the browser (e.g. sendMails) or trigger a file download (e.g. pdf/html),
+// neither of which fetch()-based eme_postJSON can do.
+function eme_submit_hidden_form(url, fields) {
+    if (emeadmin.translate_locale && !('lang' in fields)) {
+        fields = { ...fields, lang: emeadmin.translate_locale };
+    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    form.style.display = 'none';
+    Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+}
+
+function eme_show_ftable_bulk_result(myftable, result) {
+    if (result?.Result === 'ERROR') {
+        myftable.showError(result.htmlmessage);
+    } else if (result?.Result === 'WARNING') {
+        myftable.showWarning(result.htmlmessage);
+    } else {
+        myftable.showInfo(result?.htmlmessage);
+    }
+}
+
 function eme_activateTab(target) {
     EME.$$('.eme-tab').forEach(tab => tab.classList.remove('active'));
     EME.$$('.eme-tab-content').forEach(content => content.classList.remove('active'));
@@ -513,19 +569,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const notice = e.target.dataset.notice;
             const noticeDiv = e.target.closest('.notice');
 
-            const formData = new URLSearchParams({
-                action: 'eme_dismiss_notice',
-                notice: notice,
-                eme_admin_nonce: emeadmin.translate_adminnonce || ''
-            });
+            const formData = new FormData();
+            formData.append('action', 'eme_dismiss_notice');
+            formData.append('notice', notice);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce || '');
 
-            fetch(ajaxurl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: formData.toString()
-            }).then(response => response.json()).then(response => {
+            eme_postJSON(ajaxurl, formData, (response) => {
                 if (response.success && noticeDiv) {
                     noticeDiv.style.transition = 'opacity 300ms';
                     noticeDiv.style.opacity = '0';
@@ -650,18 +699,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (e.target.matches('.eme_iban_button')) {
             e.preventDefault();
-            const formData = new URLSearchParams({
-                action: 'eme_get_bancontactwero_iban',
-                pg_pid: e.target.dataset.pg_pid,
-                eme_admin_nonce: emeadmin.translate_adminnonce
-            });
-            fetch(ajaxurl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: formData.toString()
-            }).then(response => response.json()).then(response => {
+            const formData = new FormData();
+            formData.append('action', 'eme_get_bancontactwero_iban');
+            formData.append('pg_pid', e.target.dataset.pg_pid);
+            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
+
+            eme_postJSON(ajaxurl, formData, (response) => {
                 const paymentbutton = EME.$('#button_'+response.payment_id);
                 if (paymentbutton) eme_toggle(paymentbutton, false);
                 const paymentspan = EME.$('span#bancontactwero_'+response.payment_id);

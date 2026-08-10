@@ -15,11 +15,12 @@ document.addEventListener('DOMContentLoaded', function () {
             printTable: true,
             actions: {
                 listAction: ajaxurl,
-                deleteAction: ajaxurl+'?action=eme_manage_attendances&do_action=deleteAttendances&eme_admin_nonce='+emeadmin.translate_adminnonce
+                deleteAction: ajaxurl+'?action=eme_manage_attendances&do_action=deleteAttendances&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce
             },
             listQueryParams: () => ({
                 action: 'eme_attendances_list',
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 search_type: EME.$('#search_type')?.value || '',
                 search_start_date: EME.$('[name=search_start_date]')?.value || '',
                 search_end_date: EME.$('[name=search_end_date]')?.value || ''

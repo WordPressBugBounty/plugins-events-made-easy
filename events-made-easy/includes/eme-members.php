@@ -71,8 +71,7 @@ function eme_init_membership_props( $props = [], $new_membership = 0 ) {
     if ( ! isset( $props['reminder_days'] ) ) {
         $props['reminder_days'] = '';
     } else {
-        $test_arr = explode( ',', $props['reminder_days'] );
-        if ( ! eme_is_numeric_array( $test_arr ) ) {
+        if ( ! eme_is_list_of_int( $props['reminder_days'] ) ) {
             $props['reminder_days'] = '';
         }
     }
@@ -426,7 +425,7 @@ function eme_get_members( $member_ids, $extra_search = '', $offset = 0, $pagesiz
     $people_table      = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     $members_table     = EME_DB_PREFIX . EME_MEMBERS_TBNAME;
     $memberships_table = EME_DB_PREFIX . EME_MEMBERSHIPS_TBNAME;
-    if ( ! empty( $member_ids ) && eme_is_numeric_array( $member_ids ) ) {
+    if ( ! empty( $member_ids ) && eme_is_integer_array( $member_ids ) ) {
         $member_ids_int = array_map( 'intval', $member_ids );
         $placeholders   = implode( ',', array_fill( 0, count( $member_ids_int ), '%d' ) );
         $sql     = $wpdb->prepare( "SELECT members.*, people.lastname, people.firstname, people.email, memberships.name AS membership_name
@@ -824,7 +823,7 @@ function eme_members_page() {
         }
     } elseif ( isset( $_POST['eme_admin_action'] ) && $_POST['eme_admin_action'] == 'do_editmember' ) {
         $member_id = intval( $_POST['member_id'] );
-        $send_mail = ( isset( $_POST['send_mail'] ) ) ? intval( $_POST['send_mail'] ) : 0;
+        $send_mail = intval( $_POST['send_mail'] ?? 0 );
         $member    = eme_get_member( $member_id );
         $wp_id     = eme_get_wpid_by_personid( $member['person_id'] );
         if ( $member && ( current_user_can( get_option( 'eme_cap_edit_members' ) ) || ( current_user_can( get_option( 'eme_cap_author_member' ) ) && $wp_id == $current_userid ) ) ) {
@@ -958,7 +957,7 @@ function eme_add_update_member( $member_id = 0, $send_mail = 1 ) {
             $member['status_automatic'] = intval( $_POST['status_automatic'] );
         }
         $post_start_date = sanitize_text_field( wp_unslash( $_POST['start_date'] ) );
-        $post_end_date = isset( $_POST['end_date'] ) ? sanitize_text_field( wp_unslash( $_POST['end_date'] ) ) : '';
+        $post_end_date = sanitize_text_field( wp_unslash( $_POST['end_date'] ?? '' ) );
         if ( eme_is_date( $post_start_date ) ) {
             $member['start_date'] = $post_start_date;
         }
@@ -1335,7 +1334,7 @@ function eme_membership_exists( $id ) {
 function eme_memberships_exists( $ids_arr ) {
     global $wpdb;
     $table = EME_DB_PREFIX . EME_MEMBERSHIPS_TBNAME;
-    if ( ! empty( $ids_arr ) && eme_is_numeric_array( $ids_arr ) ) {
+    if ( ! empty( $ids_arr ) && eme_is_integer_array( $ids_arr ) ) {
         $ids_arr_int  = array_map( 'intval', $ids_arr );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $prepared_sql = $wpdb->prepare( "SELECT DISTINCT membership_id FROM $table WHERE membership_id IN ($placeholders)", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -1349,11 +1348,11 @@ function eme_add_update_membership( $membership_id = 0 ) {
     $membership = [];
     $message    = '';
 
-    $membership['name']            = isset( $_POST['name'] ) ? eme_sanitize_request( $_POST['name'] ) : '';
-    $membership['description']     = isset( $_POST['description'] ) ? eme_sanitize_request( $_POST['description'] ) : '';
-    $membership['duration_count']  = isset( $_POST['duration_count'] ) ? intval( $_POST['duration_count'] ) : 0;
-    $membership['duration_period'] = isset( $_POST['duration_period'] ) ? eme_sanitize_request( $_POST['duration_period'] ) : '';
-    $membership['type']            = isset( $_POST['type'] ) ? eme_sanitize_request( $_POST['type'] ) : '';
+    $membership['name']            = eme_sanitize_request( $_POST['name'] ?? '' );
+    $membership['description']     = eme_sanitize_request( $_POST['description'] ?? '' );
+    $membership['duration_count']  = intval( $_POST['duration_count'] ?? 0 );
+    $membership['duration_period'] = eme_sanitize_request( $_POST['duration_period'] ?? '' );
+    $membership['type']            = eme_sanitize_request( $_POST['type'] ?? '' );
     $membership['status']          = isset( $_POST['status'] ) ? eme_sanitize_request( $_POST['status'] ) : 1;
     $membership_properties = [];
     if ( isset( $_POST['properties'] ) ) {
@@ -1552,9 +1551,9 @@ function eme_admin_edit_memberform( $member, $membership_id, $limited = 0 ) {
         </td><td>
             <select id='transferto_personid' name='transferto_personid'
                 data-placeholder="<?php esc_attr_e( 'Select a person', 'events-made-easy' ); ?>"
-                data-member-id="<?php echo isset( $member['member_id'] ) ? intval( $member['member_id'] ) : 0; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
+                data-member-id="<?php echo intval( $member['member_id'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
                 data-membership-id="<?php echo intval( $membership['membership_id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
-                data-person-id="<?php echo isset( $member['person_id'] ) ? intval( $member['person_id'] ) : 0; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
+                data-person-id="<?php echo intval( $member['person_id'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
                 class="eme_snapselect_transferperson nodynamicupdates">
             </select>
         </td></tr>
@@ -1617,7 +1616,7 @@ function eme_admin_edit_memberform( $member, $membership_id, $limited = 0 ) {
 ?>
                  <select id='related_member_id' name='related_member_id'
                      data-placeholder="<?php esc_attr_e( 'Select a member', 'events-made-easy' ); ?>"
-                     data-member-id="<?php echo isset( $member['member_id'] ) ? intval( $member['member_id'] ) : 0; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
+                     data-member-id="<?php echo intval( $member['member_id'] ?? 0 ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
                      data-membership-id="<?php echo intval( $membership['membership_id'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- intval() always returns safe integer ?>"
                      class="eme_snapselect_relatedmember">
                      <?php echo $preselected_option; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML option element ?>
@@ -2847,7 +2846,7 @@ function eme_render_member_table_and_filters ($limit_to_group = 0 ) {
     <div class="bulkactions">
     <form id='members-form' action="#" method="post">
     <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-    <select id="eme_admin_action" name="eme_admin_action">
+    <select id="eme_admin_action_members" name="eme_admin_action_members">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <?php if ( current_user_can( get_option( 'eme_cap_edit_members' ) ) ) : ?>
     <option value="acceptPayment"><?php esc_html_e( 'Accept membership payment', 'events-made-easy' ); ?></option>
@@ -2863,28 +2862,28 @@ function eme_render_member_table_and_filters ($limit_to_group = 0 ) {
     <option value="pdf"><?php esc_html_e( 'PDF output', 'events-made-easy' ); ?></option>
     <option value="html"><?php esc_html_e( 'HTML output', 'events-made-easy' ); ?></option>
     </select>
-    <span id="span_sendmails" class="eme-hidden">
+    <span id="span_sendmails">
 <?php
     esc_html_e( 'Send emails to members upon changes being made?', 'events-made-easy' );
     echo eme_ui_select_binary( 1, 'send_mail' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
     </span>
-    <span id="span_trashperson" class="eme-hidden">
+    <span id="span_trashperson">
 <?php
     esc_html_e( 'Move corresponding persons to the trash bin?', 'events-made-easy' );
     echo eme_ui_select_binary( 0, 'trash_person' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
     </span>
-    <span id="span_membermailtemplate" class="eme-hidden">
+    <span id="span_membermailtemplate">
     <?php echo eme_ui_select_key_value( '', 'membermail_template_subject', $membertemplates, 'id', 'name', __( 'Select a subject template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'membermail_template', $membertemplates, 'id', 'name', __( 'Please select a body template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_pdftemplate" class="eme-hidden">
+    <span id="span_pdftemplate">
     <?php echo eme_ui_select_key_value( '', 'pdf_template_header', $pdftemplates, 'id', 'name', __( 'Select an optional header template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'pdf_template', $pdftemplates, 'id', 'name', __( 'Please select a template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'pdf_template_footer', $pdftemplates, 'id', 'name', __( 'Select an optional footer template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_htmltemplate" class="eme-hidden">
+    <span id="span_htmltemplate">
     <?php echo eme_ui_select_key_value( '', 'html_template_header', $htmltemplates, 'id', 'name', __( 'Select an optional header template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'html_template', $htmltemplates, 'id', 'name', __( 'Please select a template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'html_template_footer', $htmltemplates, 'id', 'name', __( 'Select an optional footer template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
@@ -3074,13 +3073,13 @@ function eme_get_sql_members_searchfields( $search_terms, $count = 0, $memberids
     } elseif ( ! empty( $search_terms['search_memberid'] ) ) {
         $where_arr[] = $wpdb->prepare( "(members.member_id = %d)", intval( $search_terms['search_memberid'] ) );
     }
-    if ( ! empty( $search_terms['search_membershipids'] ) && eme_is_numeric_array( $search_terms['search_membershipids'] ) ) {
+    if ( ! empty( $search_terms['search_membershipids'] ) && eme_is_integer_array( $search_terms['search_membershipids'] ) ) {
         $ids_arr_int = array_map('intval', $search_terms['search_membershipids']);
         $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
         $where_arr[] = $wpdb->prepare( "(members.membership_id IN ($placeholders))", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     }
     // search_status can be 0 too, for pending
-    if ( ! empty( $search_terms['search_memberstatus'] ) && eme_is_numeric_array( $search_terms['search_memberstatus'] ) ) {
+    if ( ! empty( $search_terms['search_memberstatus'] ) && eme_is_integer_array( $search_terms['search_memberstatus'] ) ) {
         $ids_arr_int = array_map('intval', $search_terms['search_memberstatus']);
         $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
         $where_arr[] = $wpdb->prepare( "(members.status IN ($placeholders))", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -3125,7 +3124,7 @@ function eme_get_sql_members_searchfields( $search_terms, $count = 0, $memberids
         } else  {
             $search_formfield_sql = $wpdb->prepare(" AND answer LIKE %s", '%' . $wpdb->esc_like($search_terms['search_customfields']) . '%');
         }
-        if ( ! empty( $search_terms['search_customfieldids'] ) && eme_is_numeric_array( $search_terms['search_customfieldids'] ) ) {
+        if ( ! empty( $search_terms['search_customfieldids'] ) && eme_is_integer_array( $search_terms['search_customfieldids'] ) ) {
             $ids_arr_int = array_map('intval', $search_terms['search_customfieldids']);
             $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
             $search_formfield_sql .= $wpdb->prepare( " AND field_id IN ($placeholders) ", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
@@ -3231,8 +3230,6 @@ function eme_manage_memberships_layout( $message ) {
         print '<div class="notice is-dismissible eme-message-admin"><p>' . wp_kses_post( $message ) . '</p></div>';
     }
 ?>
-    <div id="memberships-message" class="eme-hidden">
-    </div>
 
     <?php if ( current_user_can( get_option( 'eme_cap_edit_members' ) ) ) : ?>
         <h1><?php esc_html_e( 'Add a new membership definition', 'events-made-easy' ); ?></h1>
@@ -3250,7 +3247,7 @@ function eme_manage_memberships_layout( $message ) {
     <div class="bulkactions">
     <form id='memberships-form' action="#" method="post">
     <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-    <select id="eme_admin_action" name="eme_admin_action">
+    <select id="eme_admin_action_memberships" name="eme_admin_action_memberships">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <?php if ( current_user_can( get_option( 'eme_cap_edit_members' ) ) ) : ?>
     <option value="deleteMemberships"><?php esc_html_e( 'Delete selected memberships', 'events-made-easy' ); ?></option>
@@ -3416,7 +3413,7 @@ function eme_dyndata_familymember_ajax() {
     } else {
         return;
     }
-    $count      = isset( $_POST['familycount'] ) ? intval( $_POST['familycount'] ) : 0;
+    $count      = intval( $_POST['familycount'] ?? 0 );
     $form_html  = '';
     $membership = eme_get_membership( $membership_id );
     if ( ! eme_is_empty_string( $membership['properties']['familymember_form_text'] ) ) {
@@ -3623,10 +3620,10 @@ function eme_get_member_post_answers( $member, $include_dynamicdata = 1, $origin
 
                             if ($formfield['field_purpose'] == 'people') {
                                 $type = 'person';
-                                $related_id = isset($member['person_id'])?$member['person_id']:0;
+                                $related_id = $member['person_id'] ?? 0;
                             } else {
                                 $type = 'member';
-                                $related_id = isset($member['member_id'])?$member['member_id']:0;
+                                $related_id = $member['member_id'] ?? 0;
                             }
                             // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                             $answer    = [
@@ -3686,10 +3683,10 @@ function eme_get_member_post_answers( $member, $include_dynamicdata = 1, $origin
                     }
                     if ($formfield['field_purpose'] == 'people') {
                         $type = 'person';
-                        $related_id = isset($member['person_id'])?$member['person_id']:0;
+                        $related_id = $member['person_id'] ?? 0;
                     } else {
                         $type = 'member';
-                        $related_id = isset($member['member_id'])?$member['member_id']:0;
+                        $related_id = $member['member_id'] ?? 0;
                     }
                     // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                     $answer    = [
@@ -3743,10 +3740,10 @@ function eme_get_member_post_answers( $member, $include_dynamicdata = 1, $origin
                 }
                 if ($formfield['field_purpose'] == 'people') {
                     $type = 'person';
-                    $related_id = isset($member['person_id'])?$member['person_id']:0;
+                    $related_id = $member['person_id'] ?? 0;
                 } else {
                     $type = 'member';
-                    $related_id = isset($member['member_id'])?$member['member_id']:0;
+                    $related_id = $member['member_id'] ?? 0;
                 }
                 // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                 $answer    = [
@@ -4625,7 +4622,7 @@ function eme_edit_member_form_shortcode( ) {
         return;
     }
     eme_enqueue_frontend();
-    $member_id = isset( $_POST['id'] ) ? intval( $_POST['id'] ) : 0;
+    $member_id = intval( $_POST['id'] ?? 0 );
     if ( empty( $member_id ) ) {
         $nonce = wp_nonce_field( 'eme_frontend', 'eme_frontend_nonce', false, false );
         return '
@@ -4996,12 +4993,12 @@ function eme_access_meta_box_save( $post_id ) {
         return;
     }
 
-    if ( isset( $_POST['eme_membershipids'] ) && eme_is_numeric_array( $_POST['eme_membershipids'] ) ) {
+    if ( isset( $_POST['eme_membershipids'] ) && eme_is_integer_array( $_POST['eme_membershipids'] ) ) {
         update_post_meta( $post_id, 'eme_membershipids', array_map( 'intval', $_POST['eme_membershipids'] ) );
     } else {
         delete_post_meta( $post_id, 'eme_membershipids' );
     }
-    if ( isset( $_POST['eme_groupids'] ) && eme_is_numeric_array( $_POST['eme_groupids'] ) ) {
+    if ( isset( $_POST['eme_groupids'] ) && eme_is_integer_array( $_POST['eme_groupids'] ) ) {
         update_post_meta( $post_id, 'eme_groupids', array_map( 'intval', $_POST['eme_groupids'] ) );
     } else {
         delete_post_meta( $post_id, 'eme_groupids' );
@@ -5477,7 +5474,7 @@ function eme_get_member_placeholder_handler_definitions() {
             }
             $targetBasePath = EME_UPLOAD_DIR . '/members/' . $member['member_id'];
             $targetBaseUrl  = EME_UPLOAD_URL . '/members/' . $member['member_id'];
-            $url_to_encode  = eme_member_url( $member );
+            $url_to_encode  = eme_member_checkurl( $member );
             [$target_file, $target_url] = eme_generate_qrcode( $url_to_encode, $targetBasePath, $targetBaseUrl, $size );
             if ( is_file( $target_file ) ) {
                 [$width, $height, $type, $attr] = getimagesize( $target_file );
@@ -6155,9 +6152,9 @@ function eme_import_csv_members() {
                     $line['start_date'] = '';
                     $line['end_date']   = '';
                 }
-                $line['status']           = isset( $line['status'] ) ? intval( $line['status'] ) : EME_MEMBER_STATUS_PENDING;
-                $line['status_automatic'] = isset( $line['status_automatic'] ) ? intval( $line['status_automatic'] ) : 1;
-                $line['paid']             = isset( $line['paid'] ) ? intval( $line['paid'] ) : 1;
+                $line['status']           = intval( $line['status'] ?? EME_MEMBER_STATUS_PENDING );
+                $line['status_automatic'] = intval( $line['status_automatic'] ?? 1 );
+                $line['paid']             = intval( $line['paid'] ?? 1 );
                 $member_id                = eme_is_member( $person_id, $membership['membership_id'] );
                 if ( $member_id ) {
                     eme_db_update_member( $member_id, $line, $membership );
@@ -6405,13 +6402,13 @@ function eme_ajax_memberperson_snapselect() {
         wp_die();
     }
 
-    $q                 = isset( $_REQUEST['q'] ) ? strtolower( eme_sanitize_request( $_REQUEST['q'] ) ) : '';
-    $exclude_personid  = isset( $_REQUEST['exclude_personid'] )  ? intval( $_REQUEST['exclude_personid'] )  : 0;
-    $membership_id     = isset( $_REQUEST['membership_id'] )     ? intval( $_REQUEST['membership_id'] )     : 0;
-    $related_member_id = isset( $_REQUEST['related_member_id'] ) ? intval( $_REQUEST['related_member_id'] ) : 0;
-    $pagesize          = isset( $_REQUEST['pagesize'] ) ? intval( $_REQUEST['pagesize'] ) : 20;
+    $q                 = strtolower( eme_sanitize_request( $_REQUEST['q'] ?? '' ) );
+    $exclude_personid  = intval( $_REQUEST['exclude_personid'] ?? 0 );
+    $membership_id     = intval( $_REQUEST['membership_id'] ?? 0 );
+    $related_member_id = intval( $_REQUEST['related_member_id'] ?? 0 );
+    $pagesize          = intval( $_REQUEST['pagesize'] ?? 20 );
     $mysql_pagesize    = $pagesize +1;
-    $page              = isset( $_REQUEST['page'] )     ? max( 1, intval( $_REQUEST['page'] ) ) : 1;
+    $page              = max( 1, intval( $_REQUEST['page'] ?? 1 ) );
     $start             = ( $page - 1 ) * $pagesize;
 
     if (!empty($q)) {
@@ -6463,11 +6460,11 @@ function eme_ajax_membermainaccount_snapselect() {
         wp_die();
     }
 
-    $q             = isset( $_REQUEST['q'] )             ? strtolower( eme_sanitize_request( $_REQUEST['q'] ) ) : '';
-    $member_id     = isset( $_REQUEST['member_id'] )     ? intval( $_REQUEST['member_id'] )     : 0;
-    $membership_id = isset( $_REQUEST['membership_id'] ) ? intval( $_REQUEST['membership_id'] ) : 0;
-    $pagesize      = isset( $_REQUEST['pagesize'] ) ? intval( $_REQUEST['pagesize'] ) : 20;
-    $page          = isset( $_REQUEST['page'] )     ? max( 1, intval( $_REQUEST['page'] ) ) : 1;
+    $q             = strtolower( eme_sanitize_request( $_REQUEST['q'] ?? '' ) );
+    $member_id     = intval( $_REQUEST['member_id'] ?? 0 );
+    $membership_id = intval( $_REQUEST['membership_id'] ?? 0 );
+    $pagesize      = intval( $_REQUEST['pagesize'] ?? 20 );
+    $page          = max( 1, intval( $_REQUEST['page'] ?? 1 ) );
     $offset        = ( $page - 1 ) * $pagesize;
 
     $like = '%' . $wpdb->esc_like( $q ) . '%';
@@ -6510,8 +6507,8 @@ function eme_ajax_memberships_list() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     header( 'Content-type: application/json; charset=utf-8' );
     if ( ! current_user_can( get_option( 'eme_cap_list_members' ) ) ) {
-        $ajaxResult['Result']      = 'Error';
-        $ajaxResult['htmlmessage'] = __( 'Access denied!', 'events-made-easy' );
+        $ajaxResult['Result']      = 'ERROR';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
         print wp_json_encode( $ajaxResult );
         wp_die();
     }
@@ -6628,8 +6625,8 @@ function eme_ajax_members_list( ) {
     $ajaxResult              = [];
 
     if ( ! current_user_can( get_option( 'eme_cap_list_members' ) ) ) {
-        $ajaxResult['Result']      = 'Error';
-        $ajaxResult['htmlmessage'] = __( 'Access denied!', 'events-made-easy' );
+        $ajaxResult['Result']      = 'ERROR';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
         print wp_json_encode( $ajaxResult );
         wp_die();
     }
@@ -6769,21 +6766,21 @@ function eme_ajax_members_snapselect() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     header( 'Content-type: application/json; charset=utf-8' );
     if ( ! current_user_can( get_option( 'eme_cap_list_members' ) ) ) {
-        print wp_json_encode( [ 'Result' => 'Error', 'htmlmessage' => __( 'Access denied!', 'events-made-easy' ) ] );
+        print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) ) ] );
         wp_die();
     }
 
     $people_table      = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     $members_table     = EME_DB_PREFIX . EME_MEMBERS_TBNAME;
     $memberships_table = EME_DB_PREFIX . EME_MEMBERSHIPS_TBNAME;
-    $q                 = isset( $_REQUEST['q'] ) ? strtolower( eme_sanitize_request( $_REQUEST['q'] ) ) : '';
+    $q                 = strtolower( eme_sanitize_request( $_REQUEST['q'] ?? '' ) );
     if (!empty($q)) {
         $like = '%' . $wpdb->esc_like( $q ) . '%';
         $where = $wpdb->prepare("(people.lastname LIKE %s OR people.firstname LIKE %s OR people.email LIKE %s)", $like, $like, $like);
     } else {
         $where = '(1=1)';
     }
-	$pagesize = isset( $_REQUEST['pagesize'] ) ? intval( $_REQUEST['pagesize'] ) : 20;
+	$pagesize = intval( $_REQUEST['pagesize'] ?? 20 );
     $mysql_pagesize = $pagesize+1;
     $start     = ( isset( $_REQUEST['page'] ) && intval( $_REQUEST['page'] ) > 0 ) ? ( intval( $_REQUEST['page'] ) - 1 ) * $pagesize : 0;
     $sql       = "SELECT members.member_id, people.lastname, people.firstname, people.email, people.wp_id, memberships.name AS membership_name
@@ -6828,12 +6825,12 @@ function eme_ajax_store_members_query() {
         $group['search_terms'] = eme_json_encode_safe( $search_terms );
         $new_group_id = eme_db_insert_group($group);
         if ($new_group_id) {
-            $fTableResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Dynamic group added', 'events-made-easy' ) . '</p></div>';
+            $fTableResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Dynamic group added', 'events-made-easy' ) );
         } else {
-            $fTableResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There was a problem adding the group', 'events-made-easy' ) . '</p></div>';
+            $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There was a problem adding the group', 'events-made-easy' ) );
         }
     } else {
-        $fTableResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'Please enter a name for the group', 'events-made-easy' ) . '</p></div>';
+        $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Please enter a name for the group', 'events-made-easy' ) );
     }
     print wp_json_encode( $fTableResult );
     wp_die();
@@ -6843,14 +6840,14 @@ function eme_ajax_manage_members() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     if ( isset( $_POST['do_action'] ) ) {
         $do_action    = eme_sanitize_request( $_POST['do_action'] );
-        $send_mail    = ( isset( $_POST['send_mail'] ) ) ? intval( $_POST['send_mail'] ) : 1;
-        $trash_person = ( isset( $_POST['trash_person'] ) ) ? intval( $_POST['trash_person'] ) : 0;
+        $send_mail    = intval( $_POST['send_mail'] ?? 1 );
+        $trash_person = intval( $_POST['trash_person'] ?? 0 );
 
         $ids     = eme_sanitize_request($_POST['member_id']);
         $ids_arr = explode( ',', $ids );
-        if ( ! eme_is_numeric_array( $ids_arr ) || ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
+        if ( ! eme_is_integer_array( $ids_arr ) || ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
             $fTableResult['Result']      = 'ERROR';
-            $fTableResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
             print wp_json_encode( $fTableResult );
             wp_die();
         }
@@ -6886,30 +6883,30 @@ function eme_ajax_manage_members() {
             break;
         case 'memberMails':
             header( 'Content-type: application/json; charset=utf-8' );
-            $template_id_subject = ( isset( $_POST['membermail_template_subject'] ) ) ? intval( $_POST['membermail_template_subject'] ) : 0;
-            $template_id         = ( isset( $_POST['membermail_template'] ) ) ? intval( $_POST['membermail_template'] ) : 0;
+            $template_id_subject = intval( $_POST['membermail_template_subject'] ?? 0 );
+            $template_id         = intval( $_POST['membermail_template'] ?? 0 );
             if ( $template_id_subject && $template_id ) {
                 eme_ajax_action_send_member_mails( $ids_arr, $template_id_subject, $template_id );
             } else {
                 $ajaxResult                = [];
-                $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Content of subject or body was empty, no mail has been sent.', 'events-made-easy' ) . '</p></div>';
+                $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Content of subject or body was empty, no mail has been sent.', 'events-made-easy' ) );
                 $ajaxResult['Result']      = 'ERROR';
                 print wp_json_encode( $ajaxResult );
                 wp_die();
             }
             break;
         case 'pdf':
-            $template_id        = ( isset( $_POST['pdf_template'] ) ) ? intval( $_POST['pdf_template'] ) : 0;
-            $template_id_header = ( isset( $_POST['pdf_template_header'] ) ) ? intval( $_POST['pdf_template_header'] ) : 0;
-            $template_id_footer = ( isset( $_POST['pdf_template_footer'] ) ) ? intval( $_POST['pdf_template_footer'] ) : 0;
+            $template_id        = intval( $_POST['pdf_template'] ?? 0 );
+            $template_id_header = intval( $_POST['pdf_template_header'] ?? 0 );
+            $template_id_footer = intval( $_POST['pdf_template_footer'] ?? 0 );
             if ( $template_id ) {
                 eme_ajax_generate_member_pdf( $ids_arr, $template_id, $template_id_header, $template_id_footer );
             }
             break;
         case 'html':
-            $template_id        = ( isset( $_POST['html_template'] ) ) ? intval( $_POST['html_template'] ) : 0;
-            $template_id_header = ( isset( $_POST['html_template_header'] ) ) ? intval( $_POST['html_template_header'] ) : 0;
-            $template_id_footer = ( isset( $_POST['html_template_footer'] ) ) ? intval( $_POST['html_template_footer'] ) : 0;
+            $template_id        = intval( $_POST['html_template'] ?? 0 );
+            $template_id_header = intval( $_POST['html_template_header'] ?? 0 );
+            $template_id_footer = intval( $_POST['html_template_footer'] ?? 0 );
             if ( $template_id ) {
                 eme_ajax_generate_member_html( $ids_arr, $template_id, $template_id_header, $template_id_footer );
             }
@@ -6928,9 +6925,9 @@ function eme_ajax_manage_memberships() {
 
         $ids     = eme_sanitize_request($_POST['membership_id']);
         $ids_arr = explode( ',', $ids );
-        if ( ! eme_is_numeric_array( $ids_arr ) || ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
+        if ( ! eme_is_integer_array( $ids_arr ) || ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
             $ajaxResult['Result']      = 'ERROR';
-            $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
             print wp_json_encode( $ajaxResult );
             wp_die();
         }
@@ -6938,7 +6935,7 @@ function eme_ajax_manage_memberships() {
         case 'showMembershipStats':
             $membershipstats = eme_get_membership_stats( $ids );
             $ajaxResult['Result']      = 'OK';
-            $ajaxResult['htmlmessage'] = "<div id='message'><p>" . $membershipstats . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_div( $membershipstats );
             print wp_json_encode( $ajaxResult );
             break;
         case 'deleteMemberships':
@@ -6946,7 +6943,7 @@ function eme_ajax_manage_memberships() {
                 eme_delete_membership( $membership_id );
             }
             $ajaxResult['Result']      = 'OK';
-            $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Memberships deleted.', 'events-made-easy' ) . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Memberships deleted.', 'events-made-easy' ) );
             print wp_json_encode( $ajaxResult );
             break;
         }
@@ -6961,7 +6958,7 @@ function eme_ajax_action_send_member_mails( $ids_arr, $subject_template_id, $bod
     $body           = eme_get_template_format_plain( $body_template_id );
     $ajaxResult     = [];
     if ( eme_is_empty_string( $subject ) || eme_is_empty_string( $body ) ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Content of subject or body was empty, no mail has been sent.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Content of subject or body was empty, no mail has been sent.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
         print wp_json_encode( $ajaxResult );
         return;
@@ -6985,10 +6982,10 @@ function eme_ajax_action_send_member_mails( $ids_arr, $subject_template_id, $bod
     }
     $ajaxResult = [];
     if ( $mail_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The mail has been sent.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The mail has been sent.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7002,7 +6999,7 @@ function eme_ajax_action_delete_members( $ids_arr, $trash_person = 0 ) {
             eme_ajax_action_trash_people( join( ',', $person_ids ) );
         } else {
             $ajaxResult['Result']      = 'ERROR';
-            $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'No corresponding persons found.', 'events-made-easy' ) . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'No corresponding persons found.', 'events-made-easy' ) );
             print wp_json_encode( $ajaxResult );
         }
     } else {
@@ -7012,7 +7009,7 @@ function eme_ajax_action_delete_members( $ids_arr, $trash_person = 0 ) {
             eme_delete_member( $member_id, 1 );
         }
         $ajaxResult['Result']      = 'OK';
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'Members deleted.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Members deleted.', 'events-made-easy' ) );
         print wp_json_encode( $ajaxResult );
     }
 }
@@ -7038,13 +7035,13 @@ function eme_ajax_action_set_member_unpaid( $ids_arr, $action, $send_mail ) {
     }
     $ajaxResult = [];
     if ( $mails_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( esc_html__( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7064,10 +7061,10 @@ function eme_ajax_action_resend_paid_member( $ids_arr, $action ) {
     }
     $ajaxResult = [];
     if ( $mails_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7077,7 +7074,7 @@ add_action( 'wp_ajax_eme_delete_dyndata_occurence', 'eme_delete_dyndata_occurenc
 function eme_delete_dyndata_occurence_ajax() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     if ( ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
-        wp_send_json( [ 'Result' => 'ERROR', 'htmlmessage' => __( 'No permission', 'events-made-easy' ) ] );
+        wp_send_json( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'No permission', 'events-made-easy' ) ) ] );
     }
 
     global $wpdb;
@@ -7088,7 +7085,7 @@ function eme_delete_dyndata_occurence_ajax() {
     $occurence = intval( $_POST['occurence'] ?? 0 );
 
     if ( ! $member_id || ! $grouping ) {
-        wp_send_json( [ 'Result' => 'ERROR', 'htmlmessage' => __( 'Invalid parameters', 'events-made-easy' ) ] );
+        wp_send_json( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'Invalid parameters', 'events-made-easy' ) ) ] );
     }
 
     // 1. Delete all answers for this (member, grouping, occurence)
@@ -7107,7 +7104,7 @@ function eme_delete_dyndata_occurence_ajax() {
     );
 
     wp_cache_delete( "eme_member $member_id" );
-    wp_send_json( [ 'Result' => 'OK', 'htmlmessage' => __( 'Occurrence deleted and remaining occurrences renumbered.', 'events-made-easy' ) ] );
+    wp_send_json( [ 'Result' => 'OK', 'htmlmessage' => eme_message_ok_div( esc_html__( 'Occurrence deleted and remaining occurrences renumbered.', 'events-made-easy' ) ) ] );
 }
 
 function eme_accept_member_payment( $payment_id, $pg = '', $pg_pid = '' ) {
@@ -7164,7 +7161,7 @@ function eme_ajax_action_payment_membership( $ids_arr, $send_mail ) {
     }
 
     $ajaxResult                = [];
-    $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
     $ajaxResult['Result']      = 'OK';
     print wp_json_encode( $ajaxResult );
 }
@@ -7195,13 +7192,13 @@ function eme_ajax_action_stop_membership( $ids_arr, $action, $send_mail ) {
     }
     $ajaxResult = [];
     if ( $mails_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( esc_html__( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7220,10 +7217,10 @@ function eme_ajax_action_resend_pending_member( $ids_arr, $action ) {
     }
     $ajaxResult = [];
     if ( $mails_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7237,7 +7234,7 @@ function eme_ajax_action_resend_member_reminders( $ids_arr ) {
         }
     }
     $ajaxResult                = [];
-    $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'The action has been executed successfully.', 'events-made-easy' ) );
     $ajaxResult['Result']      = 'OK';
     print wp_json_encode( $ajaxResult );
 }
@@ -7405,7 +7402,7 @@ page-break-before: always;
 function eme_ajax_generate_member_html( $ids_arr, $template_id, $template_id_header = 0, $template_id_footer = 0 ) {
     // the template format needs br-handling, so lets use a handy function
     $format = eme_get_template_format( $template_id );
-    $header = me_replace_generic_placeholders( eme_get_template_format( $template_id_header ) );
+    $header = eme_replace_generic_placeholders( eme_get_template_format( $template_id_header ) );
     $footer = eme_replace_generic_placeholders( eme_get_template_format( $template_id_footer ) );
     $extra_html_header = get_option( 'eme_html_header' );
     $extra_html_header = trim( preg_replace( '/\r\n/', "\n", $extra_html_header ) );

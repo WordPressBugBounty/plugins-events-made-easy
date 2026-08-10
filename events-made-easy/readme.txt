@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 7.0
-Stable tag: 3.2.1
+Stable tag: 3.2.2
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -44,7 +44,7 @@ Main features:
 * IMAP bounce management
 * Multi-site compatible
 * Several GDPR assistance features (request, view and edit personal info via link; delete old records for mailings, attendances, bookings)
-* Fully localisable and already fully localised in German, Swedish, French and Dutch. Also fully compatible with polylang and [qtranslate-xt](https://github.com/qtranslate/qtranslate-xt/): most of the settings allow for language tags so you can show your events in different languages to different people. The booking emails also take the choosen language into account. For other multi-lingual plugins, EME provides its own in-text language tags and takes the current chosen language into account.
+* Fully localisable and already fully localised in German, Swedish, French and Dutch. Also fully compatible with polylang and qtranslate-xf: most of the settings allow for language tags so you can show your events in different languages to different people. The booking emails also take the choosen language into account. For other multi-lingual plugins, EME provides its own in-text language tags and takes the current chosen language into account.
 
 For documentation on all shortcodes and placeholders, visit the [Official site](https://www.e-dynamics.be/wordpress/eme-docs/) .
 
@@ -99,6 +99,12 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.2.2  (2026/08/10) =
+* Allow transfer from booking to other person when editing a booking
+* Permalinks are now activated if WP has them activated, no longer an option on its own
+* Rework the language propagation: work around a polylang bug in admin ajax requests
+* Feedback from bulk actions in the admin interface is now shown more directly to the user (popup), it was not always clear before and not always handled in a similar manner
+
 = 3.2.1  (2026/08/02) =
 * Lang updates
 * Make task filtering work & show datetime of task in task filtering too

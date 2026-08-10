@@ -326,7 +326,7 @@ function eme_events_page() {
 
     // CANCEL action (Cancel button pushed while editing an event or recurrence)
     if ( isset( $_POST['event_cancel_button'] ) ) {
-        $eme_current_tab = isset( $_POST['eme_current_tab'] ) ? eme_sanitize_request( $_POST['eme_current_tab'] ) : 'tab-events';
+        $eme_current_tab = eme_sanitize_request( $_POST['eme_current_tab'] ?? 'tab-events' );
         if ( ! in_array( $eme_current_tab, [ 'tab-events', 'tab-recurrences' ], true ) ) {
             $eme_current_tab = 'tab-events';
         }
@@ -336,12 +336,12 @@ function eme_events_page() {
 
     if ( isset( $_POST['eme_admin_action'] ) ) {
         $action        = eme_sanitize_request( $_POST['eme_admin_action'] );
-        $event_ID      = isset( $_POST['event_id'] ) ? eme_sanitize_request( $_POST['event_id'] ) : 0;
-        $recurrence_ID = isset( $_POST['recurrence_id'] ) ? intval( $_POST['recurrence_id'] ) : 0;
+        $event_ID      = eme_sanitize_request( $_POST['event_id'] ?? 0 );
+        $recurrence_ID = intval( $_POST['recurrence_id'] ?? 0 );
     } elseif ( isset( $_GET['eme_admin_action'] ) ) {
         $action        = eme_sanitize_request( $_GET['eme_admin_action'] );
-        $event_ID      = isset( $_GET['event_id'] ) ? eme_sanitize_request( $_GET['event_id'] ) : 0;
-        $recurrence_ID = isset( $_GET['recurrence_id'] ) ? intval( $_GET['recurrence_id'] ) : 0;
+        $event_ID      = eme_sanitize_request( $_GET['event_id'] ?? 0 );
+        $recurrence_ID = intval( $_GET['recurrence_id'] ?? 0 );
     } else {
         $action        = '';
         $event_ID      = 0;
@@ -448,8 +448,8 @@ function eme_events_page() {
         }
 
         // event notes and format
-        $event['event_single_event_format'] = isset( $_POST['event_single_event_format'] ) ? eme_kses_maybe_unfiltered( $_POST['event_single_event_format'] ) : '';
-        $event['event_notes']               = isset( $_POST['content'] ) ? eme_kses_maybe_unfiltered( $_POST['content'] ) : '';
+        $event['event_single_event_format'] = eme_kses_maybe_unfiltered( $_POST['event_single_event_format'] ?? '' );
+        $event['event_notes']               = eme_kses_maybe_unfiltered( $_POST['content'] ?? '' );
 
         if ( ! current_user_can( get_option( 'eme_cap_publish_event' ) ) ) {
             $event['event_status'] = EME_EVENT_STATUS_DRAFT;
@@ -467,7 +467,7 @@ function eme_events_page() {
         } else {
             $event_start_date = $eme_date_obj->startOfDay()->getDate();
         }
-        $recurrence['event_duration'] = isset( $_POST['event_duration'] ) ? intval( $_POST['event_duration'] ) : 1;
+        $recurrence['event_duration'] = intval( $_POST['event_duration'] ?? 1 );
         if ( $action == 'insert_recurrence' || $action == 'update_recurrence' ) {
             $duration       = $recurrence['event_duration'] - 1;
             $end_date_obj   = new emeExpressiveDate( $event_start_date, EME_TIMEZONE );
@@ -489,8 +489,8 @@ function eme_events_page() {
         }
         $event['event_start']          = "$event_start_date $event_start_time";
         $event['event_end']            = "$event_end_date $event_end_time";
-        $recurrence['recurrence_freq'] = isset( $_POST['recurrence_freq'] ) ? eme_sanitize_request( $_POST['recurrence_freq'] ) : '';
-        $recurrence['exclude_days'] = isset( $_POST['recurrence_exclude_days'] ) ? eme_sanitize_request( $_POST['recurrence_exclude_days'] ) : '';
+        $recurrence['recurrence_freq'] = eme_sanitize_request( $_POST['recurrence_freq'] ?? '' );
+        $recurrence['exclude_days'] = eme_sanitize_request( $_POST['recurrence_exclude_days'] ?? '' );
         if ( $recurrence['recurrence_freq'] == 'specific' ) {
             $recurrence['specific_days'] = isset( $_POST['recurrence_start_date'] ) ? eme_sanitize_request( $_POST['recurrence_start_date'] ) : $event_start_date;
             $recurrence['recurrence_start_date']    = '';
@@ -526,15 +526,15 @@ function eme_events_page() {
             $recurrence['recurrence_interval'] = 1;
         }
         if ( $recurrence['recurrence_freq'] == 'monthly' ) {
-            $recurrence['recurrence_byweekno'] = isset( $_POST['monthly_recurrence_byweekno'] ) ? eme_sanitize_request( $_POST['monthly_recurrence_byweekno'] ) : '';
-            $recurrence['recurrence_byday'] = isset( $_POST['monthly_recurrence_byday'] ) ?  eme_sanitize_request( $_POST['monthly_recurrence_byday'] ): '';
+            $recurrence['recurrence_byweekno'] = eme_sanitize_request( $_POST['monthly_recurrence_byweekno'] ?? '' );
+            $recurrence['recurrence_byday'] = eme_sanitize_request( $_POST['monthly_recurrence_byday'] ?? '' );
         }
         if ( $recurrence['recurrence_freq'] == 'specific_months' ) {
-            $recurrence['recurrence_byweekno'] = isset( $_POST['specific_months_recurrence_byweekno'] ) ? eme_sanitize_request( $_POST['specific_months_recurrence_byweekno'] ) : '';
-            $recurrence['recurrence_byday'] = isset( $_POST['specific_months_recurrence_byday'] ) ? eme_sanitize_request( $_POST['specific_months_recurrence_byday'] ): '';
+            $recurrence['recurrence_byweekno'] = eme_sanitize_request( $_POST['specific_months_recurrence_byweekno'] ?? '' );
+            $recurrence['recurrence_byday'] = eme_sanitize_request( $_POST['specific_months_recurrence_byday'] ?? '' );
         }
-        $recurrence['holidays_id']         = isset( $_POST['holidays_id'] ) ? intval( $_POST['holidays_id'] ) : 0;
-        $recurrence['specific_months']     = isset( $_POST['specific_months'] ) ? implode(',',eme_sanitize_request( $_POST['specific_months'] )) : '';
+        $recurrence['holidays_id']         = intval( $_POST['holidays_id'] ?? 0 );
+        $recurrence['specific_months']     = implode(',', eme_sanitize_request( $_POST['specific_months'] ?? '' ));
 
         // set the location info
         $post_vars = [ 'location_name', 'location_address1', 'location_address2', 'location_city', 'location_state', 'location_zip', 'location_country', 'location_latitude', 'location_longitude', 'location_url' ];
@@ -544,7 +544,7 @@ function eme_events_page() {
             }
         }
 
-        if ( isset( $_POST['event_category_ids'] ) && eme_is_numeric_array( eme_sanitize_request( $_POST['event_category_ids'] ) ) ) {
+        if ( isset( $_POST['event_category_ids'] ) && eme_is_integer_array( eme_sanitize_request( $_POST['event_category_ids'] ) ) ) {
             $event['event_category_ids'] = join( ',', eme_sanitize_request( $_POST['event_category_ids'] ) );
         } else {
             $event['event_category_ids'] = '';
@@ -953,7 +953,7 @@ function eme_events_page_content() {
             } elseif (!empty($conditions['eme_eventmail_send_groups'])) { // event mail to certain groups
                 $eme_email_groups_arr = explode( ',', $conditions['eme_eventmail_send_groups'] );
             }
-            if ( ! eme_is_numeric_array( $eme_email_groups_arr ) ) {
+            if ( ! eme_is_integer_array( $eme_email_groups_arr ) ) {
                 $eme_email_groups_arr = [];
             }
             eme_unsub_do( $mail['receiveremail'], $eme_email_groups_arr );
@@ -973,7 +973,7 @@ function eme_events_page_content() {
         if ( ! empty( $_GET['g'] ) ) {
             $eme_email_groups     = eme_sanitize_request( $_GET['g'] );
             $eme_email_groups_arr = explode( ',', $eme_email_groups );
-            if ( ! eme_is_numeric_array( $eme_email_groups_arr ) ) {
+            if ( ! eme_is_integer_array( $eme_email_groups_arr ) ) {
                 $eme_email_groups_arr = [];
             }
         } else {
@@ -995,7 +995,7 @@ function eme_events_page_content() {
         if ( ! empty( $_GET['g'] ) ) {
             $eme_email_groups     = eme_sanitize_request( $_GET['g'] );
             $eme_email_groups_arr = explode( ',', $eme_email_groups );
-            if ( ! eme_is_numeric_array( $eme_email_groups_arr ) ) {
+            if ( ! eme_is_integer_array( $eme_email_groups_arr ) ) {
                 $eme_email_groups_arr = [];
             }
         } else {
@@ -1156,7 +1156,7 @@ function eme_events_page_content() {
         //        return "<div class='eme-rsvp-message-error'>$img ".__("Access denied!",'events-made-easy')."</div>";
         //     }
         $member_id = intval( $_GET['member_id'] );
-        if ( ! eme_check_member_url() ) {
+        if ( ! eme_verify_member_checkurl() ) {
             $img    = "<img src='" . esc_url(EME_PLUGIN_URL) . "images/error-48.png'>";
             // translators: %d is the member ID
             $format = "<div class='eme-message-error eme-member-message-error'>$img " . sprintf( __( 'NOK: member %d is either not active or does not exist!', 'events-made-easy' ), $member_id ) . '</div>';
@@ -1368,11 +1368,11 @@ function eme_events_page_content() {
         return eme_display_single_event( $event_id );
     } elseif ( get_query_var( 'calendar_day' ) ) {
         $scope          = eme_sanitize_request( get_query_var( 'calendar_day' ) );
-        $location_id    = isset( $_GET['location_id'] ) ? eme_sanitize_request( $_GET['location_id'] ) : '';
-        $category       = isset( $_GET['category'] ) ? eme_sanitize_request( $_GET['category'] ) : '';
-        $notcategory    = isset( $_GET['notcategory'] ) ? eme_sanitize_request( $_GET['notcategory'] ) : '';
-        $author         = isset( $_GET['author'] ) ? eme_sanitize_request( $_GET['author'] ) : '';
-        $contact_person = isset( $_GET['contact_person'] ) ? eme_sanitize_request( $_GET['contact_person'] ) : '';
+        $location_id    = eme_sanitize_request( $_GET['location_id'] ?? '' );
+        $category       = eme_sanitize_request( $_GET['category'] ?? '' );
+        $notcategory    = eme_sanitize_request( $_GET['notcategory'] ?? '' );
+        $author         = eme_sanitize_request( $_GET['author'] ?? '' );
+        $contact_person = eme_sanitize_request( $_GET['contact_person'] ?? '' );
         // the hash char and everything following it in a GET is not getting through a browser request, so if it passed through via the calendar, we used _MYSELF, and here we restore it again
         $author         = str_replace( '_MYSELF', '#_MYSELF', $author );
         $contact_person = str_replace( '_MYSELF', '#_MYSELF', $contact_person );
@@ -1385,7 +1385,7 @@ function eme_events_page_content() {
             $page_body = eme_get_calendar( full: 1 );
         }
         if ( get_option( 'eme_display_events_in_events_page' ) ) {
-            $scope      = isset( $_GET['scope'] ) ? urlencode( eme_sanitize_request( $_GET['scope'] ) ) : 'future';
+            $scope      = urlencode( eme_sanitize_request( $_GET['scope'] ?? 'future' ) );
             $page_body .= eme_get_events_list( limit: 0, scope: $scope );
         }
         return $page_body;
@@ -1884,11 +1884,11 @@ function eme_template_redir() {
     // if we want to show a day and it has only 1 event: redir to that event
     if ( get_query_var( 'calendar_day' ) && get_option( 'eme_cal_show_single' ) ) {
         $scope          = urlencode( eme_sanitize_request( get_query_var( 'calendar_day' ) ) );
-        $location_id    = isset( $_GET['location_id'] ) ? eme_sanitize_request( $_GET['location_id'] ) : '';
-        $category       = isset( $_GET['category'] ) ? eme_sanitize_request( $_GET['category'] ) : '';
-        $notcategory    = isset( $_GET['notcategory'] ) ? eme_sanitize_request( $_GET['notcategory'] ) : '';
-        $author         = isset( $_GET['author'] ) ? eme_sanitize_request( $_GET['author'] ) : '';
-        $contact_person = isset( $_GET['contact_person'] ) ? eme_sanitize_request( $_GET['contact_person'] ) : '';
+        $location_id    = eme_sanitize_request( $_GET['location_id'] ?? '' );
+        $category       = eme_sanitize_request( $_GET['category'] ?? '' );
+        $notcategory    = eme_sanitize_request( $_GET['notcategory'] ?? '' );
+        $author         = eme_sanitize_request( $_GET['author'] ?? '' );
+        $contact_person = eme_sanitize_request( $_GET['contact_person'] ?? '' );
         // the hash char and everything following it in a GET is not getting through a browszr request, so if it passed through via the calendar, we used _MYSELF, and here we restore it again
         $author         = str_replace( '_MYSELF', '#_MYSELF', $author );
         $contact_person = str_replace( '_MYSELF', '#_MYSELF', $contact_person );
@@ -1903,8 +1903,8 @@ function eme_template_redir() {
     }
 
     if ( isset( $_GET['eme_bookings'] ) && $_GET['eme_bookings'] == 'report' ) {
-        $public = ( isset( $_GET['public_access'] ) ) ? intval( $_GET['public_access'] ) : 0;
-        $nonce  = ( isset( $_GET['eme_bookings_nonce'] ) ) ? eme_sanitize_request( $_GET['eme_bookings_nonce'] ) : '';
+        $public = intval( $_GET['public_access'] ?? 0 );
+        $nonce  = eme_sanitize_request( $_GET['eme_bookings_nonce'] ?? '' );
         if ( isset( $_GET['event_id'] ) && isset( $_GET['template_id'] ) && isset( $_GET['template_id_header'] ) ) {
             if ( is_user_logged_in() && current_user_can( get_option( 'eme_cap_list_registrations' ) ) ) {
                 eme_bookings_frontend_csv_report( intval( $_GET['event_id'] ), intval( $_GET['template_id'] ), intval( $_GET['template_id_header'] ) );
@@ -1915,8 +1915,8 @@ function eme_template_redir() {
         exit;
     }
     if ( isset( $_GET['eme_attendees'] ) && $_GET['eme_attendees'] == 'report' ) {
-        $public = ( isset( $_GET['public_access'] ) ) ? intval( $_GET['public_access'] ) : 0;
-        $nonce  = ( isset( $_GET['eme_attendees_nonce'] ) ) ? eme_sanitize_request( $_GET['eme_attendees_nonce'] ) : '';
+        $public = intval( $_GET['public_access'] ?? 0 );
+        $nonce  = eme_sanitize_request( $_GET['eme_attendees_nonce'] ?? '' );
         if ( isset( $_GET['scope'] ) && isset( $_GET['event_template_id'] ) && isset( $_GET['attend_template_id'] ) ) {
             if ( is_user_logged_in() && current_user_can( get_option( 'eme_cap_list_registrations' ) ) ) {
                 eme_attendees_frontend_csv_report( eme_sanitize_request( $_GET['scope'] ), eme_sanitize_request( $_GET['category'] ), eme_sanitize_request( $_GET['notcategory'] ), intval( $_GET['event_template_id'] ), intval( $_GET['attend_template_id'] ) );
@@ -1929,12 +1929,12 @@ function eme_template_redir() {
     }
 
     if ( isset( $_GET['eme_members'] ) && $_GET['eme_members'] == 'report' ) {
-        $public             = ( isset( $_GET['public_access'] ) ) ? intval( $_GET['public_access'] ) : 0;
-        $group_id           = ( isset( $_GET['group_id'] ) ) ? intval( $_GET['group_id'] ) : 0;
-        $membership_id      = ( isset( $_GET['membership_id'] ) ) ? intval( $_GET['membership_id'] ) : 0;
-        $template_id        = ( isset( $_GET['template_id'] ) ) ? intval( $_GET['template_id'] ) : 0;
-        $template_id_header = ( isset( $_GET['template_id_header'] ) ) ? intval( $_GET['template_id_header'] ) : 0;
-        $nonce              = ( isset( $_GET['eme_members_nonce'] ) ) ? eme_sanitize_request( $_GET['eme_members_nonce'] ) : '';
+        $public             = intval( $_GET['public_access'] ?? 0 );
+        $group_id           = intval( $_GET['group_id'] ?? 0 );
+        $membership_id      = intval( $_GET['membership_id'] ?? 0 );
+        $template_id        = intval( $_GET['template_id'] ?? 0 );
+        $template_id_header = intval( $_GET['template_id_header'] ?? 0 );
+        $nonce              = eme_sanitize_request( $_GET['eme_members_nonce'] ?? '' );
         if ( is_user_logged_in() && current_user_can( get_option( 'eme_cap_list_members' ) ) ) {
             eme_members_frontend_csv_report( $group_id, $membership_id, $template_id, $template_id_header );
         } elseif ( $public && ! empty( $nonce ) && wp_verify_nonce( $nonce, "eme_members $public" ) && ! empty( $post->post_password ) && ! post_password_required() ) {
@@ -2894,11 +2894,8 @@ function eme_get_event_placeholder_handler_definitions() {
         },
         '/#_PAGEURL\{(.+?)\}$/' => function( $result, $matches, $ctx ) {
             $lang = $ctx['lang'];
-            $events_page_link = eme_get_events_page();
+            $events_page_link = eme_get_events_page( language: $lang );
             $replacement      = add_query_arg( [ 'event_id' => intval( $matches[1] ) ], $events_page_link );
-            if ( ! empty( $lang ) ) {
-                $replacement = add_query_arg( [ 'lang' => $lang ], $replacement );
-            }
             if ( $ctx['target'] == 'html' ) {
                 return esc_url( $replacement );
             }
@@ -4286,7 +4283,7 @@ function eme_get_events_list( $limit = -1, $scope = 'future', $order = 'ASC', $f
     if ( $user_registered_only == 1 && is_user_logged_in() ) {
         $current_userid        = get_current_user_id();
         $list_of_event_ids_arr = eme_get_event_ids_for( $current_userid );
-        if ( eme_is_numeric_array( $list_of_event_ids_arr ) ) {
+        if ( eme_is_integer_array( $list_of_event_ids_arr ) ) {
             $extra_conditions['event_id'] = array_map( 'intval', $list_of_event_ids_arr );
         } else {
             // user has no registered events, then make sure none are shown
@@ -5739,7 +5736,7 @@ function eme_get_events_assoc( $event_ids_arr = []) {
     global $wpdb;
     $events_table     = EME_DB_PREFIX . EME_EVENTS_TBNAME;
     $inflated_events = [];
-    if ( eme_is_numeric_array( $event_ids_arr ) ) {
+    if ( eme_is_integer_array( $event_ids_arr ) ) {
         $event_ids_arr = array_map( 'intval', $event_ids_arr );
         $placeholders  = implode( ',', array_fill( 0, count( $event_ids_arr ), '%d' ) );
         $prepared_sql  = $wpdb->prepare( "SELECT * from $events_table WHERE event_id IN ( $placeholders )", ...$event_ids_arr ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -5831,7 +5828,7 @@ function eme_get_rsvp_event_arr( $event_ids ) {
         $event_ids = eme_array_remove_empty_elements( $event_ids );
     }
     // empty array or containing something else but integers? Then go away
-    if ( empty( $event_ids ) || ! eme_is_numeric_array( $event_ids ) ) {
+    if ( empty( $event_ids ) || ! eme_is_integer_array( $event_ids ) ) {
         return;
     }
 
@@ -6264,7 +6261,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 ?>
         <div class="bulkactions">
         <form action="#" method="post">
-        <select id="events_eme_admin_action" name="eme_admin_action">
+        <select id="eme_admin_action_events" name="eme_admin_action_events">
         <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
         <option value="trashEvents"><?php esc_html_e( 'Delete selected events (move to trash bin)', 'events-made-easy' ); ?></option>
         <option value="publicEvents"><?php esc_html_e( 'Publish selected events', 'events-made-easy' ); ?></option>
@@ -6273,13 +6270,13 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <option value="draftEvents"><?php esc_html_e( 'Make selected events draft', 'events-made-easy' ); ?></option>
         <option value="addCategory"><?php esc_html_e( 'Add selected events to category', 'events-made-easy' ); ?></option>
         </select>
-        <span id="events_span_sendtrashmails" class="eme-hidden">
+        <span id="events_span_sendtrashmails">
 <?php
         esc_html_e( 'Send emails for cancelled bookings too?', 'events-made-easy' );
         echo eme_ui_select_binary( 0, 'events_send_trashmails' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
         </span>
-        <span id="events_span_addtocategory" class="eme-hidden">
+        <span id="events_span_addtocategory">
             <?php echo eme_ui_select_key_value( '', 'events_addtocategory', $categories, 'category_id', 'category_name', __( 'Please select a category', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
         </span>
         <button id="EventsActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
@@ -6322,7 +6319,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <br>
         <div class="bulkactions">
         <form action="#" method="post">
-        <select id="recurrences_eme_admin_action" name="eme_admin_action">
+        <select id="eme_admin_action_recurrences" name="eme_admin_action_recurrences">
         <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
         <option value="deleteRecurrences"><?php esc_html_e( 'Delete selected recurrences (and move events to trash bin)', 'events-made-easy' ); ?></option>
         <option value="publicRecurrences"><?php esc_html_e( 'Publish selected recurrences', 'events-made-easy' ); ?></option>
@@ -6330,7 +6327,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <option value="draftRecurrences"><?php esc_html_e( 'Make selected recurrences draft', 'events-made-easy' ); ?></option>
         <option value="extendRecurrences"><?php esc_html_e( 'Set new start/end date for selected recurrences', 'events-made-easy' ); ?></option>
         </select>
-        <span id="recurrences_span_extendrecurrences" class="eme-hidden">
+        <span id="recurrences_span_extendrecurrences">
         <input id="rec_new_start_date" type="text" name="rec_new_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
         <input id="rec_new_end_date" type="text" name="rec_new_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Select new end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate'>
         </span>
@@ -6365,7 +6362,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 ?>
         <div class="bulkactions">
         <form action="#" method="post">
-        <select id="trash_eme_admin_action" name="eme_admin_action">
+        <select id="eme_admin_action_trash" name="eme_admin_action_trash">
         <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
         <option value="untrashEvents"><?php esc_html_e( 'Restore selected events (to draft status)', 'events-made-easy' ); ?></option>
         <option value="deleteEvents"><?php esc_html_e( 'Permanently delete selected events', 'events-made-easy' ); ?></option>
@@ -6417,7 +6414,7 @@ function eme_event_form( $event, $info, $edit_recurrence = 0 ) {
 
     if ( ! empty( $_GET['eme_admin_action'] ) ) {
         $action        = eme_sanitize_request( $_GET['eme_admin_action'] );
-        $recurrence_ID = isset( $_GET['recurrence_id'] ) ? intval( $_GET['recurrence_id'] ) : 0;
+        $recurrence_ID = intval( $_GET['recurrence_id'] ?? 0 );
     } else {
         $action        = '';
         $recurrence_ID = '';
@@ -7078,7 +7075,7 @@ function eme_validate_event( $event ) {
             $arr1   = eme_convert_multi2array( $event_properties['max_allowed'] );
             $count1 = count( $arr1 );
             $count2 = count( eme_convert_multi2array( $event['price'] ) );
-            if ( ! eme_is_numeric_array( $arr1 ) ) {
+            if ( ! eme_is_integer_array( $arr1 ) ) {
                 $troubles .= '<li>' . __( 'If specified, the max amount of seats to book should consist of integers only.', 'events-made-easy' ) . '</li>';
             }
             if ( $count1 != $count2 ) {
@@ -7091,7 +7088,7 @@ function eme_validate_event( $event ) {
             $arr1   = eme_convert_multi2array( $event_properties['min_allowed'] );
             $count1 = count( $arr1 );
             $count2 = count( eme_convert_multi2array( $event['price'] ) );
-            if ( ! eme_is_numeric_array( $arr1 ) ) {
+            if ( ! eme_is_integer_array( $arr1 ) ) {
                 $troubles .= '<li>' . __( 'If specified, the min amount of seats to book should consist of integers only.', 'events-made-easy' ) . '</li>';
             }
             if ( $count1 != $count2 ) {
@@ -8980,12 +8977,17 @@ function eme_meta_box_div_event_rsvp( $event, $pdf_templates_array ) {
 <?php
 }
 
-function eme_rss_link( $justurl = 0, $echo = 0, $text = 'RSS', $scope = 'future', $order = 'ASC', $show_ongoing = 1, $category = '', $author = '', $contact_person = '', $limit = 5, $location_id = '', $title = '' ) {
+function eme_rss_link( $justurl = 0, $echo = 0, $text = 'RSS', $scope = 'future', $order = 'ASC', $show_ongoing = 1, $category = '', $author = '', $contact_person = '', $limit = 5, $location_id = '', $title = '', $language = '' ) {
     $echo = filter_var( $echo, FILTER_VALIDATE_BOOLEAN );
     if ( $text == '' ) {
         $text = 'RSS';
     }
+    if ( empty( $language ) ) {
+        $language = eme_detect_lang();
+    }
     $url  = site_url( "/?eme_rss=main&scope=$scope&show_ongoing=$show_ongoing&order=$order&category=$category&author=$author&contact_person=$contact_person&limit=$limit&location_id=$location_id&title=" . urlencode( $title ) );
+    // bake the language in explicitly here: this url is meant to be saved into a feed reader, so language must be set
+    $url  = eme_add_lang_query_arg( $url, $language );
     $link = "<a href='" . esc_url( $url ) . "'>" . esc_html( eme_translate( $text ) ) . '</a>';
 
     if ( $justurl ) {
@@ -9017,6 +9019,7 @@ function eme_rss_link_shortcode( $atts ) {
             'limit'          => 5,
             'location_id'    => '',
             'title'          => '',
+            'lang'           => '',
         ],
         $atts
     );
@@ -9044,13 +9047,14 @@ function eme_rss_link_shortcode( $atts ) {
         author: $author, 
         contact_person: $contact_person, 
         location_id: $location_id, 
-        title: $title 
+        title: $title, 
     );
     return $result;
 }
 
 function eme_rss() {
     $rss_options = get_option('eme_rss');
+    $language    = eme_detect_lang(); // should get it from GET
     if ( isset( $_GET['limit'] ) ) {
         $limit = intval( $_GET['limit'] );
     } else {
@@ -9110,7 +9114,7 @@ function eme_rss() {
 </title>
 <link>
 <?php
-    $events_page_link = eme_get_events_page();
+    $events_page_link = eme_get_events_page( language: $language );
     echo eme_rss_cdata( $events_page_link ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- RSS CDATA output, escaping would break format
 ?>
 </link>
@@ -9139,7 +9143,7 @@ Weblog Editor 2.0
         foreach ( $events as $event ) {
             $title       = eme_rss_cdata( eme_replace_event_placeholders( $rss_options['title_format'], $event, 'rss' ) );
             $description = eme_rss_cdata( eme_replace_event_placeholders( $rss_options['description_format'], $event, 'rss' ) );
-            $event_link  = eme_rss_cdata( eme_event_url( $event ) );
+            $event_link  = eme_rss_cdata( eme_event_url( $event, $language ) );
             if ( ! empty( $event['event_image_id'] ) ) {
                 $image_url = esc_url( wp_get_attachment_image_url( $event['event_image_id'], 'full' ) );
             } elseif ( ! empty( $event['event_image_url'] ) ) {
@@ -9594,6 +9598,7 @@ function eme_admin_enqueue_js() {
         return;
     }
     $language = eme_detect_lang();
+    $locale = determine_locale();
 
     if ( preg_match( '/^eme-/', $plugin_page ) ) {
         wp_enqueue_media();
@@ -9612,6 +9617,7 @@ function eme_admin_enqueue_js() {
             'translate_yessure'            => __( "Yes, I'm sure", 'events-made-easy' ),
             'translate_firstDayOfWeek'     => get_option( 'start_of_week' ),
             'translate_flanguage'          => $language,
+            'translate_locale'             => $locale,
             'translate_minutesStep'        => get_option( 'eme_timepicker_minutesstep' ),
             'translate_fdateformat'        => EME_WP_DATE_FORMAT,
             'translate_ftimeformat'        => EME_WP_TIME_FORMAT,
@@ -9637,6 +9643,7 @@ function eme_admin_enqueue_js() {
             'translate_delimiter'                  => get_option( 'eme_csv_delimiter', ';' ),
             'translate_firstDayOfWeek'             => get_option( 'start_of_week' ),
             'translate_flanguage'                  => $language,
+            'translate_locale'                     => $locale,
             'translate_minutesStep'                => get_option( 'eme_timepicker_minutesstep' ),
             'translate_fdateformat'                => EME_WP_DATE_FORMAT,
             'translate_map_is_active'              => get_option( 'eme_map_is_active' ) ? 'true' : 'false',
@@ -9697,6 +9704,8 @@ function eme_admin_enqueue_js() {
             'translate_taskend'                    => __( 'Task end date', 'events-made-easy' ),
             'translate_comment'                    => __( 'Comment', 'events-made-easy' ),
             'translate_event'                      => __( 'Event', 'events-made-easy' ),
+            'translate_selecttask'                 => __( 'Select a task', 'events-made-easy' ),
+            'translate_selecteventfirst'           => __( 'First select an event', 'events-made-easy' ),
             'translate_person'                     => __( 'Person', 'events-made-easy' ),
             'translate_admin_sendmails_url'        => esc_url( admin_url( 'admin.php?page=eme-emails' ) ),
             'translate_tasksignup_status'          => __( 'Status', 'events-made-easy' ),
@@ -9956,24 +9965,24 @@ function eme_ajax_events_list() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     header( 'Content-type: application/json; charset=utf-8' );
     if ( ! current_user_can( get_option( 'eme_cap_list_events' ) ) ) {
-        $fTableResult['Result']  = 'Error';
+        $fTableResult['Result']  = 'ERROR';
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
         print wp_json_encode( $fTableResult );
         wp_die();
     }
     $wp_id = get_current_user_id();
 
-    $PageSize   = isset( $_POST['jtPageSize'] ) ? intval( $_POST['jtPageSize'] ) : 0;
-    $StartIndex = isset( $_POST['jtStartIndex'] ) ? intval( $_POST['jtStartIndex'] ) : 0;
+    $PageSize   = intval( $_POST['jtPageSize'] ?? 0 );
+    $StartIndex = intval( $_POST['jtStartIndex'] ?? 0 );
 
-    $scope             = isset( $_POST['scope'] ) ? eme_sanitize_request( $_POST['scope'] ) : 'future';
+    $scope             = eme_sanitize_request( $_POST['scope'] ?? 'future' );
     $orderby           = eme_get_ftable_orderby() ?: '';
-    $category          = isset( $_POST['category'] ) ? eme_sanitize_request( $_POST['category'] ) : '';
+    $category          = eme_sanitize_request( $_POST['category'] ?? '' );
     $status            = isset( $_POST['status'] ) ? intval( $_POST['status'] ) : '';
-    $search_name       = isset( $_POST['search_name'] ) ? eme_sanitize_request( $_POST['search_name'] ) : '';
+    $search_name       = eme_sanitize_request( $_POST['search_name'] ?? '' );
     $search_start_date = isset( $_POST['search_start_date'] ) && eme_is_date( $_POST['search_start_date'] ) ? eme_sanitize_request( $_POST['search_start_date'] ) : '';
     $search_end_date   = isset( $_POST['search_end_date'] ) && eme_is_date( $_POST['search_end_date'] ) ? eme_sanitize_request( $_POST['search_end_date'] ) : '';
-    $search_location   = isset( $_POST['search_location'] ) ? eme_sanitize_request( $_POST['search_location'] ) : '';
+    $search_location   = eme_sanitize_request( $_POST['search_location'] ?? '' );
 
     $where     = '';
     $where_arr = [];
@@ -10036,7 +10045,7 @@ function eme_ajax_events_list() {
         $field_id        = $formfield['field_id'];
         $field_ids_arr[] = $field_id;
     }
-    if ( ! empty( $_POST['search_customfieldids'] ) && eme_is_numeric_array( $_POST['search_customfieldids'] ) ) {
+    if ( ! empty( $_POST['search_customfieldids'] ) && eme_is_integer_array( $_POST['search_customfieldids'] ) ) {
         $field_ids = join( ',', array_map( 'intval', $_POST['search_customfieldids'] ) );
     } else {
         $field_ids = join( ',', $field_ids_arr );
@@ -10352,9 +10361,9 @@ function eme_ajax_manage_events() {
         $do_action = eme_sanitize_request( $_POST['do_action'] );
         $ids       = eme_sanitize_request( $_POST['event_id'] );
         $ids_arr   = array_map( 'intval', explode( ',', $ids ) );
-        if ( ! eme_is_numeric_array( $ids_arr ) ) {
-            $ajaxResult['Result']  = 'Error';
-            $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
+        if ( ! eme_is_integer_array( $ids_arr ) ) {
+            $ajaxResult['Result']      = 'ERROR';
+            $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
             print wp_json_encode( $ajaxResult );
             wp_die();
         }
@@ -10362,16 +10371,16 @@ function eme_ajax_manage_events() {
             if ( current_user_can( get_option( 'eme_cap_author_event' ) ) ) {
                 $author_event_ids = eme_get_author_event_ids( $ids );
                 if ( count( $ids_arr ) != count( $author_event_ids ) ) {
-                    $ajaxResult['Result']  = 'Error';
-                    $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
+                    $ajaxResult['Result']      = 'ERROR';
+                    $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
                     print wp_json_encode( $ajaxResult );
                     wp_die();
                 }
                 $ids     = implode( ',', $author_event_ids );
                 $ids_arr = $author_event_ids;
             } else {
-                $ajaxResult['Result']  = 'Error';
-                $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
+                $ajaxResult['Result']      = 'ERROR';
+                $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
                 print wp_json_encode( $ajaxResult );
                 wp_die();
             }
@@ -10382,7 +10391,7 @@ function eme_ajax_manage_events() {
             eme_ajax_action_events_delete( $ids_arr );
             break;
         case 'trashEvents':
-            $send_trashmails = ( isset( $_POST['send_trashmails'] ) ) ? intval( $_POST['send_trashmails'] ) : 1;
+            $send_trashmails = intval( $_POST['send_trashmails'] ?? 1 );
             eme_ajax_action_events_trash( $ids, $send_trashmails );
             break;
         case 'untrashEvents':
@@ -10406,8 +10415,8 @@ function eme_ajax_manage_events() {
             break;
         }
     } else {
-        $ajaxResult['Result']  = 'Error';
-        $ajaxResult['Message'] = __( 'No action defined!', 'events-made-easy' );
+        $ajaxResult['Result']      = 'ERROR';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'No action defined!', 'events-made-easy' ) );
         print wp_json_encode( $ajaxResult );
     }
     wp_die();
@@ -10416,8 +10425,8 @@ function eme_ajax_manage_events() {
 function eme_ajax_action_events_delete( $ids_arr ) {
     eme_delete_events( $ids_arr );
     $ajaxResult            = [];
-    $ajaxResult['Result']  = 'OK';
-    $ajaxResult['Message'] = __( 'Events deleted', 'events-made-easy' );
+    $ajaxResult['Result']      = 'OK';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Events deleted', 'events-made-easy' ) );
     print wp_json_encode( $ajaxResult );
 }
 
@@ -10425,7 +10434,7 @@ function eme_ajax_action_events_trash( $ids, $send_trashmails ) {
     eme_trash_events( $ids, $send_trashmails );
     $ajaxResult            = [];
     $ajaxResult['Result']  = 'OK';
-    $ajaxResult['Message'] = __( 'Events moved to the trash bin', 'events-made-easy' );
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Events moved to the trash bin', 'events-made-easy' ) );
     print wp_json_encode( $ajaxResult );
 }
 
@@ -10433,7 +10442,7 @@ function eme_ajax_action_events_untrash( $ids ) {
     eme_untrash_events( $ids );
     $ajaxResult            = [];
     $ajaxResult['Result']  = 'OK';
-    $ajaxResult['Message'] = __( 'Restored selected events to draft status', 'events-made-easy' );
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Restored selected events to draft status', 'events-made-easy' ) );
     print wp_json_encode( $ajaxResult );
 }
 
@@ -10441,7 +10450,7 @@ function eme_ajax_action_events_status( $ids_arr, $status ) {
     $ajaxResult = [];
     eme_change_event_status( $ids_arr, $status );
     $ajaxResult['Result']  = 'OK';
-    $ajaxResult['Message'] = __( 'Events status updated', 'events-made-easy' );
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Events status updated', 'events-made-easy' ) );
     print wp_json_encode( $ajaxResult );
 }
 
@@ -10455,8 +10464,8 @@ function eme_ajax_action_events_addcat( $ids, $category_id ) {
             WHERE event_id IN ($placeholders) AND (NOT FIND_IN_SET(%d,event_category_ids) OR event_category_ids IS NULL)", array_merge( [ $category_id ], $ids_arr, [ $category_id ] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $wpdb->query( $sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     }
-    $ajaxResult['Result']  = 'OK';
-    $ajaxResult['Message'] = __( 'Events added to category', 'events-made-easy' );
+    $ajaxResult['Result']      = 'OK';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Events added to category', 'events-made-easy' ) );
     print wp_json_encode( $ajaxResult );
 }
 
@@ -10726,14 +10735,14 @@ function eme_ajax_events_snapselect() {
         wp_die();
     }
     $current_userid = get_current_user_id();
-    $q              = isset( $_REQUEST['q'] ) ? strtolower( eme_sanitize_request( $_REQUEST['q'] ) ) : '';
-    $search_all     = isset( $_REQUEST['search_all'] ) ? intval( $_REQUEST['search_all'] ) : 0;
+    $q              = strtolower( eme_sanitize_request( $_REQUEST['q'] ?? '' ) );
+    $search_all     = intval( $_REQUEST['search_all'] ?? 0 );
     if ( $search_all ) {
         $scope = 'all';
     } else {
         $scope = 'future';
     }
-    $pagesize  = isset( $_REQUEST['pagesize'] ) ? intval( $_REQUEST['pagesize'] ) : 20;
+    $pagesize  = intval( $_REQUEST['pagesize'] ?? 20 );
     $mysql_pagesize = $pagesize+1;
     $start     = ( isset( $_REQUEST['page'] ) && intval( $_REQUEST['page'] ) > 0 ) ? ( intval( $_REQUEST['page'] ) - 1 ) * $pagesize : 0;
 

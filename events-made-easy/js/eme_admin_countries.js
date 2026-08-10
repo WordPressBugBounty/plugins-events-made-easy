@@ -17,8 +17,8 @@ document.addEventListener('DOMContentLoaded', function () {
             multiselect: true,
             selectingCheckboxes: true,
             actions: {
-                listAction: ajaxurl+'?action=eme_countries_list&eme_admin_nonce='+emeadmin.translate_adminnonce,
-                deleteAction: ajaxurl+'?action=eme_manage_countries&do_action=deleteCountries&eme_admin_nonce='+emeadmin.translate_adminnonce
+                listAction: ajaxurl+'?action=eme_countries_list&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce,
+                deleteAction: ajaxurl+'?action=eme_manage_countries&do_action=deleteCountries&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce
             },
             fields: {
                 id: {
@@ -33,6 +33,26 @@ document.addEventListener('DOMContentLoaded', function () {
                 alpha_3: { title: emeadmin.translate_alpha_3 },
                 num_3: { title: emeadmin.translate_num_3 },
                 lang: { title: emeadmin.translate_lang }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_countries',
+                button: '#CountriesActionsButton',
+                idField: 'id',
+                action: ajaxurl,
+                confirmActions: ['deleteCountries'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_countries',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(CountriesTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                CountriesTable.showError(emeadmin.translate_problem);
             }
         });
 
@@ -52,8 +72,8 @@ document.addEventListener('DOMContentLoaded', function () {
             multiselect: true,
             selectingCheckboxes: true,
             actions: {
-                listAction: ajaxurl+'?action=eme_states_list&eme_admin_nonce='+emeadmin.translate_adminnonce,
-                deleteAction: ajaxurl+'?action=eme_manage_states&do_action=deleteStates&eme_admin_nonce='+emeadmin.translate_adminnonce
+                listAction: ajaxurl+'?action=eme_states_list&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce,
+                deleteAction: ajaxurl+'?action=eme_manage_states&do_action=deleteStates&lang='+emeadmin.translate_locale+'&eme_admin_nonce='+emeadmin.translate_adminnonce
             },
             fields: {
                 id: {
@@ -75,93 +95,29 @@ document.addEventListener('DOMContentLoaded', function () {
                 code: { title: emeadmin.translate_code },
                 country_name: { title: emeadmin.translate_country },
                 locale: { title: emeadmin.translate_locale }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_states',
+                button: '#StatesActionsButton',
+                idField: 'id',
+                action: ajaxurl,
+                confirmActions: ['deleteStates'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_states',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(StatesTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                StatesTable.showError(emeadmin.translate_problem);
             }
         });
 
         // Don't auto-load: the active tab handler will trigger the load
-    }
-
-    // --- Countries Bulk Actions ---
-    const countriesButton = EME.$('#CountriesActionsButton');
-    if (countriesButton) {
-        countriesButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = CountriesTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction==='deleteCountries') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            countriesButton.textContent = emeadmin.translate_pleasewait;
-            countriesButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('id', idsJoined);
-            formData.append('action', 'eme_manage_countries');
-            formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                CountriesTable.reload();
-                countriesButton.textContent = emeadmin.translate_apply;
-                countriesButton.disabled = false;
-
-                const msg = EME.$('#countries-message');
-                if (msg) {
-                    msg.textContent = data.Message;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 3000);
-                }
-            });
-        });
-    }
-
-    // --- States Bulk Actions ---
-    const statesButton = EME.$('#StatesActionsButton');
-    if (statesButton) {
-        statesButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = StatesTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction==='deleteStates') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-            statesButton.textContent = emeadmin.translate_pleasewait;
-            statesButton.disabled = true;
-
-            const ids = selectedRows.map(row => row.dataset.recordKey);
-            const idsJoined = ids.join(',');
-
-            const formData = new FormData();
-            formData.append('id', idsJoined);
-            formData.append('action', 'eme_manage_states');
-            formData.append('do_action', doAction);
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                StatesTable.reload();
-                statesButton.textContent = emeadmin.translate_apply;
-                statesButton.disabled = false;
-
-                const msg = EME.$('#states-message');
-                if (msg) {
-                    msg.textContent = data.Message;
-                    eme_toggle(msg, true);
-                    setTimeout(() => eme_toggle(msg, false), 3000);
-                }
-            });
-        });
     }
 });

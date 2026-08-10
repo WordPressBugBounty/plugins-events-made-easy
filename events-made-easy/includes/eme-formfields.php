@@ -234,7 +234,7 @@ function eme_formfields_table_layout( $message = '' ) {
     <div class="bulkactions">
     <form id='formfields-form' action="#" method="post">
     <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-    <select id="eme_admin_action" name="eme_admin_action">
+    <select id="eme_admin_action_formfields" name="eme_admin_action_formfields">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <option value="deleteFormfields"><?php esc_html_e( 'Delete selected fields', 'events-made-easy' ); ?></option>
     </select>
@@ -538,7 +538,7 @@ function eme_get_formfield( $field_info ) {
 function eme_delete_formfields( $ids_arr ) {
     global $wpdb;
     $formfields_table = EME_DB_PREFIX . EME_FORMFIELDS_TBNAME;
-    if ( ! empty( $ids_arr ) && eme_is_numeric_array( $ids_arr ) ) {
+    if ( ! empty( $ids_arr ) && eme_is_integer_array( $ids_arr ) ) {
         $ids_arr_int  = array_map( 'intval', $ids_arr );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $validation_result = $wpdb->query( $wpdb->prepare( "DELETE FROM $formfields_table WHERE field_id IN ($placeholders)", ...$ids_arr_int ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -1294,16 +1294,16 @@ function eme_esc_person_for_form( $person = [] ) {
     // escape all string fields used as HTML attribute values
     foreach ( [ 'lastname', 'firstname', 'birthplace', 'address1', 'address2',
                 'city', 'zip', 'state_code', 'country_code', 'email', 'phone' ] as $key ) {
-        $person[ $key ] = isset( $person[ $key ] ) ? esc_html( $person[ $key ] ) : '';
+        $person[ $key ] = esc_html( $person[ $key ] ?? '' );
     }
     if ( isset( $person['birthdate'] ) && ! eme_is_date( $person['birthdate'] ) ) {
         $person['birthdate'] = '';
     } else {
-        $person['birthdate'] = isset( $person['birthdate'] ) ? esc_html( $person['birthdate'] ) : '';
+        $person['birthdate'] = esc_html( $person['birthdate'] ?? '' );
     }
     $person['massmail'] = intval( $person['massmail'] ?? get_option('eme_people_massmail') );
-    $person['bd_email'] = isset( $person['bd_email'] ) ? intval( $person['bd_email'] ) : 0;
-    $person['gdpr']     = isset( $person['gdpr'] )     ? intval( $person['gdpr'] )     : 0;
+    $person['bd_email'] = intval( $person['bd_email'] ?? 0 );
+    $person['gdpr']     = intval( $person['gdpr'] ?? 0 );
     return $person;
 }
 
@@ -1365,7 +1365,7 @@ function eme_get_person_formfield_handler_definitions() {
                 : esc_html__( 'Last name', 'events-made-easy' );
             $class = trim( $ctx['dfc_basic'] . ' ' . $ctx['extra_css'] );
             $replacement = "<input required='required' type='text' name='$fieldname' id='$fieldname' value='{$p['lastname']}' $this_readonly class='$class' placeholder='$placeholder_text'>";
-            if ( wp_script_is( 'eme-autocomplete-form', 'enqueued' ) && get_option( 'eme_autocomplete_sources' ) !== 'none' ) {
+            if ( ! $ctx['eme_is_admin'] && wp_script_is( 'eme-autocomplete-form', 'enqueued' ) && get_option( 'eme_autocomplete_sources' ) !== 'none' ) {
                 $replacement .= "&nbsp;<img style='vertical-align: middle;' src='" . esc_url( EME_PLUGIN_URL ) . "images/warning.png' alt='warning' title='" . esc_attr__( "Notice: since you're logged in as a person with the right to edit or author this event, the 'Last name' field is also an autocomplete field so you can select existing people if desired. Or just clear the field and start typing.", 'events-made-easy' ) . "'>";
             }
             if ( ! empty( $ctx['wp_profile_warning'] ) ) {
@@ -3372,7 +3372,7 @@ function eme_get_booking_answers_fieldids( $ids_arr ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
     # use ORDER BY to get a predictable list of field ids (otherwise result could be different for each event/booking)
-    if (!empty($ids_arr) &&  eme_is_numeric_array( $ids_arr ) ) {
+    if (!empty($ids_arr) &&  eme_is_integer_array( $ids_arr ) ) {
         $ids_arr_int  = array_map( 'intval', $ids_arr );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $prepared_sql = $wpdb->prepare( "SELECT DISTINCT field_id FROM $answers_table WHERE type='booking' AND eme_grouping=0 AND related_id IN ($placeholders) ORDER BY field_id", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -3386,7 +3386,7 @@ function eme_get_tasksignups_answers_fieldids( $ids_arr ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
     # use ORDER BY to get a predictable list of field ids (otherwise result could be different for each event/booking)
-    if (!empty($ids_arr) &&  eme_is_numeric_array( $ids_arr ) ) {
+    if (!empty($ids_arr) &&  eme_is_integer_array( $ids_arr ) ) {
         $ids_arr_int  = array_map( 'intval', $ids_arr );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $prepared_sql = $wpdb->prepare( "SELECT DISTINCT field_id FROM $answers_table WHERE type='tasksignup' AND eme_grouping=0 AND related_id IN ($placeholders) ORDER BY field_id", ...$ids_arr_int ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -3569,7 +3569,7 @@ function eme_ajax_formfields_list() {
     header( 'Content-type: application/json; charset=utf-8' );
     if ( ! current_user_can( get_option( 'eme_cap_list_events' ) ) ) {
         $ajaxResult            = [];
-        $ajaxResult['Result']  = 'Error';
+        $ajaxResult['Result']  = 'ERROR';
         $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
         print wp_json_encode( $ajaxResult );
         wp_die();
@@ -3578,9 +3578,9 @@ function eme_ajax_formfields_list() {
     $table              = EME_DB_PREFIX . EME_FORMFIELDS_TBNAME;
     $used_formfield_ids = eme_get_used_formfield_ids();
     $fTableResult       = [];
-    $search_type        = isset( $_POST['search_type'] ) ? eme_sanitize_request( $_POST['search_type'] ) : '';
-    $search_purpose     = isset( $_POST['search_purpose'] ) ? eme_sanitize_request( $_POST['search_purpose'] ) : '';
-    $search_name        = isset( $_POST['search_name'] ) ? eme_sanitize_request( $_POST['search_name'] ) : '';
+    $search_type        = eme_sanitize_request( $_POST['search_type'] ?? '' );
+    $search_purpose     = eme_sanitize_request( $_POST['search_purpose'] ?? '' );
+    $search_name        = eme_sanitize_request( $_POST['search_name'] ?? '' );
     $where              = '';
     $where_arr          = [];
     if ( ! empty( $search_name ) ) {
@@ -3624,7 +3624,7 @@ function eme_ajax_formfields_list() {
         $fTableResult['Records']          = $rows;
         $fTableResult['TotalRecordCount'] = $recordCount;
     } else {
-        $fTableResult['Result']  = 'Error';
+        $fTableResult['Result']  = 'ERROR';
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
     }
     print wp_json_encode( $fTableResult );
@@ -3635,35 +3635,33 @@ function eme_ajax_manage_formfields() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     $fTableResult=[];
     if (! current_user_can( get_option( 'eme_cap_forms' ) ) || !isset( $_REQUEST['field_id'] ) ) {
-        $fTableResult['Result']      = 'Error';
-        $fTableResult['Message']     = __( 'Access denied!', 'events-made-easy' );
+        $fTableResult['Result']      = 'ERROR';
+        $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
     }
-    if ( isset( $_REQUEST['do_action'] ) ) {
-        $do_action = eme_sanitize_request( $_REQUEST['do_action'] );
-        switch ( $do_action ) {
-            case 'deleteFormfield':
-                // validation happens in the eme_delete_formfields function
-                eme_delete_formfields( [ intval($_REQUEST['field_id']) ] );
-                $fTableResult['Result']      = 'OK';
-                $fTableResult['Message'] = __( 'Records deleted!', 'events-made-easy' );
-                print wp_json_encode( $fTableResult );
-                wp_die();
-                break;
-            case 'deleteFormfields':
-                $field_ids = explode( ',', eme_sanitize_request($_REQUEST['field_id']) );
-                if (eme_is_numeric_array( $field_ids)) {
-                    // validation happens in the eme_delete_formfields function
-                    eme_delete_formfields( $field_ids );
-                    $fTableResult['Result']      = 'OK';
-                    $fTableResult['Message'] = __( 'Records deleted!', 'events-made-easy' );
-                } else {
-                    $fTableResult['Result']      = 'Error';
-                    $fTableResult['Message']     = __( 'Access denied!', 'events-made-easy' );
-                }
-                print wp_json_encode( $fTableResult );
-                wp_die();
-                break;
+    $do_action = eme_sanitize_request( $_REQUEST['do_action'] ?? '' );
+    switch ( $do_action ) {
+    case 'deleteFormfield':
+        // validation happens in the eme_delete_formfields function
+        eme_delete_formfields( [ intval($_REQUEST['field_id']) ] );
+        $fTableResult['Result']      = 'OK';
+        $fTableResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Records deleted!', 'events-made-easy' ) );
+        print wp_json_encode( $fTableResult );
+        wp_die();
+        break;
+    case 'deleteFormfields':
+        $field_ids = explode( ',', eme_sanitize_request($_REQUEST['field_id']) );
+        if (eme_is_integer_array( $field_ids)) {
+            // validation happens in the eme_delete_formfields function
+            eme_delete_formfields( $field_ids );
+            $fTableResult['Result']      = 'OK';
+            $fTableResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Records deleted!', 'events-made-easy' ) );
+        } else {
+            $fTableResult['Result']      = 'ERROR';
+            $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
         }
+        print wp_json_encode( $fTableResult );
+        wp_die();
+        break;
     }
     wp_die();
 }

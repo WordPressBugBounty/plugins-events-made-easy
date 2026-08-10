@@ -180,7 +180,7 @@ function eme_ajax_attendances_list() {
 	check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
 	$table             = EME_DB_PREFIX . EME_ATTENDANCES_TBNAME;
 	$fTableResult      = [];
-	$search_type       = isset( $_POST['search_type'] ) ? eme_sanitize_request( $_POST['search_type'] ) : '';
+	$search_type       = eme_sanitize_request( $_POST['search_type'] ?? '' );
 	$search_start_date = isset( $_POST['search_start_date'] ) && eme_is_date( $_POST['search_start_date'] ) ? $_POST['search_start_date'] : '';
 	$search_end_date   = isset( $_POST['search_end_date'] ) && eme_is_date( $_POST['search_end_date'] ) ? $_POST['search_end_date'] : '';
 
@@ -277,7 +277,7 @@ function eme_ajax_attendances_list() {
 		$fTableResult['Records']          = $rows;
 		$fTableResult['TotalRecordCount'] = $recordCount;
 	} else {
-		$fTableResult['Result']  = 'Error';
+		$fTableResult['Result']  = 'ERROR';
 		$fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
 	}
 	print wp_json_encode( $fTableResult );
@@ -289,13 +289,11 @@ function eme_ajax_manage_attendances() {
 	if ( ! current_user_can( get_option( 'eme_cap_list_attendances' ) ) ) {
 		wp_die();
 	}
-	if ( isset( $_REQUEST['do_action'] ) ) {
-		$do_action = eme_sanitize_request( $_REQUEST['do_action'] );
-		switch ( $do_action ) {
-			case 'deleteAttendances':
-				eme_ajax_record_delete( EME_ATTENDANCES_TBNAME, 'eme_cap_manage_attendances', 'id' );
-				break;
-		}
+    $do_action = eme_sanitize_request( $_REQUEST['do_action'] ?? '' );
+    switch ( $do_action ) {
+    case 'deleteAttendances':
+        eme_ajax_record_delete( EME_ATTENDANCES_TBNAME, 'eme_cap_manage_attendances', 'id' );
+        break;
 	}
 	wp_die();
 }
@@ -303,8 +301,8 @@ function eme_ajax_manage_attendances() {
 function eme_ajax_action_attendances_delete( $ids ) {
 	eme_delete_events( $ids );
 	$ajaxResult            = [];
-	$ajaxResult['Result']  = 'OK';
-	$ajaxResult['Message'] = __( 'Events deleted', 'events-made-easy' );
+	$ajaxResult['Result']      = 'OK';
+	$ajaxResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Events deleted', 'events-made-easy' ) );
 	print wp_json_encode( $ajaxResult );
 }
 ?>

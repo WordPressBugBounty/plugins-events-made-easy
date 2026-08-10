@@ -64,14 +64,14 @@ function eme_client_clock_ajax() {
     }
 
     // Cast client clock values as integers to avoid mathematical errors and set in temporary local variables.
-    $client_unixtime = isset( $_POST['page'] ) ? intval( $_POST['client_unixtime'] ) : 0;
-    $client_seconds  = isset( $_POST['page'] ) ? intval( $_POST['client_seconds'] ) : 0;
-    $client_minutes  = isset( $_POST['page'] ) ? intval( $_POST['client_minutes'] ) : 0;
-    $client_hours    = isset( $_POST['page'] ) ? intval( $_POST['client_hours'] ) : 0;
-    $client_wday     = isset( $_POST['page'] ) ? intval( $_POST['client_wday'] ) : 0;
-    $client_mday     = isset( $_POST['page'] ) ? intval( $_POST['client_mday'] ) : 0;
-    $client_month    = isset( $_POST['client_month'] ) ? intval( $_POST['client_month'] ) : 0;
-    $client_fullyear = isset( $_POST['client_fullyear'] ) ? intval( $_POST['client_fullyear'] ) : 0;
+    $client_unixtime = intval( $_POST['client_unixtime'] ?? 0 );
+    $client_seconds  = intval( $_POST['client_seconds'] ?? 0 );
+    $client_minutes  = intval( $_POST['client_minutes'] ?? 0 );
+    $client_hours    = intval( $_POST['client_hours'] ?? 0 );
+    $client_wday     = intval( $_POST['client_wday'] ?? 0 );
+    $client_mday     = intval( $_POST['client_mday'] ?? 0 );
+    $client_month    = intval( $_POST['client_month'] ?? 0 );
+    $client_fullyear = intval( $_POST['client_fullyear'] ?? 0 );
 
     // Client clock sanity tests
     if ( abs( $client_unixtime - $client_timeinfo['eme_client_unixtime'] ) > 300 ) {
@@ -741,13 +741,21 @@ function eme_get_events_page_id() {
     return $page_id;
 }
 
-function eme_get_events_page( $justurl = 1, $text = '' ) {
+function eme_get_events_page( $justurl = 1, $text = '', $language = '' ) {
     $events_page_id = eme_get_events_page_id();
     if (!empty($events_page_id)) {
         $page_link      = get_permalink( $events_page_id );
     } else {
         $page_link      = trailingslashit( home_url() );
     }
+    // opt-in only: most callers (payment gateway notification urls, the admin ui, the raw
+    // [eme_events_page] shortcode, ...) must NOT get a language tacked on, so we only add it
+    // when a caller explicitly asks for it
+    $url_lang_mode = eme_lang_url_mode();
+    if ($url_lang_mode != 0) {
+        $page_link = eme_add_lang_query_arg( $page_link, $language );
+    }
+
     if ( $justurl || empty( $text ) ) {
         $result = $page_link;
     } else {
@@ -904,37 +912,34 @@ function eme_event_url( $event, $language = '' ) {
     if ( $event['event_url'] != '' && get_option( 'eme_use_external_url' ) && eme_is_url( $event['event_url'] ) ) {
         $the_link = $event['event_url'];
         $parsed   = wp_parse_url( $the_link );
+        // we need some full url kind of thing
         if ( empty( $parsed['scheme'] ) ) {
             $the_link = 'https://' . ltrim( $the_link, '/' );
         }
-    } else {
-        if ( empty( $language ) ) {
-            $language = eme_detect_lang();
-        }
-        if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
-            $events_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
-            if ( ! empty( $event['event_prefix'] ) && in_array( $event['event_prefix'], $events_prefixes ) ) {
-                $events_prefix = eme_permalink_convert( $event['event_prefix'] );
-            } else {
-                $events_prefix = eme_permalink_convert( $events_prefixes[0] );
-            }
-            if ( empty( $event['event_slug'] ) ) {
-                $name = $events_prefix . $event['event_id'] . '/' . eme_permalink_convert_noslash( $event['event_name'] );
-            } elseif ( substr( $event['event_slug'], -1 ) == '/' ) { // old style stuff
-                $name = $events_prefix . $event['event_id'] . '/' . eme_permalink_convert_noslash( $event['event_slug'] );
-            } else {
-                $name = $events_prefix . eme_permalink_convert_noslash( $event['event_slug'] );
-            }
-            $the_link = eme_uri_add_lang( $name, $language );
+        return $the_link;
+    }
+
+    if ( empty( $language ) ) {
+        $language = eme_detect_lang();
+    }
+    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
+        $events_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
+        if ( ! empty( $event['event_prefix'] ) && in_array( $event['event_prefix'], $events_prefixes ) ) {
+            $events_prefix = eme_permalink_convert( $event['event_prefix'] );
         } else {
-            $the_link = eme_get_events_page();
-            $the_link = add_query_arg( [ 'event_id' => $event['event_id'] ], $the_link );
-            if ( ! empty( $language ) ) {
-                // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-                $the_link = remove_query_arg( 'lang', $the_link );
-                $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-            }
+            $events_prefix = eme_permalink_convert( $events_prefixes[0] );
         }
+        if ( empty( $event['event_slug'] ) ) {
+            $name = $events_prefix . $event['event_id'] . '/' . eme_permalink_convert_noslash( $event['event_name'] );
+        } elseif ( substr( $event['event_slug'], -1 ) == '/' ) { // old style stuff
+            $name = $events_prefix . $event['event_id'] . '/' . eme_permalink_convert_noslash( $event['event_slug'] );
+        } else {
+            $name = $events_prefix . eme_permalink_convert_noslash( $event['event_slug'] );
+        }
+        $the_link = eme_uri_add_lang( $name, $language );
+    } else {
+        $the_link = eme_get_events_page( language: $language );
+        $the_link = add_query_arg( [ 'event_id' => $event['event_id'] ], $the_link );
     }
     return $the_link;
 }
@@ -953,7 +958,7 @@ function eme_location_url( $location, $language = '' ) {
         if ( empty( $language ) ) {
             $language = eme_detect_lang();
         }
-        if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
+        if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
             $locations_prefixes = explode( ',', get_option( 'eme_permalink_locations_prefix', 'locations' ) );
             if ( ! empty( $location['location_prefix'] ) && in_array( $location['location_prefix'], $locations_prefixes ) ) {
                 $locations_prefix = eme_permalink_convert( $location['location_prefix'] );
@@ -970,13 +975,8 @@ function eme_location_url( $location, $language = '' ) {
             }
             $the_link = eme_uri_add_lang( $name, $language );
         } else {
-            $the_link = eme_get_events_page();
+            $the_link = eme_get_events_page( language: $language );
             $the_link = add_query_arg( [ 'location_id' => $location['location_id'] ], $the_link );
-            if ( ! empty( $language ) ) {
-                // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-                $the_link = remove_query_arg( 'lang', $the_link );
-                $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-            }
         }
     }
     return $the_link;
@@ -987,7 +987,7 @@ function eme_calendar_day_url( $day ) {
 
     $language = eme_detect_lang();
 
-    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
+    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
         $cal_prefix_option = get_option( 'eme_permalink_calendar_prefix', '' );
         if ( empty( $cal_prefix_option ) ) {
             $events_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
@@ -998,13 +998,8 @@ function eme_calendar_day_url( $day ) {
         $name     = $cal_prefix . eme_permalink_convert_noslash( $day );
         $the_link = eme_uri_add_lang( $name, $language );
     } else {
-        $the_link = eme_get_events_page();
+        $the_link = eme_get_events_page( language: $language );
         $the_link = add_query_arg( [ 'calendar_day' => $day ], $the_link );
-        if ( ! empty( $language ) ) {
-            // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-            $the_link = remove_query_arg( 'lang', $the_link );
-            $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-        }
     }
     return $the_link;
 }
@@ -1014,13 +1009,13 @@ function eme_booking_confirm_url( $payment ) {
     global $wp_rewrite;
 
     $language = eme_detect_lang();
-    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
+    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
         $events_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
         $confirm_prefix  = eme_permalink_convert( $events_prefixes[0] ) . 'confirm/';
         $name            = $confirm_prefix . $payment['random_id'];
         $the_link        = eme_uri_add_lang( $name, $language );
     } else {
-        $the_link = eme_get_events_page();
+        $the_link = eme_get_events_page( language: $language );
         $the_link = add_query_arg(
             [
                 'eme_pmt_rndid'    => $payment['random_id'],
@@ -1028,11 +1023,6 @@ function eme_booking_confirm_url( $payment ) {
             ],
             $the_link
         );
-        if ( ! empty( $language ) ) {
-            // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-            $the_link = remove_query_arg( 'lang', $the_link );
-            $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-        }
     }
     return $the_link;
 }
@@ -1041,7 +1031,7 @@ function eme_payment_url( $payment, $resultcode = 0 ) {
     global $wp_rewrite;
 
     $language = eme_detect_lang();
-    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
+    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
         $payments_prefix_option = get_option( 'eme_permalink_payments_prefix', '' );
         if ( empty( $payments_prefix_option ) ) {
             $events_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
@@ -1052,13 +1042,8 @@ function eme_payment_url( $payment, $resultcode = 0 ) {
         $name     = $payments_prefix . $payment['random_id'];
         $the_link = eme_uri_add_lang( $name, $language );
     } else {
-        $the_link = eme_get_events_page();
+        $the_link = eme_get_events_page( language: $language );
         $the_link = add_query_arg( [ 'eme_pmt_rndid' => $payment['random_id'] ], $the_link );
-        if ( ! empty( $language ) ) {
-            // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-            $the_link = remove_query_arg( 'lang', $the_link );
-            $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-        }
     }
     if ( $resultcode > 0 ) {
         // we return the payment url but we want to indicate a payment failure too
@@ -1071,7 +1056,7 @@ function eme_category_url( $category ) {
     global $wp_rewrite;
 
     $language = eme_detect_lang();
-    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() && get_option( 'eme_seo_permalink' ) ) {
+    if ( isset( $wp_rewrite ) && $wp_rewrite->using_permalinks() ) {
         $categories_prefixes = explode( ',', get_option( 'eme_permalink_categories_prefix', '' ) );
         if ( empty( $categories_prefixes ) ) {
             $categories_prefixes = explode( ',', get_option( 'eme_permalink_events_prefix', 'events' ) );
@@ -1092,14 +1077,9 @@ function eme_category_url( $category ) {
 
         $the_link = eme_uri_add_lang( $name, $language );
     } else {
-        $the_link = eme_get_events_page();
+        $the_link = eme_get_events_page( language: $language );
         $slug     = $category['category_slug'] ? $category['category_slug'] : $category['category_name'];
         $the_link = add_query_arg( [ 'eme_event_cat' => $slug ], $the_link );
-        if ( ! empty( $language ) ) {
-            // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-            $the_link = remove_query_arg( 'lang', $the_link );
-            $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-        }
     }
     return $the_link;
 }
@@ -1149,8 +1129,9 @@ function eme_invite_url( $event, $email, $lastname, $firstname, $lang ) {
     return $the_link;
 }
 
-function eme_check_rsvp_url( $booking_id ) {
+function eme_rsvp_checkurl( $booking_id ) {
     $hash = wp_hash( $booking_id . '|' . 'check_rsvp' , 'nonce' );
+    // no language: it is checked by someone else in the browser
     $the_link = eme_get_events_page();
     $the_link = add_query_arg(
         [
@@ -1163,8 +1144,9 @@ function eme_check_rsvp_url( $booking_id ) {
     return $the_link;
 }
 
-function eme_rsvp_proof_url( $booking_id ) {
+function eme_rsvp_proofurl( $booking_id ) {
     $hash = wp_hash( $booking_id . '|' . 'rsvp_proof' , 'nonce' );
+    // no language: it is checked by someone else in the browser
     $the_link = eme_get_events_page();
     $the_link = add_query_arg(
         [
@@ -1180,7 +1162,7 @@ function eme_rsvp_proof_url( $booking_id ) {
 function eme_cpi_url( $person_id, $orig_email ) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "change_pi $person_id $orig_email" );
     $the_link = add_query_arg(
         [
@@ -1190,15 +1172,10 @@ function eme_cpi_url( $person_id, $orig_email ) {
         ],
         $the_link
     );
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
-function eme_check_member_url() {
+function eme_verify_member_checkurl() {
     if ( isset( $_GET['member_id'] ) ) {
         $member_id = intval( $_GET['member_id'] );
     } else {
@@ -1217,17 +1194,25 @@ function eme_check_member_url() {
     }
 }
 
-function eme_member_url( $member ) {
-    $the_link = eme_get_events_page();
-    $the_link = add_query_arg( [ 'eme_check_member' => 1 ], $the_link );
-    $the_link = add_query_arg( [ 'member_id' => $member['member_id'] ], $the_link );
+function eme_member_checkurl( $member ) {
     $hash     = wp_hash( $member['member_id'], 'nonce' );
-    $the_link = add_query_arg( [ 'eme_nonce' => $hash ], $the_link );
+    // no language: it is checked by someone else in the browser
+    $the_link = eme_get_events_page();
+    $the_link = add_query_arg(
+        [
+            'eme_check_member' => 1,
+            'member_id' => $member['member_id'],
+            'eme_nonce' => $hash,
+        ],
+        $the_link
+    );
     return $the_link;
 }
 
 function eme_payment_return_url( $payment, $resultcode ) {
-    $the_link = eme_get_events_page();
+    $language = eme_detect_lang();
+    $the_link = eme_get_events_page( language: $language );
+
     if ( is_numeric( $resultcode ) && $resultcode == 0 ) {
         $res = 'success';
     } elseif ( is_numeric( $resultcode ) && $resultcode == 1 ) {
@@ -1247,59 +1232,39 @@ function eme_payment_return_url( $payment, $resultcode ) {
 function eme_tasksignup_cancel_url( $signup ) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $the_link = add_query_arg( [ 'eme_cancel_signup' => $signup['random_id'] ], $the_link );
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
 function eme_cancel_url( $payment ) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $the_link = add_query_arg( [ 'eme_cancel' => $payment['random_id'] ], $the_link );
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
 function eme_unsub_url() {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $the_link = add_query_arg( [ 'eme_unsub' => 1 ], $the_link );
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
 function eme_unsub_rid_url($rid) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $the_link = add_query_arg( [ 'eme_unsub' => $rid ], $the_link );
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
 function eme_unsub_confirm_url( $email, $groups ) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "unsub $email$groups" );
     $the_link = add_query_arg(
         [
@@ -1311,18 +1276,13 @@ function eme_unsub_confirm_url( $email, $groups ) {
     if ( ! empty( $groups ) ) {
         $the_link = add_query_arg( [ 'g' => $groups ], $the_link );
     }
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
 function eme_sub_confirm_url( $lastname, $firstname, $email, $groups ) {
     $language = eme_detect_lang();
 
-    $the_link = eme_get_events_page();
+    $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "sub $lastname$firstname$email$groups" );
     $the_link = add_query_arg(
         [
@@ -1336,11 +1296,6 @@ function eme_sub_confirm_url( $lastname, $firstname, $email, $groups ) {
     if ( ! empty( $groups ) ) {
         $the_link = add_query_arg( [ 'g' => $groups ], $the_link );
     }
-    if ( ! empty( $language ) ) {
-        // some plugins add the lang info to the home_url, remove it so we don't get into trouble or add it twice
-        $the_link = remove_query_arg( 'lang', $the_link );
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
     return $the_link;
 }
 
@@ -1348,9 +1303,7 @@ function eme_single_event_ical_url( $id ) {
     $language = eme_detect_lang();
 
     $the_link = site_url( '/?eme_ical=public_single&event_id=' . $id );
-    if ( ! empty( $language ) ) {
-        $the_link = add_query_arg( [ 'lang' => $language ], $the_link );
-    }
+    $the_link = eme_add_lang_query_arg( $the_link, $language );
     return $the_link;
 }
 
@@ -1376,6 +1329,7 @@ function eme_captcha_url( $file ) {
 }
 
 function eme_tracker_url( $random_id ) {
+    // no language: this is a mail-open tracking pixel, no content is ever rendered
     $the_link = eme_get_events_page();
     $the_link = add_query_arg( [ 'eme_tracker_id' => $random_id ], $the_link );
     return $the_link;
@@ -2279,7 +2233,7 @@ function eme_dyndata_people_ajax() {
         $files   = [];
     }
 
-    if ( isset( $_POST['groups'] ) && eme_is_numeric_array( $_POST['groups'] ) ) {
+    if ( isset( $_POST['groups'] ) && eme_is_integer_array( $_POST['groups'] ) ) {
         $groups = eme_sanitize_request( $_POST['groups'] );
     } else {
         $groups = [];
@@ -2635,7 +2589,6 @@ function eme_nl2br_save_html( $string ) {
     if ( empty( $string ) || ! str_contains( $string, "\n" ) ) {
         return $string;
     }
-
     $htmleditor = get_option( 'eme_htmleditor' );
     // If not tinymce and the string already looks like authored HTML,
     // respect it as-is
@@ -2645,20 +2598,29 @@ function eme_nl2br_save_html( $string ) {
         return $string;
     }
     $string = str_replace( [ "\r\n", "\r" ], "\n", $string );
-    $string = wpautop( $string );
-
-    // wpautop's <p> wrapping isn't safe to keep: a blank line inside a
-    // <td>/<strong>/etc. still gets turned into <p>...</p>, which is
-    // invalid nested markup in that context
-    // So we flatten it to <br>-based layout unconditionally
-    $string = preg_replace( '#\s*</p>\s*<p>\s*#', '<br /><br />', $string );
-    $string = preg_replace( '#</?p[^>]*>#', '', $string );
-
-    // Readability: every <br> tag should be followed by a newline
-    $string = preg_replace( '#(<br\s*/?>)(?!\n)#', "$1\n", $string );
-
-    $string = trim( $string );
-
+    // trimmed string empty? turn each newline into a <br> directly
+    if ( trim( $string ) === '' ) {
+        return nl2br( $string );
+    }
+    // we'll handle leading/trailing enters last, saving them here
+    preg_match( '#^\n+#', $string, $m_lead );
+    preg_match( '#\n+$#', $string, $m_trail );
+    $leading  = $m_lead[0] ?? '';
+    $trailing = $m_trail[0] ?? '';
+    $core     = trim( $string, "\n" );
+    if ( $core !== '' ) {
+        $core = wpautop( $core );
+        $core = rtrim( $core, "\n" ); // remove newlines added by wpautop
+        // wpautop's <p> wrapping isn't safe to keep: a blank line inside a
+        // <td>/<strong>/etc. still gets turned into <p>...</p>, which is
+        // invalid nested markup in that context
+        // So we flatten it to <br>-based layout unconditionally
+        $core = preg_replace( '#\s*</p>\s*<p>\s*#', '<br /><br />', $core );
+        $core = preg_replace( '#</?p[^>]*>#', '', $core );
+        // Readability I like: every <br> tag should be followed by a newline
+        $core = preg_replace( '#(<br\s*/?>)(?!\n)#', "$1\n", $core );
+    }
+    $string = nl2br( $leading ) . $core . nl2br( $trailing );
     return $string;
 }
 
@@ -3269,7 +3231,7 @@ function eme_get_uploaded_file_html( $file, $new_tab = 1 ) {
 function eme_delTree( $dir ) {
     $files = array_diff( scandir( $dir ), [ '.', '..' ] );
     foreach ( $files as $file ) {
-        ( is_dir( "$dir/$file" ) ) ? delTree( "$dir/$file" ) : wp_delete_file( "$dir/$file" );
+        ( is_dir( "$dir/$file" ) ) ? eme_delTree( "$dir/$file" ) : wp_delete_file( "$dir/$file" );
     }
     // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- directory cleanup
     return rmdir( $dir );
@@ -3369,8 +3331,8 @@ function eme_ajax_record_list( $tablename, $cap ) {
     $table        = EME_DB_PREFIX . $tablename;
     $fTableResult = [];
     // The toolbar search input
-    $q           = isset( $_REQUEST['q'] ) ? eme_sanitize_request($_REQUEST['q']) : '';
-    $opt         = isset( $_REQUEST['opt'] ) ? eme_sanitize_request($_REQUEST['opt']) : '';
+    $q           = eme_sanitize_request( $_REQUEST['q'] ?? '' );
+    $opt         = eme_sanitize_request( $_REQUEST['opt'] ?? '' );
     $where       = '';
     $where_array = [];
     if ( $q ) {
@@ -3401,7 +3363,7 @@ function eme_ajax_record_list( $tablename, $cap ) {
             $fTableResult['TotalRecordCount'] = $recordCount;
         }
     } else {
-        $fTableResult['Result']  = 'Error';
+        $fTableResult['Result']  = 'ERROR';
         $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
     }
     print wp_json_encode( $fTableResult );
@@ -3417,9 +3379,8 @@ function eme_ajax_record_delete( $tablename, $cap, $postvar ) {
         // Validate that the column name exists in the table
         $table_columns = eme_get_table_columns( $table );
         if ( ! in_array( $postvar, $table_columns ) ) {
-            $fTableResult['Result']      = 'Error';
-            $fTableResult['Message']     = __( 'Invalid column name!', 'events-made-easy' );
-            $fTableResult['htmlmessage'] = __( 'Invalid column name!', 'events-made-easy' );
+            $fTableResult['Result']      = 'ERROR';
+            $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Invalid column name!', 'events-made-easy' ) );
             print wp_json_encode( $fTableResult );
             wp_die();
         }
@@ -3428,7 +3389,7 @@ function eme_ajax_record_delete( $tablename, $cap, $postvar ) {
         $ids_string = eme_sanitize_request( $_POST[ $postvar ] );
         $ids_arr = explode( ',', $ids_string );
 
-        if ( eme_is_numeric_array( $ids_arr ) ) {
+        if ( eme_is_integer_array( $ids_arr ) ) {
             // Convert all IDs to integers
             $ids_arr_int = array_map( 'intval', $ids_arr );
             $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
@@ -3439,12 +3400,10 @@ function eme_ajax_record_delete( $tablename, $cap, $postvar ) {
         }
 
         $fTableResult['Result']      = 'OK';
-        $fTableResult['Message']     = __( 'Records deleted!', 'events-made-easy' );
-        $fTableResult['htmlmessage'] = __( 'Records deleted!', 'events-made-easy' );
+        $fTableResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Records deleted!', 'events-made-easy' ) );
     } else {
-        $fTableResult['Result']      = 'Error';
-        $fTableResult['Message']     = __( 'Access denied!', 'events-made-easy' );
-        $fTableResult['htmlmessage'] = __( 'Access denied!', 'events-made-easy' );
+        $fTableResult['Result']      = 'ERROR';
+        $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
     }
     print wp_json_encode( $fTableResult );
     wp_die();
@@ -4481,11 +4440,17 @@ function eme_remove_attrs($attrs_to_remove, $attributes) {
     return $attributes;
 }
 
+function eme_message_div($message) {
+    return "<div><p>" .$message.'</p></div>';
+}
 function eme_message_ok_div($message) {
-    return "<div class='notice notice-success eme-message-admin is-dismissible'><p>" .$message.'</p></div>';
+    return "<div class='notice notice-success eme-message-admin'><p>" .$message.'</p></div>';
+}
+function eme_message_warning_div($message) {
+    return "<div class='notice notice-warning eme-message-admin'><p>" .$message.'</p></div>';
 }
 function eme_message_error_div($message) {
-    return "<div class='notice notice-error eme-message-admin is-dismissible'><p>" .$message.'</p></div>';
+    return "<div class='notice notice-error eme-message-admin'><p>" .$message.'</p></div>';
 }
 
 function eme_apply_output_filters( $replacement, $target, $esc_html = false ) {

@@ -156,7 +156,7 @@ function eme_delete_event_tasks( $event_id ) {
 
 function eme_delete_event_old_tasks( $event_id, $ids_arr ) {
     global $wpdb;
-    if ( empty( $ids_arr ) || ! eme_is_numeric_array( $ids_arr ) ) {
+    if ( empty( $ids_arr ) || ! eme_is_integer_array( $ids_arr ) ) {
         return;
     }
     $ids_arr = array_map('intval', $ids_arr);
@@ -205,10 +205,10 @@ function eme_get_tasksignup_post_answers( $task_signup ) {
                 }
                 if ($formfield['field_purpose'] == 'people') {
                     $type = 'person';
-                    $related_id = isset($task_signup['person_id'])?$task_signup['person_id']:0;
+                    $related_id = $task_signup['person_id'] ?? 0;
                 } else {
                     $type = 'tasksignup';
-                    $related_id = isset($task_signup['id'])?$task_signup['id']:0;
+                    $related_id = $task_signup['id'] ?? 0;
                 }
                 // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                 $answer    = [
@@ -534,7 +534,7 @@ function eme_tasks_send_signup_reminders() {
             continue;
         }
         $task_reminder_days = explode( ',', $event['event_properties']['task_reminder_days'] );
-        if ( ! eme_is_numeric_array( $task_reminder_days ) ) {
+        if ( ! eme_is_integer_array( $task_reminder_days ) ) {
             continue;
         }
         $tasks = eme_get_event_tasks( $event['event_id'] );
@@ -643,19 +643,19 @@ function eme_task_signups_table_layout( ) {
     <div class="bulkactions">
     <form id='task-signups-form' action="#" method="post">
     <?php wp_nonce_field( 'eme_admin', 'eme_admin_nonce' ); ?>
-    <select id="eme_admin_action" name="eme_admin_action">
+    <select id="eme_admin_action_tasksignups" name="eme_admin_action_tasksignups">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <option value="sendMails"><?php esc_html_e( 'Send generic email to selected persons', 'events-made-easy' ); ?></option>
     <option value="sendReminders"><?php esc_html_e( 'Send reminders for task signups', 'events-made-easy' ); ?></option>
     <option value="approveTaskSignups"><?php esc_html_e( 'Approve selected task signups', 'events-made-easy' ); ?></option>
     <option value="deleteTaskSignups"><?php esc_html_e( 'Delete selected task signups', 'events-made-easy' ); ?></option>
     </select>
-        <span id="span_sendmails" class="eme-hidden">
-        <?php
-        esc_html_e( 'Send emails to people upon changes being made?', 'events-made-easy' );
-        echo eme_ui_select_binary( 1, 'send_mail' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
-        ?>
-        </span>
+    <span id="span_sendmails">
+    <?php
+    esc_html_e( 'Send emails to people upon changes being made?', 'events-made-easy' );
+    echo eme_ui_select_binary( 1, 'send_mail' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
+    ?>
+    </span>
     <button id="TaskSignupsActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
     <?php eme_rightclickhint(); ?>
     </form>
@@ -2056,16 +2056,16 @@ function eme_ajax_task_signups_list() {
         $search_person     = "";
         $search_start_date = "";
         $search_end_date   = "";
-        $search_status     = isset( $_REQUEST['search_signup_status'] ) ? intval( $_REQUEST['search_signup_status'] ) : -1;
+        $search_status     = intval( $_REQUEST['search_signup_status'] ?? -1 );
     } else {
         $search_eventid    = 0;
-        $search_name       = isset( $_POST['search_name'] ) ? eme_sanitize_request( $_POST['search_name'] ) : '';
-        $search_scope      = isset( $_POST['search_scope'] ) ? eme_sanitize_request( $_POST['search_scope'] ) : 'future';
-        $search_event      = isset( $_POST['search_event'] ) ? eme_sanitize_request( $_POST['search_event'] ) : '';
-        $search_person     = isset( $_POST['search_person'] ) ? eme_sanitize_request( $_POST['search_person'] ) : '';
+        $search_name       = eme_sanitize_request( $_POST['search_name'] ?? '' );
+        $search_scope      = eme_sanitize_request( $_POST['search_scope'] ?? 'future' );
+        $search_event      = eme_sanitize_request( $_POST['search_event'] ?? '' );
+        $search_person     = eme_sanitize_request( $_POST['search_person'] ?? '' );
         $search_start_date = isset( $_POST['search_start_date'] ) && eme_is_date( $_POST['search_start_date'] ) ? eme_sanitize_request( $_POST['search_start_date'] ) : '';
         $search_end_date   = isset( $_POST['search_end_date'] ) && eme_is_date( $_POST['search_end_date'] ) ? eme_sanitize_request( $_POST['search_end_date'] ) : '';
-        $search_status     = isset( $_POST['search_signup_status'] ) ? intval( $_POST['search_signup_status'] ) : -1;
+        $search_status     = intval( $_POST['search_signup_status'] ?? -1 );
     }
 
     $where     = '';
@@ -2173,16 +2173,16 @@ function eme_ajax_manage_task_signups() {
     check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
     if ( ! current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
         $ajaxResult            = [];
-        $ajaxResult['Result']  = 'ERROR';
-        $ajaxResult['Message'] = __( 'Access denied!', 'events-made-easy' );
+        $ajaxResult['Result']      = 'ERROR';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
         print wp_json_encode( $ajaxResult );
         wp_die();
     }
 
     if ( isset( $_REQUEST['do_action'] ) ) {
-        $ids_arr   = ( isset( $_REQUEST['id'] ) ) ? explode( ',', eme_sanitize_request($_POST['id']) ) : [];
-        $do_action = eme_sanitize_request( $_REQUEST['do_action'] );
-        $send_mail = ( isset( $_REQUEST['send_mail'] ) ) ? intval( $_REQUEST['send_mail'] ) : 1;
+        $ids_arr   = explode( ',', eme_sanitize_request( $_REQUEST['id'] ?? '' ) );
+        $do_action = eme_sanitize_request( $_REQUEST['do_action'] ?? '' );
+        $send_mail = intval( $_REQUEST['send_mail'] ?? 1 );
         switch ( $do_action ) {
         case 'sendReminders':
             eme_ajax_action_send_reminders( $ids_arr );
@@ -2208,10 +2208,10 @@ function eme_ajax_action_send_reminders( $ids_arr ) {
     }
     $ajaxResult = [];
     if ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -2234,10 +2234,10 @@ function eme_ajax_action_signup_approve( $ids_arr, $send_mail=1 ) {
     }
     $ajaxResult = [];
     if ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -2258,10 +2258,10 @@ function eme_ajax_action_signup_delete( $ids_arr, $send_mail=1 ) {
     }
     $ajaxResult = [];
     if ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -2286,8 +2286,8 @@ function eme_ajax_event_tasks_snapselect() {
         wp_die();
     }
 
-    $event_id = isset( $_REQUEST['event_id'] ) ? intval( $_REQUEST['event_id'] ) : 0;
-    $q        = isset( $_REQUEST['q'] ) ? strtolower( eme_sanitize_request( $_REQUEST['q'] ) ) : '';
+    $event_id = intval( $_REQUEST['event_id'] ?? 0 );
+    $q        = strtolower( eme_sanitize_request( $_REQUEST['q'] ?? '' ) );
     if ( ! $event_id ) {
         print wp_json_encode( [ 'Records' => [], 'hasMore' => false ] );
         wp_die();
@@ -2327,28 +2327,28 @@ function eme_ajax_assign_task_signup() {
 		wp_die();
 	}
 
-	$task_id   = isset( $_POST['task_id'] ) ? intval( $_POST['task_id'] ) : 0;
-	$person_id = isset( $_POST['person_id'] ) ? intval( $_POST['person_id'] ) : 0;
+	$task_id   = intval( $_POST['task_id'] ?? 0 );
+	$person_id = intval( $_POST['person_id'] ?? 0 );
 
 	if ( ! $task_id || ! $person_id ) {
-		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Please select a task and a person.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'Please select a task and a person.', 'events-made-easy' ) ) ] );
 		wp_die();
 	}
 
 	$task = eme_get_task( $task_id );
 	if ( ! $task ) {
-		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Invalid task.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'Invalid task.', 'events-made-easy' ) ) ] );
 		wp_die();
 	}
 	$person = eme_get_person( $person_id );
 	if ( ! $person ) {
-		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'Invalid person.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'Invalid person.', 'events-made-easy' ) ) ] );
 		wp_die();
 	}
 
 	$existing = eme_count_person_task_signups( $task_id, $person_id );
 	if ( $existing > 0 ) {
-		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'This person is already signed up for this task.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'This person is already signed up for this task.', 'events-made-easy' ) ) ] );
 		wp_die();
 	}
 
@@ -2378,9 +2378,9 @@ function eme_ajax_assign_task_signup() {
 	$res = eme_db_insert_task_signup( $signup );
 	if ( $res ) {
         eme_email_tasksignup_action( $signup, 'new' );
-		print wp_json_encode( [ 'Result' => 'OK', 'htmlmessage' => '<div class="updated"><p>' . esc_html__( 'Task assigned successfully.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'OK', 'htmlmessage' => eme_message_ok_div( esc_html__( 'Task assigned successfully.', 'events-made-easy' ) ) ] );
 	} else {
-		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => '<div class="error"><p>' . esc_html__( 'There was a problem assigning the task.', 'events-made-easy' ) . '</p></div>' ] );
+		print wp_json_encode( [ 'Result' => 'ERROR', 'htmlmessage' => eme_message_error_div( esc_html__( 'There was a problem assigning the task.', 'events-made-easy' ) ) ] );
 	}
 	wp_die();
 }

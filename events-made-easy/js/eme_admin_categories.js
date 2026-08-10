@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
             },
             listQueryParams: () => ({
                 action: 'eme_categories_list',
+                lang: emeadmin.translate_locale,
                 eme_admin_nonce: emeadmin.translate_adminnonce
             }),
             fields: {
@@ -29,52 +30,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 category_name: {
                     title: emeadmin.translate_name
                 }
+            },
+            bulkActions: {
+                select: '#eme_admin_action_categories',
+                button: '#CategoriesActionsButton',
+                idField: 'category_ids',
+                action: ajaxurl,
+                confirmActions: ['deleteCategories'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: () => ({
+                    action: 'eme_manage_categories',
+                    lang: emeadmin.translate_locale,
+                    eme_admin_nonce: emeadmin.translate_adminnonce
+                })
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(CategoriesTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                CategoriesTable.showError(emeadmin.translate_problem);
             }
         });
 
         CategoriesTable.load();
-
-        // --- Bulk Actions ---
-        const actionsButton = EME.$('#CategoriesActionsButton');
-        if (actionsButton) {
-        actionsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = CategoriesTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (doAction === 'deleteCategories') {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-
-                actionsButton.textContent = emeadmin.translate_pleasewait;
-                actionsButton.disabled = true;
-
-                const ids = selectedRows.map(row => row.dataset.recordKey);
-                const idsJoined = ids.join(',');
-
-                const formData = new FormData();
-                formData.append('category_ids', idsJoined);
-                formData.append('action', 'eme_manage_categories');
-                formData.append('do_action', doAction);
-                formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-                eme_postJSON(ajaxurl, formData, (data) => {
-                    CategoriesTable.reload();
-                    actionsButton.textContent = emeadmin.translate_apply;
-                    actionsButton.disabled = false;
-
-                    const msg = EME.$('#categories-message');
-                    if (msg) {
-                        msg.innerHTML = data.htmlmessage;
-                        eme_toggle(msg, true);
-                        setTimeout(() => eme_toggle(msg, false), 3000);
-                    }
-                });
-            });
-        }
 
         // --- Reload Button ---
         const loadButton = EME.$('#CategoriesLoadRecordsButton');

@@ -899,7 +899,7 @@ function eme_add_bookings_ajax() {
     }
 
     $events = [];
-    if ( ! empty( $_POST['eme_event_ids'] ) && eme_is_numeric_array( $_POST['eme_event_ids'] ) ) {
+    if ( ! empty( $_POST['eme_event_ids'] ) && eme_is_integer_array( $_POST['eme_event_ids'] ) ) {
         $events = eme_get_rsvp_event_arr( array_map( 'intval', $_POST['eme_event_ids'] ) );
     }
     if ( empty( $events ) ) {
@@ -2152,10 +2152,10 @@ function eme_get_booking_post_answers( $booking, $include_dynamicdata = 1 ) {
                     }
                     if ($formfield['field_purpose'] == 'people') {
                         $type = 'person';
-                        $related_id = isset($booking['person_id'])?$booking['person_id']:0;
+                        $related_id = $booking['person_id'] ?? 0;
                     } else {
                         $type = 'booking';
-                        $related_id = isset($booking['booking_id'])?$booking['booking_id']:0;
+                        $related_id = $booking['booking_id'] ?? 0;
                     }
                     // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                     $answer    = [
@@ -2217,10 +2217,10 @@ function eme_get_booking_post_answers( $booking, $include_dynamicdata = 1 ) {
                             }
                             if ($formfield['field_purpose'] == 'people') {
                                 $type = 'person';
-                                $related_id = isset($booking['person_id'])?$booking['person_id']:0;
+                                $related_id = $booking['person_id'] ?? 0;
                             } else {
                                 $type = 'booking';
-                                $related_id = isset($booking['booking_id'])?$booking['booking_id']:0;
+                                $related_id = $booking['booking_id'] ?? 0;
                             }
                             // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                             $answer    = [
@@ -2280,10 +2280,10 @@ function eme_get_booking_post_answers( $booking, $include_dynamicdata = 1 ) {
                 }
                 if ($formfield['field_purpose'] == 'people') {
                     $type = 'person';
-                    $related_id = isset($booking['person_id'])?$booking['person_id']:0;
+                    $related_id = $booking['person_id'] ?? 0;
                 } else {
                     $type = 'booking';
-                    $related_id = isset($booking['booking_id'])?$booking['booking_id']:0;
+                    $related_id = $booking['booking_id'] ?? 0;
                 }
                 // some extra fields are added, so people can use these to check things: field_name, field_purpose, extra_charge (also used in code), grouping_id and occurence_id
                 $answer    = [
@@ -3208,7 +3208,7 @@ function eme_get_bookings_for( $event_ids, $rsvp_status = 0, $paid_status = 0, $
     }
 
     $where = [];
-    if ( is_array( $event_ids ) && eme_is_numeric_array( $event_ids ) ) {
+    if ( is_array( $event_ids ) && eme_is_integer_array( $event_ids ) ) {
         $ids_arr_int = array_map('intval', $event_ids);
         $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
         $where[] = $wpdb->prepare( 'bookings.event_id IN (' . $placeholders . ')', ...$ids_arr_int );
@@ -3306,7 +3306,7 @@ function eme_get_wp_ids_for( $event_id ) {
     global $wpdb;
     $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
     $people_table   = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    if ( is_array( $event_id ) && eme_is_numeric_array( $event_id ) ) {
+    if ( is_array( $event_id ) && eme_is_integer_array( $event_id ) ) {
         $ids_arr_int  = array_map( 'intval', $event_id );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $prepared_sql = $wpdb->prepare(
@@ -3340,7 +3340,7 @@ function eme_get_attendee_ids( $event_id, $rsvp_status = 0, $paid_status = 0, $o
     global $wpdb;
     $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
     $people_table   = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    if ( is_array( $event_id ) && eme_is_numeric_array( $event_id ) ) {
+    if ( is_array( $event_id ) && eme_is_integer_array( $event_id ) ) {
         $ids_arr_int = array_map('intval', $event_id);
         $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
         $sql = $wpdb->prepare(
@@ -3379,7 +3379,7 @@ function eme_get_attendees_for( $event_id, $rsvp_status = 0, $paid_status = 0 ) 
 function eme_get_attendees( $event_id, $rsvp_status = 0, $paid_status = 0 ) {
     global $wpdb;
     $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
-    if ( is_array( $event_id ) && eme_is_numeric_array( $event_id ) ) {
+    if ( is_array( $event_id ) && eme_is_integer_array( $event_id ) ) {
         $ids_arr_int = array_map('intval', $event_id);
         $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
         $sql = $wpdb->prepare(
@@ -3414,7 +3414,7 @@ function eme_get_attendee_emails( $event_id ) {
     global $wpdb;
     $bookings_table = EME_DB_PREFIX . EME_BOOKINGS_TBNAME;
     $people_table   = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    if ( is_array( $event_id ) && eme_is_numeric_array( $event_id ) ) {
+    if ( is_array( $event_id ) && eme_is_integer_array( $event_id ) ) {
         $ids_arr_int  = array_map( 'intval', $event_id );
         $placeholders = implode( ',', array_fill( 0, count( $ids_arr_int ), '%d' ) );
         $sql = $wpdb->prepare(
@@ -3927,7 +3927,7 @@ function eme_get_booking_placeholder_handler_definitions() {
                 }
                 $targetBasePath             = EME_UPLOAD_DIR . '/bookings/' . $booking['booking_id'];
                 $targetBaseUrl              = EME_UPLOAD_URL . '/bookings/' . $booking['booking_id'];
-                $url_to_encode              = eme_check_rsvp_url( $booking['booking_id'] );
+                $url_to_encode              = eme_rsvp_checkurl( $booking['booking_id'] );
                 [$target_file, $target_url] = eme_generate_qrcode( $url_to_encode, $targetBasePath, $targetBaseUrl, $size );
                 if ( is_file( $target_file ) ) {
                     [$width, $height, $type, $attr] = getimagesize( $target_file );
@@ -3938,7 +3938,7 @@ function eme_get_booking_placeholder_handler_definitions() {
         },
         '/#_ATTENDANCE_URL$/' => function( $result, $matches, $ctx ) {
             if ( $ctx['payment'] ) {
-                $replacement = eme_check_rsvp_url( $ctx['booking']['booking_id'] );
+                $replacement = eme_rsvp_checkurl( $ctx['booking']['booking_id'] );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -3948,7 +3948,7 @@ function eme_get_booking_placeholder_handler_definitions() {
         },
         '/#_ATTENDANCEPROOF_URL$/' => function( $result, $matches, $ctx ) {
             if ( $ctx['payment'] ) {
-                $replacement = eme_rsvp_proof_url( $ctx['booking']['booking_id'] );
+                $replacement = eme_rsvp_proofurl( $ctx['booking']['booking_id'] );
                 if ( $ctx['target'] == 'html' ) {
                     $replacement = esc_url( $replacement );
                 }
@@ -5115,11 +5115,17 @@ function eme_registration_seats_page( $pending = 0 ) {
         $ret_string .= $nonce_field;
         $ret_string .= '<table>';
         $ret_string .= '<tr><td>' . __( 'Send emails for changed booking?', 'events-made-easy' ) . '</td><td>' . eme_ui_select_binary( 1, 'send_mail', 0, 'nodynamicupdates' ) . '</td></tr>';
-        $ret_string .= '<tr><td>' . __( 'Move booking to event', 'events-made-easy' ) . '</td><td>';
+        $ret_string .= '<tr><td>' . __( 'Transfer booking to event', 'events-made-easy' ) . '</td><td>';
         $ret_string .= "<input type='hidden' id='person_id' name='person_id' value='" . $booking['person_id'] . "'>";
         // we include the event id, so the snapselect can exclude this event upon search
         $ret_string .= eme_ui_select( '', 'transferto_id', [], '', 0, 'eme_snapselect_events_class nodynamicupdates', "data-placeholder='" . esc_attr__( 'Select an event', 'events-made-easy' ) . "' data-exclude_event_id='{$booking['event_id']}'" );
-        $ret_string .= "&nbsp;<label><input id='eventsearch_all' name='eventsearch_all' value='1' type='checkbox' class='nodynamicupdates'>" . __( 'Check this box to search through all events and not just future ones.', 'events-made-easy' ) . '</label></td></tr>';
+        $ret_string .= "&nbsp;<label><input id='eventsearch_all' name='eventsearch_all' value='1' type='checkbox' class='nodynamicupdates'>" . __( 'Check this box to search through all events and not just future ones.', 'events-made-easy' ) . '</label>';
+        $ret_string .= "&nbsp;<button type='submit' id='transfer_to_event_button' class='button eme-transfer-booking-button' style='display:none;'>" . esc_html__( 'Transfer this booking to this event', 'events-made-easy' ) . '</button>';
+        $ret_string .= '</td></tr>';
+        $ret_string .= '<tr><td>' . __( 'Transfer booking to person', 'events-made-easy' ) . '</td><td>';
+        $ret_string .= eme_ui_select( '', 'transferto_person_id', [], '', 0, 'eme_snapselect_transfer_to_person_class nodynamicupdates', "data-placeholder='" . esc_attr__( 'Select a person', 'events-made-easy' ) . "' data-person-id='{$booking['person_id']}'" );
+        $ret_string .= "&nbsp;<button type='submit' id='transfer_to_person_button' class='button eme-transfer-booking-button' style='display:none;'>" . esc_html__( 'Transfer this booking to this person', 'events-made-easy' ) . '</button>';
+        $ret_string .= '</td></tr>';
         $ret_string .= '<tr><td>' . __( 'Has the booking been paid?', 'events-made-easy' ) . '</td><td>' . eme_ui_select_binary( $booking['booking_paid'], 'booking_paid', 0, 'nodynamicupdates' ) . '</td></tr>';
         $ret_string .= '</table>';
         if ( empty( $event['event_id'] ) ) {
@@ -5139,8 +5145,8 @@ function eme_registration_seats_page( $pending = 0 ) {
         print $ret_string; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted admin booking form HTML
         return;
     } else {
-        $action    = isset( $_POST ['eme_admin_action'] ) ? eme_sanitize_request($_POST ['eme_admin_action']) : '';
-        $send_mail = isset( $_POST ['send_mail'] ) ? intval( $_POST ['send_mail'] ) : 1;
+        $action    = eme_sanitize_request( $_POST ['eme_admin_action'] ?? '' );
+        $send_mail = intval( $_POST ['send_mail'] ?? 1 );
         if ( $action == 'addBooking' ) {
             $event_id = intval( $_POST['event_id'] );
             check_admin_referer( "eme_admin", 'eme_admin_nonce' );
@@ -5160,10 +5166,10 @@ function eme_registration_seats_page( $pending = 0 ) {
         } elseif ( $action == 'updateBooking' ) {
             $booking_id = intval( $_POST['booking_id'] );
             check_admin_referer( "eme_admin", 'eme_admin_nonce' );
-            $transferto_id = isset( $_POST ['transferto_id'] ) ? intval( $_POST ['transferto_id'] ) : 0;
-            $person_id     = isset( $_POST ['person_id'] ) ? intval( $_POST ['person_id'] ) : 0;
             $booking       = eme_get_booking( $booking_id );
+
             // transferto_id is only given for moving a booking to another event
+            $transferto_id         = intval( $_POST ['transferto_id'] ?? 0 );
             if ( $transferto_id && $booking['event_id'] != $transferto_id ) {
                 $orig_event_id       = $booking['event_id'];
                 $booking['event_id'] = $transferto_id;
@@ -5176,31 +5182,11 @@ function eme_registration_seats_page( $pending = 0 ) {
             } else {
                 $orig_event_id = 0;
             }
-            if ( ! $person_id ) {
-                // this is the case where we clear the existing booker info and enter totally new booking info
-                $lastname = eme_sanitize_request( $_POST['lastname'] );
-                if ( isset( $_POST['firstname'] ) ) {
-                    $firstname = eme_sanitize_request( $_POST['firstname'] );
-                } else {
-                    $firstname = '';
-                }
-                $email  = eme_sanitize_email( $_POST['email'] );
-                $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-                if ( ! $person ) {
-                    $person = eme_get_person_by_email_only( $email );
-                }
-                if ( ! $person ) {
-                    $person              = [];
-                    $person['lastname']  = $lastname;
-                    $person['firstname'] = $firstname;
-                    $person['email']     = $email;
-                    $person_id           = eme_db_insert_person( $person );
-                } else {
-                    $person_id = $person['person_id'];
-                }
-            }
-            if ( $person_id && $booking['person_id'] != $person_id ) {
-                $booking['person_id'] = $person_id;
+
+            // transferto_person_id is only given for moving a booking to another person
+            $transferto_person_id  = intval( $_POST ['transferto_person_id'] ?? 0 );
+            if ( $transferto_person_id ) {
+                $booking['person_id'] = $transferto_person_id;
             }
             // now that the possible move is done, set the event id variable
             $event_id = $booking['event_id'];
@@ -5306,10 +5292,6 @@ function eme_registration_seats_page( $pending = 0 ) {
                 $upload_failures = eme_upload_files( $booking_id, 'bookings' );
                 if ( $upload_failures ) {
                     $update_message .= $upload_failures;
-                }
-                $res = eme_add_update_person_from_form( $booking['person_id'] );
-                if ( ! $res[0] ) {
-                    $update_message .= $res[1];
                 }
                 // now get the changed booking and send mail if wanted
                 $booking = eme_get_booking( $booking_id );
@@ -5585,7 +5567,7 @@ function eme_registration_seats_form_table( $pending = 0 ) {
     </div>
     <div class="bulkactions">
     <form id="eme-admin-regform" name="eme-admin-regform" action="#" method="post">
-    <select name="eme_admin_action" id="eme_admin_action">
+    <select name="eme_admin_action_rsvp" id="eme_admin_action_rsvp">
     <option value="" selected="selected"><?php esc_html_e( 'Bulk Actions', 'events-made-easy' ); ?></option>
     <?php if ( $trash ) { ?>
     <option value="deleteBooking"><?php esc_html_e( 'Permanently delete booking', 'events-made-easy' ); ?></option>
@@ -5630,51 +5612,51 @@ function eme_registration_seats_form_table( $pending = 0 ) {
     <option value="html"><?php esc_html_e( 'HTML output', 'events-made-easy' ); ?></option>
 <?php } ?>
     </select>
-    <span id="span_sendtocontact" class="eme-hidden">
+    <span id="span_sendtocontact">
 <?php
     esc_html_e( 'Send emails to contact person too?', 'events-made-easy' );
     echo eme_ui_select_binary( 0, 'send_to_contact_too' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
     </span>
-    <span id="span_sendmails" class="eme-hidden">
+    <span id="span_sendmails">
 <?php
     esc_html_e( 'Send emails to attendees upon changes being made?', 'events-made-easy' );
     echo eme_ui_select_binary( 1, 'send_mail' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
     </span>
     <?php if ( get_option( 'eme_payment_refund_ok' ) ) : ?>
-    <span id="span_refund" class="eme-hidden">
+    <span id="span_refund">
 <?php
     esc_html_e( 'Refund if possible?', 'events-made-easy' );
     echo eme_ui_select_binary( 0, 'refund' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select()
 ?>
     </span>
     <?php endif; ?>
-    <span id="span_partialpayment" class="eme-hidden">
+    <span id="span_partialpayment">
 <?php
     esc_html_e( 'Partial payment amount', 'events-made-easy' );
     $label = esc_html__('Partial payment amount', 'events-made-easy' );
     echo eme_ui_number( 0, 'partial_amount', 0, '', 'aria-label="' . $label . '"' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_number()
 ?>
     </span>
-    <span id="span_rsvpmailtemplate" class="eme-hidden">
+    <span id="span_rsvpmailtemplate">
     <?php echo eme_ui_select_key_value( '', 'rsvpmail_template_subject', $rsvptemplates, 'id', 'name', __( 'Select a subject template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'rsvpmail_template', $rsvptemplates, 'id', 'name', __( 'Please select a body template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_pdftemplate" class="eme-hidden">
+    <span id="span_pdftemplate">
     <?php echo eme_ui_select_key_value( '', 'pdf_template_header', $pdftemplates, 'id', 'name', __( 'Select an optional header template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'pdf_template', $pdftemplates, 'id', 'name', __( 'Please select a template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'pdf_template_footer', $pdftemplates, 'id', 'name', __( 'Select an optional footer template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_htmltemplate" class="eme-hidden">
+    <span id="span_htmltemplate">
     <?php echo eme_ui_select_key_value( '', 'html_template_header', $htmltemplates, 'id', 'name', __( 'Select an optional header template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'html_template', $htmltemplates, 'id', 'name', __( 'Please select a template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select_key_value( '', 'html_template_footer', $htmltemplates, 'id', 'name', __( 'Select an optional footer template', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_addtogroup" class="eme-hidden">
+    <span id="span_addtogroup">
     <?php echo eme_ui_select_key_value( '', 'addtogroup', $groups, 'group_id', 'name', __( 'Select a group', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
-    <span id="span_removefromgroup" class="eme-hidden">
+    <span id="span_removefromgroup">
     <?php echo eme_ui_select_key_value( '', 'removefromgroup', $groups, 'group_id', 'name', __( 'Select a group', 'events-made-easy' ), 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     </span>
     <button id="BookingsActionsButton" class="button-secondary action"><?php esc_html_e( 'Apply', 'events-made-easy' ); ?></button>
@@ -5922,19 +5904,19 @@ function eme_ajax_bookings_list() {
 
     $limit          = eme_get_ftable_limit();
     $orderby        = eme_get_ftable_orderby() ?: 'ORDER BY creation_date ASC';
-    $booking_status = ( isset( $_POST['booking_status'] ) ) ? eme_sanitize_request( $_POST['booking_status'] ) : 'APPROVED';
-    $search_event   = isset( $_POST['search_event'] ) ? eme_sanitize_request($_POST['search_event'])  : '';
-    $search_person  = isset( $_POST['search_person'] ) ? eme_sanitize_request($_POST['search_person']) : '';
+    $booking_status = eme_sanitize_request( $_POST['booking_status'] ?? 'APPROVED' );
+    $search_event   = eme_sanitize_request( $_POST['search_event'] ?? '' );
+    $search_person  = eme_sanitize_request( $_POST['search_person'] ?? '' );
     // the unique number can contain text (+, /, ...), but we only need the numbers, so lets do that
-    $search_unique     = isset( $_POST['search_unique'] ) ? eme_str_numbers_only( $_POST['search_unique']) : '';
-    $search_paymentid  = isset( $_POST['search_paymentid'] ) ? intval( $_POST['search_paymentid'] ) : 0;
-    $search_pg_pid     = isset( $_POST['search_pg_pid'] ) ? eme_sanitize_request($_POST['search_pg_pid']) : '';
+    $search_unique     = eme_str_numbers_only( $_POST['search_unique'] ?? '' );
+    $search_paymentid  = intval( $_POST['search_paymentid'] ?? 0 );
+    $search_pg_pid     = eme_sanitize_request( $_POST['search_pg_pid'] ?? '' );
     $search_start_date = isset( $_POST['search_start_date'] ) && eme_is_date( $_POST['search_start_date'] ) ? eme_sanitize_request($_POST['search_start_date']) : '';
     $search_end_date   = isset( $_POST['search_end_date'] ) && eme_is_date( $_POST['search_end_date'] ) ? eme_sanitize_request($_POST['search_end_date']) : '';
-    $scope             = ( isset( $_POST['scope'] ) ) ? eme_sanitize_request( $_POST['scope'] ) : 'future';
-    $category          = isset( $_POST['category'] ) ? eme_sanitize_request( $_POST['category']) : '';
-    $person_id         = isset( $_POST['person_id'] ) ? intval( $_POST['person_id'] ) : 0;
-    $event_id          = isset( $_POST['event_id'] ) ? intval( $_POST['event_id'] ) : 0;
+    $scope             = eme_sanitize_request( $_POST['scope'] ?? 'future' );
+    $category          = eme_sanitize_request( $_POST['category'] ?? '' );
+    $person_id         = intval( $_POST['person_id'] ?? 0 );
+    $event_id          = intval( $_POST['event_id'] ?? 0 );
     if ( isset( $_POST['trash'] ) && $_POST['trash'] == 1 ) {
         $trash = 1;
     } else {
@@ -5942,15 +5924,15 @@ function eme_ajax_bookings_list() {
     }
 
     // The toolbar search input
-    $q         = isset( $_POST['q'] ) ? eme_sanitize_request($_POST['q']) : '';
-    $opt       = isset( $_POST['opt'] ) ? eme_sanitize_request($_POST['opt']) : '';
+    $q         = eme_sanitize_request( $_POST['q'] ?? '' );
+    $opt       = eme_sanitize_request( $_POST['opt'] ?? '' );
     $where     = '';
     $where_arr = [];
 
     if ( $booking_status == 'PENDING' ) {
         if ( ! ( current_user_can( get_option( 'eme_cap_approve' ) ) ||
             current_user_can( get_option( 'eme_cap_author_approve' ) ) ) ) {
-            $fTableResult['Result']  = 'Error';
+            $fTableResult['Result']  = 'ERROR';
             $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
             print wp_json_encode( $fTableResult );
             wp_die();
@@ -5974,7 +5956,7 @@ function eme_ajax_bookings_list() {
     } elseif ( $booking_status == 'APPROVED' ) {
         if ( ! ( current_user_can( get_option( 'eme_cap_registrations' ) ) ||
             current_user_can( get_option( 'eme_cap_author_registrations' ) ) ) ) {
-            $fTableResult['Result']  = 'Error';
+            $fTableResult['Result']  = 'ERROR';
             $fTableResult['Message'] = __( 'Access denied!', 'events-made-easy' );
             print wp_json_encode( $fTableResult );
             wp_die();
@@ -6441,14 +6423,14 @@ function eme_ajax_manage_bookings() {
 
     $booking_ids = eme_sanitize_request( $_POST['booking_ids'] );
     $ids_arr     = explode( ',', $booking_ids );
-    $send_mail   = ( isset( $_POST['send_mail'] ) ) ? intval( $_POST['send_mail'] ) : 1;
-    $refund      = ( isset( $_POST['refund'] ) ) ? intval( $_POST['refund'] ) : 0;
+    $send_mail   = intval( $_POST['send_mail'] ?? 1 );
+    $refund      = intval( $_POST['refund'] ?? 0 );
     // to be sure
     if ( ! get_option( 'eme_payment_refund_ok' ) ) {
         $refund = 0;
     }
 
-    if ( eme_is_numeric_array( $ids_arr ) ) {
+    if ( eme_is_integer_array( $ids_arr ) ) {
         switch ( $do_action ) {
         case 'markpaidandapprove':
             // shortcut button to do 2 things at once, mail will always be sent
@@ -6469,7 +6451,7 @@ function eme_ajax_manage_bookings() {
             break;
         case 'partialPayment':
             header( 'Content-type: application/json; charset=utf-8' );
-            $amount = ( isset( $_POST['partial_amount'] ) ) ? eme_sanitize_request($_POST['partial_amount']) : 0;
+            $amount = eme_sanitize_request( $_POST['partial_amount'] ?? 0 );
             if ( count( $ids_arr ) == 1 && is_numeric( $amount ) ) {
                 $booking_id = $ids_arr[0];
                 eme_ajax_action_booking_partial_payment( $booking_id, $amount, $send_mail );
@@ -6485,7 +6467,7 @@ function eme_ajax_manage_bookings() {
             break;
         case 'resendApprovedBooking':
             header( 'Content-type: application/json; charset=utf-8' );
-            $send_to_contact_too = ( isset( $_POST['send_to_contact_too'] ) ) ? intval( $_POST['send_to_contact_too'] ) : 0;
+            $send_to_contact_too = intval( $_POST['send_to_contact_too'] ?? 0 );
             if ($send_to_contact_too) {
                 eme_ajax_action_resend_booking_mail( $ids_arr, 'approvedBooking' );
             } else {
@@ -6526,39 +6508,39 @@ function eme_ajax_manage_bookings() {
             break;
         case 'rsvpMails':
             header( 'Content-type: application/json; charset=utf-8' );
-            $template_id_subject = ( isset( $_POST['rsvpmail_template_subject'] ) ) ? intval( $_POST['rsvpmail_template_subject'] ) : 0;
-            $template_id         = ( isset( $_POST['rsvpmail_template'] ) ) ? intval( $_POST['rsvpmail_template'] ) : 0;
+            $template_id_subject = intval( $_POST['rsvpmail_template_subject'] ?? 0 );
+            $template_id         = intval( $_POST['rsvpmail_template'] ?? 0 );
             if ( $template_id_subject && $template_id ) {
                 eme_ajax_action_send_booking_mails( $ids_arr, $template_id_subject, $template_id );
             } else {
                 $ajaxResult = [];
-                $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'Nothing done.', 'events-made-easy' ) . '</p></div>';
+                $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'Nothing done.', 'events-made-easy' ) );
                 $ajaxResult['Result']      = 'ERROR';
                 print wp_json_encode( $ajaxResult );
             }
             break;
         case 'pdf':
-            $template_id        = ( isset( $_POST['pdf_template'] ) ) ? intval( $_POST['pdf_template'] ) : 0;
-            $template_id_header = ( isset( $_POST['pdf_template_header'] ) ) ? intval( $_POST['pdf_template_header'] ) : 0;
-            $template_id_footer = ( isset( $_POST['pdf_template_footer'] ) ) ? intval( $_POST['pdf_template_footer'] ) : 0;
+            $template_id        = intval( $_POST['pdf_template'] ?? 0 );
+            $template_id_header = intval( $_POST['pdf_template_header'] ?? 0 );
+            $template_id_footer = intval( $_POST['pdf_template_footer'] ?? 0 );
             if ( $template_id ) {
                 eme_ajax_generate_booking_pdf( $ids_arr, $template_id, $template_id_header, $template_id_footer );
             } else {
                 $ajaxResult = [];
-                $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'Nothing done.', 'events-made-easy' ) . '</p></div>';
+                $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'Nothing done.', 'events-made-easy' ) );
                 $ajaxResult['Result']      = 'ERROR';
                 print wp_json_encode( $ajaxResult );
             }
             break;
         case 'html':
-            $template_id        = ( isset( $_POST['html_template'] ) ) ? intval( $_POST['html_template'] ) : 0;
-            $template_id_header = ( isset( $_POST['html_template_header'] ) ) ? intval( $_POST['html_template_header'] ) : 0;
-            $template_id_footer = ( isset( $_POST['html_template_footer'] ) ) ? intval( $_POST['html_template_footer'] ) : 0;
+            $template_id        = intval( $_POST['html_template'] ?? 0 );
+            $template_id_header = intval( $_POST['html_template_header'] ?? 0 );
+            $template_id_footer = intval( $_POST['html_template_footer'] ?? 0 );
             if ( $template_id ) {
                 eme_ajax_generate_booking_html( $ids_arr, $template_id, $template_id_header, $template_id_footer );
             } else {
                 $ajaxResult = [];
-                $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'Nothing done.', 'events-made-easy' ) . '</p></div>';
+                $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'Nothing done.', 'events-made-easy' ) );
                 $ajaxResult['Result']      = 'ERROR';
                 print wp_json_encode( $ajaxResult );
             }
@@ -6620,13 +6602,13 @@ function eme_ajax_action_rsvp_markpaidandapprove( $ids_arr ) {
     }
     $ajaxResult = [];
     if ( $mail_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p><p>' . __( 'Hint: for a booking on the waiting list, the only allowed action is to move it off the waiting list.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p><p>' . __( 'Hint: for a booking on the waiting list, the only allowed action is to move it off the waiting list.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -6654,13 +6636,13 @@ function eme_ajax_action_remove_waitinglist( $ids_arr, $action, $send_mail ) {
     }
     $ajaxResult = [];
     if ( $mail_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -6695,19 +6677,19 @@ function eme_ajax_action_move_waitinglist( $ids_arr, $action, $send_mail, $refun
     }
     $ajaxResult = [];
     if ( ! $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     } elseif ( $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( ! $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( ! $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     }
     print wp_json_encode( $ajaxResult );
@@ -6739,14 +6721,14 @@ function eme_ajax_action_rsvp_approve( $ids_arr, $action, $send_mail ) {
     }
     $ajaxResult = [];
     if ( $mail_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p><p>' . __( 'Hint: for a booking on the waiting list, the only allowed action is to move it off the waiting list.', 'events-made-easy' ) . '</p></div>';
-        $ajaxResult['Result']      = 'WARNING';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p><p>' . __( 'Hint: for a booking on the waiting list, the only allowed action is to move it off the waiting list.', 'events-made-easy' ) );
+        $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
 }
@@ -6761,10 +6743,10 @@ function eme_ajax_action_rsvp_delete( $ids_arr ) {
     }
     $ajaxResult = [];
     if ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -6800,19 +6782,19 @@ function eme_ajax_action_rsvp_trash( $ids_arr, $action, $send_mail, $refund ) {
     }
     $ajaxResult = [];
     if ( ! $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     } elseif ( $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( ! $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( ! $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     }
     print wp_json_encode( $ajaxResult );
@@ -6865,13 +6847,13 @@ function eme_ajax_action_booking_partial_payment( $booking_id, $amount, $send_ma
     }
     $ajaxResult = [];
     if ( $mail_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -6907,13 +6889,13 @@ function eme_ajax_action_mark_booking_paid( $ids_arr, $action, $send_mail ) {
     }
     $ajaxResult = [];
     if ( $mail_ok && $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -6947,16 +6929,16 @@ function eme_ajax_action_mark_booking_unpaid( $ids_arr, $action, $send_mail, $re
     $ajaxResult = [];
     if ( ! $action_ok ) {
         if ( $refund ) {
-            $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem refunding the payment, please check your logs.', 'events-made-easy' ) . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem refunding the payment, please check your logs.', 'events-made-easy' ) );
         } else {
-            $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+            $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         }
         $ajaxResult['Result'] = 'ERROR';
     } elseif ( ! $mail_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     }
     print wp_json_encode( $ajaxResult );
@@ -6986,10 +6968,10 @@ function eme_ajax_action_send_booking_mails( $ids_arr, $subject_template_id, $bo
     }
     $ajaxResult = [];
     if ( $mail_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The mail has been sent.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The mail has been sent.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7006,10 +6988,10 @@ function eme_ajax_action_resend_booking_mail( $ids_arr, $action ) {
     }
     $ajaxResult = [];
     if ( $mail_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The mail has been sent.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The mail has been sent.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } else {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     }
     print wp_json_encode( $ajaxResult );
@@ -7018,7 +7000,7 @@ function eme_ajax_action_resend_booking_mail( $ids_arr, $action ) {
 function eme_ajax_action_mark_userconfirm( $ids, $action ) {
     eme_mark_booking_userconfirm( $ids );
     $ajaxResult                = [];
-    $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
     $ajaxResult['Result']      = 'OK';
     print wp_json_encode( $ajaxResult );
 }
@@ -7033,7 +7015,7 @@ function eme_ajax_action_mark_attendance( $ids, $action ) {
         }
     }
     $ajaxResult                = [];
-    $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'Attendance noted.', 'events-made-easy' ) . '</p></div>';
+    $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'Attendance noted.', 'events-made-easy' ) );
     $ajaxResult['Result']      = 'OK';
     print wp_json_encode( $ajaxResult );
 }
@@ -7066,19 +7048,19 @@ function eme_ajax_action_mark_pending( $ids_arr, $action, $send_mail, $refund ) 
     }
     $ajaxResult = [];
     if ( ! $action_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_error_div( __( 'There was a problem executing the desired action, please check your logs.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'ERROR';
     } elseif ( $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='updated eme-message-admin'><p>" . __( 'The action has been executed successfully.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_ok_div( __( 'The action has been executed successfully.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'OK';
     } elseif ( ! $mail_ok && $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems while sending mail.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     } elseif ( ! $mail_ok && ! $refund_ok ) {
-        $ajaxResult['htmlmessage'] = "<div id='message' class='error eme-message-admin'><p>" . __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) . '</p></div>';
+        $ajaxResult['htmlmessage'] = eme_message_warning_div( __( 'The action has been executed successfully but there were some problems sending mail and refunding the payment.', 'events-made-easy' ) );
         $ajaxResult['Result']      = 'WARNING';
     }
     print wp_json_encode( $ajaxResult );
@@ -7295,7 +7277,7 @@ function eme_rsvp_send_pending_reminders() {
             continue;
         }
         $reminder_days = explode( ',', $event['event_properties']['rsvp_pending_reminder_days'] );
-        if ( ! eme_is_numeric_array( $reminder_days ) ) {
+        if ( ! eme_is_integer_array( $reminder_days ) ) {
             continue;
         }
         $bookings     = eme_get_bookings_for( $event['event_id'], EME_RSVP_STATUS_PENDING );
@@ -7322,7 +7304,7 @@ function eme_rsvp_send_approved_reminders() {
             continue;
         }
         $reminder_days = explode( ',', $event['event_properties']['rsvp_approved_reminder_days'] );
-        if ( ! eme_is_numeric_array( $reminder_days ) ) {
+        if ( ! eme_is_integer_array( $reminder_days ) ) {
             continue;
         }
         $bookings     = eme_get_bookings_for( $event['event_id'], EME_RSVP_STATUS_APPROVED );

@@ -2,6 +2,43 @@ document.addEventListener('DOMContentLoaded', function () {
     const BookingsTableContainer = EME.$('#BookingsTableContainer');
     let BookingsTable;
 
+    function eme_rsvp_bulk_extra_data() {
+        return {
+            action: 'eme_manage_bookings',
+            lang: emeadmin.translate_locale,
+            send_mail: EME.$('#send_mail')?.value || 'no',
+            send_to_contact_too: EME.$('#send_to_contact_too')?.value || '',
+            refund: EME.$('#refund')?.value || '',
+            partial_amount: EME.$('#partial_amount')?.value || '',
+            rsvpmail_template: EME.$('#rsvpmail_template')?.value || '',
+            rsvpmail_template_subject: EME.$('#rsvpmail_template_subject')?.value || '',
+            pdf_template: EME.$('#pdf_template')?.value || '',
+            pdf_template_header: EME.$('#pdf_template_header')?.value || '',
+            pdf_template_footer: EME.$('#pdf_template_footer')?.value || '',
+            html_template: EME.$('#html_template')?.value || '',
+            html_template_header: EME.$('#html_template_header')?.value || '',
+            html_template_footer: EME.$('#html_template_footer')?.value || '',
+            eme_admin_nonce: emeadmin.translate_adminnonce
+        };
+    }
+
+    // addToGroup / removeFromGroup post person ids to the people handler, so they
+    // can't use the booking-oriented default bulkActions flow.
+    function eme_rsvp_bulk_people_action(doAction, selectedRows, table) {
+        const personIds = selectedRows.map(row => row.recordData.person_id).join(',');
+        eme_postJSON(ajaxurl, new URLSearchParams({
+            action: 'eme_manage_people',
+            person_id: personIds,
+            do_action: doAction,
+            addtogroup: EME.$('#addtogroup')?.value || '',
+            removefromgroup: EME.$('#removefromgroup')?.value || '',
+            eme_admin_nonce: emeadmin.translate_adminnonce
+        }), (result) => {
+            table.reload();
+            eme_show_ftable_bulk_result(table, result);
+        });
+    }
+
     // --- Initialize Bookings Table ---
     if (BookingsTableContainer) {
         let bookingFields = {
@@ -187,38 +224,23 @@ document.addEventListener('DOMContentLoaded', function () {
                             const idsjoined = ids.join(',');
 
                             const button = EME.$('.eme_ftable_button_for_pending_only .ftable-toolbar-item-text');
+                            const origTextContent = button ? button.textContent : null;
                             if (button) button.textContent = emeadmin.translate_pleasewait;
 
-                            fetch(ajaxurl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                },
-                                body: new URLSearchParams({
-                                    'booking_ids': idsjoined,
-                                    'action': 'eme_manage_bookings',
-                                    'do_action': 'markpaidandapprove',
-                                    'eme_admin_nonce': emeadmin.translate_adminnonce
-                                })
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.Result === 'ERROR') {
-                                        BookingsTable.showError(data.htmlmessage);
-                                    } else if (data.Result === 'WARNING') {
-                                        BookingsTable.showWarning(data.htmlmessage);
-                                    } else {
-                                        BookingsTable.showInfo(data.htmlmessage);
-                                    }
-                                    BookingsTable.reload();
-                                })
-                                .catch(error => {
-                                    console.error('AJAX error:', error);
-                                    BookingsTable.reload();
-                                })
-                                .finally(() => {
-                                    if (button) button.textContent = emeadmin.translate_markpaidandapprove;
-                                });
+                            eme_postJSON(ajaxurl, new URLSearchParams({
+                                'booking_ids': idsjoined,
+                                'action': 'eme_manage_bookings',
+                                'do_action': 'markpaidandapprove',
+                                'eme_admin_nonce': emeadmin.translate_adminnonce,
+                                'lang': emeadmin.translate_locale
+                            }), (data) => {
+                                eme_show_ftable_bulk_result(BookingsTable, data);
+                                BookingsTable.reload();
+                            }, () => {
+                                BookingsTable.reload();
+                            }, () => {
+                                if (button) button.textContent = origTextContent;
+                            });
                         }
                     },
                     {
@@ -232,38 +254,23 @@ document.addEventListener('DOMContentLoaded', function () {
                             const idsjoined = ids.join();
 
                             const button = EME.$('.eme_ftable_button_for_approved_only .ftable-toolbar-item-text');
+                            const origTextContent = button ? button.textContent : null;
                             if (button) button.textContent = emeadmin.translate_pleasewait;
 
-                            fetch(ajaxurl, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded'
-                                },
-                                body: new URLSearchParams({
-                                    'booking_ids': idsjoined,
-                                    'action': 'eme_manage_bookings',
-                                    'do_action': 'markPaid',
-                                    'eme_admin_nonce': emeadmin.translate_adminnonce
-                                })
-                            })
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (data.Result === 'ERROR') {
-                                        BookingsTable.showError(data.htmlmessage);
-                                    } else if (data.Result === 'WARNING') {
-                                        BookingsTable.showWarning(data.htmlmessage);
-                                    } else {
-                                        BookingsTable.showInfo(data.htmlmessage);
-                                    }
-                                    BookingsTable.reload();
-                                })
-                                .catch(error => {
-                                    console.error('AJAX error:', error);
-                                    BookingsTable.reload();
-                                })
-                                .finally(() => {
-                                    if (button) button.textContent = emeadmin.translate_markpaid;
-                                });
+                            eme_postJSON(ajaxurl, new URLSearchParams({
+                                'booking_ids': idsjoined,
+                                'action': 'eme_manage_bookings',
+                                'do_action': 'markPaid',
+                                'eme_admin_nonce': emeadmin.translate_adminnonce,
+                                'lang': emeadmin.translate_locale
+                            }), (data) => {
+                                eme_show_ftable_bulk_result(BookingsTable, data);
+                                BookingsTable.reload();
+                            }, () => {
+                                BookingsTable.reload();
+                            }, () => {
+                                if (button) button.textContent = origTextContent;
+                            });
                         }
                     }
                 ]
@@ -272,6 +279,7 @@ document.addEventListener('DOMContentLoaded', function () {
             listQueryParams: () => ({
                 action: 'eme_bookings_list',
                 eme_admin_nonce: emeadmin.translate_adminnonce,
+                lang: emeadmin.translate_locale,
                 trash: $_GET['trash'] || '',
                 scope: eme_getValue(EME.$('#scope')),
                 category: eme_getValue(EME.$('#category')),
@@ -287,7 +295,55 @@ document.addEventListener('DOMContentLoaded', function () {
                 event_id: EME.$('#event_id')?.value || '',
                 person_id: $_GET['person_id']
             }),
-            fields: bookingFields
+            fields: bookingFields,
+            bulkActions: {
+                select: '#eme_admin_action_rsvp',
+                button: '#BookingsActionsButton',
+                idField: 'booking_ids',
+                action: ajaxurl,
+                confirmActions: ['trashBooking', 'deleteBooking'],
+                confirmTitle: emeadmin.translate_confirmdelete,
+                confirmMessage: emeadmin.translate_areyousuretodeleteselected,
+                extraData: eme_rsvp_bulk_extra_data,
+                handlers: {
+                    sendMails: ({ ids }) => eme_submit_hidden_form(emeadmin.translate_admin_sendmails_url, {
+                        booking_ids: ids.join(','),
+                        eme_admin_action: 'new_mailing'
+                    }),
+                    pdf: ({ doAction, ids }) => eme_submit_hidden_form(ajaxurl, {
+                        booking_ids: ids.join(','),
+                        do_action: doAction,
+                        ...eme_rsvp_bulk_extra_data()
+                    }),
+                    html: ({ doAction, ids }) => eme_submit_hidden_form(ajaxurl, {
+                        booking_ids: ids.join(','),
+                        do_action: doAction,
+                        ...eme_rsvp_bulk_extra_data()
+                    }),
+                    addToGroup: ({ doAction, selectedRows, table }) => eme_rsvp_bulk_people_action(doAction, selectedRows, table),
+                    removeFromGroup: ({ doAction, selectedRows, table }) => eme_rsvp_bulk_people_action(doAction, selectedRows, table),
+                    partialPayment: ({ doAction, ids, selectedRows, table }) => {
+                        if (selectedRows.length > 1) {
+                            alert(emeadmin.translate_selectonerowonlyforpartial);
+                            return;
+                        }
+                        eme_postJSON(ajaxurl, new URLSearchParams({
+                            booking_ids: ids.join(','),
+                            do_action: doAction,
+                            ...eme_rsvp_bulk_extra_data()
+                        }), (result) => {
+                            table.reload();
+                            eme_show_ftable_bulk_result(table, result);
+                        });
+                    }
+                }
+            },
+            bulkActionComplete: ({ data }) => {
+                eme_show_ftable_bulk_result(BookingsTable, data);
+            },
+            bulkActionError: ({ data }) => {
+                BookingsTable.showError(emeadmin.translate_problem);
+            }
         });
 
         BookingsTable.load();
@@ -295,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Conditional UI for Actions ---
     function updateShowHideStuff() {
-        const action = EME.$('#eme_admin_action')?.value || '';
+        const action = EME.$('#eme_admin_action_rsvp')?.value || '';
 
         eme_toggle(EME.$('#span_pdftemplate'), action === 'pdf');
         eme_toggle(EME.$('#span_htmltemplate'), action === 'html');
@@ -309,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
         eme_toggle(EME.$('span#span_rsvpmailtemplate'), action === 'rsvpMails');
     }
 
-    EME.$('#eme_admin_action')?.addEventListener('change', updateShowHideStuff);
+    EME.$('#eme_admin_action_rsvp')?.addEventListener('change', updateShowHideStuff);
     updateShowHideStuff();
 
     // hide one toolbar button if not on pending approval and trash=0 (or not set)
@@ -321,111 +377,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     showhideButtonPaidApprove();
-
-    // --- Bulk Actions ---
-    const actionsButton = EME.$('#BookingsActionsButton');
-    if (actionsButton) {
-        actionsButton.addEventListener('click', async function (e) {
-            e.preventDefault();
-            const selectedRows = BookingsTable.getSelectedRows();
-            const doAction = EME.$('#eme_admin_action').value;
-            const sendMail = EME.$('#send_mail')?.value || 'no';
-
-            if (selectedRows.length === 0 || !doAction) return;
-
-            if (['trashBookings', 'deleteBookings'].includes(doAction)) {
-                const ok = await FTable.confirm(emeadmin.translate_confirmdelete, emeadmin.translate_areyousuretodeleteselected);
-                if (!ok) return;
-            }
-            if (doAction == 'partialPayment' && selectedRows.length > 1) {
-                alert(emeadmin.translate_selectonerowonlyforpartial);
-                return;
-            }
-
-            actionsButton.textContent = emeadmin.translate_pleasewait;
-            actionsButton.disabled = true;
-
-            const formData = new FormData();
-            let idsJoined;
-            if (doAction=='addToGroup' || doAction=='removeFromGroup') {
-                const ids = selectedRows.map(row => row.recordData.person_id);
-                idsJoined = ids.join(',');
-                formData.append('person_id', idsJoined);
-                formData.append('action', 'eme_manage_people');
-                formData.append('do_action', doAction);
-                formData.append('addtogroup', EME.$('#addtogroup')?.value);
-                formData.append('removefromgroup', EME.$('#removefromgroup')?.value);
-            } else { 
-                const ids = selectedRows.map(row => row.dataset.recordKey);
-                idsJoined = ids.join(',');
-                formData.append('booking_ids', idsJoined);
-                formData.append('action', 'eme_manage_bookings');
-                formData.append('do_action', doAction);
-                formData.append('send_mail', sendMail);
-                formData.append('send_to_contact_too', EME.$('#send_to_contact_too')?.value);
-                formData.append('refund', EME.$('#refund')?.value);
-                formData.append('partial_amount', EME.$('#partial_amount')?.value);
-                formData.append('rsvpmail_template', EME.$('#rsvpmail_template')?.value);
-                formData.append('rsvpmail_template_subject', EME.$('#rsvpmail_template_subject')?.value);
-                formData.append('pdf_template', EME.$('#pdf_template')?.value || '');
-                formData.append('pdf_template_header', EME.$('#pdf_template_header')?.value || '');
-                formData.append('pdf_template_footer', EME.$('#pdf_template_footer')?.value || '');
-                formData.append('html_template', EME.$('#html_template')?.value || '');
-                formData.append('html_template_header', EME.$('#html_template_header')?.value || '');
-                formData.append('html_template_footer', EME.$('#html_template_footer')?.value || '');
-            }
-            formData.append('eme_admin_nonce', emeadmin.translate_adminnonce);
-
-            if (doAction === 'sendMails') {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = emeadmin.translate_admin_sendmails_url;
-                ['booking_ids', 'eme_admin_action'].forEach(key => {
-                    const val = key === 'booking_ids' ? idsJoined : 'new_mailing';
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = val;
-                    form.appendChild(input);
-                });
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            }
-
-            if (['pdf', 'html'].includes(doAction)) {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = ajaxurl;
-                // Add FormData entries as hidden inputs
-                for (const [key, value] of formData.entries()) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = key;
-                    input.value = value;
-                    form.appendChild(input);
-                }
-                document.body.appendChild(form);
-                form.submit();
-                actionsButton.textContent = emeadmin.translate_apply;
-                actionsButton.disabled = false;
-                return;
-            }
-
-            eme_postJSON(ajaxurl, formData, (data) => {
-                if (data.Result === 'ERROR') {
-                    BookingsTable.showError(data.htmlmessage);
-                } else if (data.Result === 'WARNING') {
-                    BookingsTable.showWarning(data.htmlmessage);
-                } else {
-                    BookingsTable.showInfo(data.htmlmessage);
-                }
-                BookingsTable.reload();
-                actionsButton.textContent = emeadmin.translate_apply;
-                actionsButton.disabled = false;
-            });
-        });
-    }
 
     // --- Reload Button ---
     const loadButton = EME.$('#BookingsLoadRecordsButton');
@@ -448,4 +399,53 @@ document.addEventListener('DOMContentLoaded', function () {
             };
         }
     });
+    initSnapSelectRemote('select.eme_snapselect_transfer_to_person_class', {
+        showClearButton: true,
+        cache: true,
+        data: function(search, page) {
+            return {
+                action:            'eme_chooseperson_snapselect',
+                eme_admin_nonce:   emeadmin.translate_adminnonce,
+                exclude_personids: this.dataset.personId || '',
+            };
+        }
+    });
+
+    // --- Transfer booking: only show the dedicated "transfer" button once a target is chosen, ---
+    // --- and keep the two transfer methods (to event / to person) mutually exclusive.          ---
+    const transferEventSelect  = EME.$('select[name="transferto_id"]');
+    const transferPersonSelect = EME.$('select[name="transferto_person_id"]');
+    const transferEventButton  = EME.$('#transfer_to_event_button');
+    const transferPersonButton = EME.$('#transfer_to_person_button');
+
+    if (transferEventSelect && transferPersonSelect && transferEventButton && transferPersonButton) {
+        const clearSnapSelect = (selectEl) => {
+            if (selectEl.snapselectInstance) {
+                selectEl.snapselectInstance.clear();
+            } else {
+                selectEl.value = '';
+            }
+        };
+
+        const toggleTransferButtons = () => {
+            transferEventButton.style.display  = transferEventSelect.value  ? '' : 'none';
+            transferPersonButton.style.display = transferPersonSelect.value ? '' : 'none';
+        };
+
+        document.addEventListener('change', (e) => {
+            if (e.target === transferEventSelect) {
+                if (transferEventSelect.value && transferPersonSelect.value) {
+                    clearSnapSelect(transferPersonSelect);
+                }
+                toggleTransferButtons();
+            } else if (e.target === transferPersonSelect) {
+                if (transferPersonSelect.value && transferEventSelect.value) {
+                    clearSnapSelect(transferEventSelect);
+                }
+                toggleTransferButtons();
+            }
+        });
+
+        toggleTransferButtons();
+    }
 });

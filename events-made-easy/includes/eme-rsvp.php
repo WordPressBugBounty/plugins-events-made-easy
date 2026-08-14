@@ -99,7 +99,6 @@ function eme_add_multibooking_form( $events, $template_id_header = 0, $template_
 
     $current_userid = get_current_user_id();
     $registration_wp_users_only = $event['registration_wp_users_only'];
-    $form_class = '';
     // if we require a user to be WP registered to be able to book
     // in the backend we should not check this condition
     if ( $event['event_status'] == EME_EVENT_STATUS_TRASH ) {
@@ -147,11 +146,6 @@ function eme_add_multibooking_form( $events, $template_id_header = 0, $template_
                 return $form_html;
             }
         }
-
-        if (! is_user_logged_in() && get_option('eme_rememberme')) {
-            wp_enqueue_script( 'eme-rememberme' );
-            $form_class = "class='eme-rememberme'";
-        }
     }
 
     if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
@@ -165,7 +159,7 @@ function eme_add_multibooking_form( $events, $template_id_header = 0, $template_
     usleep( 2 );
     $form_id   = "eme_".eme_random_id(); // JS selectors need to start with a letter, so to be sure we prefix it
     $form_html = "<noscript><div class='eme-noscriptmsg'>" . __( 'Javascript is required for this form to work properly', 'events-made-easy' ) . "</div></noscript>
-        <div id='eme-rsvp-addmessage-ok-$form_id' class='eme-message-success eme-rsvp-message eme-rsvp-message-success eme-hidden'></div><div id='eme-rsvp-addmessage-error-$form_id' class='eme-message-error eme-rsvp-message eme-rsvp-message-error eme-hidden'></div><div id='div_eme-payment-form-$form_id' class='eme-payment-form eme-hidden'></div><div id='div_eme-rsvp-form-$form_id' class='eme-showifjs eme-hidden'><form id='$form_id' name='eme-rsvp-form' method='post' $form_class action='#' >";
+        <div id='eme-rsvp-addmessage-ok-$form_id' class='eme-message-success eme-rsvp-message eme-rsvp-message-success eme-hidden'></div><div id='eme-rsvp-addmessage-error-$form_id' class='eme-message-error eme-rsvp-message eme-rsvp-message-error eme-hidden'></div><div id='div_eme-payment-form-$form_id' class='eme-payment-form eme-hidden'></div><div id='div_eme-rsvp-form-$form_id' class='eme-showifjs eme-hidden'><form id='$form_id' name='eme-rsvp-form' method='post' action='#' >";
     // add a nonce for extra security
     $form_html .= wp_nonce_field( 'eme_frontend', 'eme_frontend_nonce', false, false );
     // also add a honeypot field: if it gets completed with data,
@@ -1108,7 +1102,7 @@ function eme_add_bookings_ajax() {
             } else {
                 $only_if_not_registered = 0;
             }
-            if ( ! $only_if_not_registered && get_option( 'eme_rsvp_show_form_after_booking' ) && ! get_option( 'eme_rememberme' ) ) {
+            if ( ! $only_if_not_registered && get_option( 'eme_rsvp_show_form_after_booking' ) ) {
                 // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode() returns safe JSON
                 echo wp_json_encode(
                     [
@@ -1139,7 +1133,7 @@ function eme_add_bookings_ajax() {
         } else {
             $only_if_not_registered = 0;
         }
-        if ( ! $only_if_not_registered && get_option( 'eme_rsvp_show_form_after_booking' ) && ! get_option( 'eme_rememberme' ) ) {
+        if ( ! $only_if_not_registered && get_option( 'eme_rsvp_show_form_after_booking' ) ) {
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_json_encode() returns safe JSON
             echo wp_json_encode(
                 [
@@ -5053,14 +5047,14 @@ function eme_registration_seats_page( $pending = 0 ) {
         check_admin_referer( "eme_admin", 'eme_admin_nonce' );
         $event = eme_get_event( $event_id );
         if ( empty( $event ) ) {
-            print "<div id='message' class='error'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            print eme_message_error_div( __( 'Access denied!', 'events-made-easy' ), 1 );
             return;
         }
         $current_userid = get_current_user_id();
         if ( ! ( current_user_can( get_option( 'eme_cap_registrations' ) ) ||
             ( current_user_can( get_option( 'eme_cap_author_registrations' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) ) {
 
-            print "<div id='message' class='error'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            print eme_message_error_div( __( 'Access denied!', 'events-made-easy' ), 1 );
             return;
         }
         // we need to set the action url, otherwise the GET parameters stay and we will fall in this if-statement all over again
@@ -5091,14 +5085,14 @@ function eme_registration_seats_page( $pending = 0 ) {
         $event_id = $booking['event_id'];
         $event    = eme_get_event( $event_id );
         if ( empty( $event ) ) {
-            print "<div id='message' class='error'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            print eme_message_error_div( __( 'Access denied!', 'events-made-easy' ), 1 );
             return;
         }
         $current_userid = get_current_user_id();
         if ( ! ( current_user_can( get_option( 'eme_cap_registrations' ) ) ||
             ( current_user_can( get_option( 'eme_cap_author_registrations' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) ) {
 
-            print "<div id='message' class='error'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+            print eme_message_error_div( __( 'Access denied!', 'events-made-easy' ), 1 );
             return;
         }
 
@@ -5152,15 +5146,15 @@ function eme_registration_seats_page( $pending = 0 ) {
             check_admin_referer( "eme_admin", 'eme_admin_nonce' );
             $event = eme_get_event( $event_id );
             if ( empty( $event ) ) {
-                print "<div id='message' class='error'><p>" . esc_html__( 'Access denied!', 'events-made-easy' ) . '</p></div>';
+                print eme_message_error_div( __( 'Access denied!', 'events-made-easy' ), 1 );
             } else {
                 $booking_res = eme_book_seats( $event, $send_mail );
                 $result      = $booking_res[0];
                 $payment_id  = $booking_res[1];
                 if ( ! $payment_id ) {
-                    print "<div id='message' class='error'><p>" . wp_kses_post( $result ) . '</p></div>';
+                    print eme_message_error_div( $result, 1 );
                 } else {
-                    print "<div id='message' class='updated notice is-dismissible'><p>" . wp_kses_post( $result ) . '</p></div>';
+                    print eme_message_ok_div( $result, 1 );
                 }
             }
         } elseif ( $action == 'updateBooking' ) {
@@ -5295,16 +5289,15 @@ function eme_registration_seats_page( $pending = 0 ) {
                 }
                 // now get the changed booking and send mail if wanted
                 $booking = eme_get_booking( $booking_id );
-                print "<div id='message' class='updated notice is-dismissible'><p>" . wp_kses_post( $update_message ) . '</p></div>';
+                print eme_message_ok_div( $update_message, 1 );
                 if ( $send_mail ) {
                     $mail_res = eme_email_booking_action( $booking, $action );
                     if ( ! $mail_res ) {
-                        print "<div id='mailmessage' class='error notice is-dismissible'><p>" . esc_html__( 'There were some problems while sending mail.', 'events-made-easy' ) . '</p></div>';
+                        print eme_message_error_div( __( 'There were some problems while sending mail.', 'events-made-easy' ), 1 );
                     }
                 }
             } else {
-                $update_message = __( 'During the time of your change, some free seats were taken leaving not enough free seats available anymore', 'events-made-easy' );
-                print "<div id='message' class='error notice is-dismissible'><p>" . wp_kses_post( $update_message ) . '</p></div>';
+                print eme_message_error_div( __( 'During the time of your change, some free seats were taken leaving not enough free seats available anymore', 'events-made-easy' ), 1 );
             }
         }
     }
@@ -5574,6 +5567,7 @@ function eme_registration_seats_form_table( $pending = 0 ) {
     <option value="userConfirmBooking"><?php esc_html_e( 'Restore booking and mark pending and awaiting user confirmation', 'events-made-easy' ); ?></option>
     <option value="pendingBooking"><?php esc_html_e( 'Restore booking and mark pending', 'events-made-easy' ); ?></option>
     <option value="approveBooking"><?php esc_html_e( 'Restore booking and mark approved', 'events-made-easy' ); ?></option>
+    <option value="sendMails"><?php esc_html_e( 'Send generic email to selected persons', 'events-made-easy' ); ?></option>
 <?php } elseif ( $pending ) { ?>
     <option value="approveBooking"><?php esc_html_e( 'Approve booking', 'events-made-easy' ); ?></option>
     <option value="trashBooking"><?php esc_html_e( 'Delete booking (move to trash)', 'events-made-easy' ); ?></option>

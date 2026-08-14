@@ -2617,6 +2617,8 @@ function eme_nl2br_save_html( $string ) {
         // So we flatten it to <br>-based layout unconditionally
         $core = preg_replace( '#\s*</p>\s*<p>\s*#', '<br /><br />', $core );
         $core = preg_replace( '#</?p[^>]*>#', '', $core );
+        // to be sure: no br after a closing </li> or </td>
+        $core = preg_replace( '#(</(?:li|td)>)\s*<br\s*/?>#', '$1', $core );
         // Readability I like: every <br> tag should be followed by a newline
         $core = preg_replace( '#(<br\s*/?>)(?!\n)#', "$1\n", $core );
     }
@@ -3380,7 +3382,7 @@ function eme_ajax_record_delete( $tablename, $cap, $postvar ) {
         $table_columns = eme_get_table_columns( $table );
         if ( ! in_array( $postvar, $table_columns ) ) {
             $fTableResult['Result']      = 'ERROR';
-            $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Invalid column name!', 'events-made-easy' ) );
+            $fTableResult['htmlmessage'] = eme_message_error_div( __( 'Invalid column name!', 'events-made-easy' ) );
             print wp_json_encode( $fTableResult );
             wp_die();
         }
@@ -3400,10 +3402,10 @@ function eme_ajax_record_delete( $tablename, $cap, $postvar ) {
         }
 
         $fTableResult['Result']      = 'OK';
-        $fTableResult['htmlmessage'] = eme_message_ok_div( esc_html__( 'Records deleted!', 'events-made-easy' ) );
+        $fTableResult['htmlmessage'] = eme_message_ok_div( __( 'Records deleted!', 'events-made-easy' ) );
     } else {
         $fTableResult['Result']      = 'ERROR';
-        $fTableResult['htmlmessage'] = eme_message_error_div( esc_html__( 'Access denied!', 'events-made-easy' ) );
+        $fTableResult['htmlmessage'] = eme_message_error_div( __( 'Access denied!', 'events-made-easy' ) );
     }
     print wp_json_encode( $fTableResult );
     wp_die();
@@ -4441,16 +4443,19 @@ function eme_remove_attrs($attrs_to_remove, $attributes) {
 }
 
 function eme_message_div($message) {
-    return "<div><p>" .$message.'</p></div>';
+    return "<div>" .$message.'</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- managed generated message string
 }
-function eme_message_ok_div($message) {
-    return "<div class='notice notice-success eme-message-admin'><p>" .$message.'</p></div>';
+function eme_message_ok_div($message, $is_dismissible = 0) {
+    $dismiss_class = $is_dismissible ? "is-dismissible inline" : "";
+    return "<div class='notice notice-success $dismiss_class eme-message-admin'>" . wp_kses_post( $message ) . '</div>';
 }
-function eme_message_warning_div($message) {
-    return "<div class='notice notice-warning eme-message-admin'><p>" .$message.'</p></div>';
+function eme_message_warning_div($message, $is_dismissible = 0) {
+    $dismiss_class = $is_dismissible ? "is-dismissible inline" : "";
+    return "<div class='notice notice-warning $dismiss_class eme-message-admin'>" . wp_kses_post( $message ) . '</div>';
 }
-function eme_message_error_div($message) {
-    return "<div class='notice notice-error eme-message-admin'><p>" .$message.'</p></div>';
+function eme_message_error_div($message, $is_dismissible = 0) {
+    $dismiss_class = $is_dismissible ? "is-dismissible inline" : "";
+    return "<div class='notice notice-error $dismiss_class eme-message-admin'>" . wp_kses_post( $message ) . '</div>';
 }
 
 function eme_apply_output_filters( $replacement, $target, $esc_html = false ) {

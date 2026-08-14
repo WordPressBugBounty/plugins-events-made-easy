@@ -2352,7 +2352,7 @@ function eme_ajax_previewmail() {
     if ( isset( $parsed['error'] ) ) {
         wp_send_json( [
             'Result' => 'ERROR',
-            'htmlmessage' => eme_message_error_div( esc_html( $parsed['error'] ) )
+            'htmlmessage' => eme_message_error_div( $parsed['error'] )
         ] );
     }
 
@@ -2410,7 +2410,7 @@ function eme_ajax_previeweventmail() {
     if ( isset( $parsed['error'] ) ) {
         wp_send_json( [
             'Result' => 'ERROR',
-            'htmlmessage' => eme_message_error_div( esc_html( $parsed['error'] ) )
+            'htmlmessage' => eme_message_error_div( $parsed['error'] )
         ] );
     }
 
@@ -2586,7 +2586,7 @@ function eme_send_generic_mail( $post_data ) {
 
     $parsed = eme_parse_generic_mail_post();
     if ( isset( $parsed['error'] ) ) {
-        return [ 'success' => false, 'message' => eme_message_error_div( esc_html( $parsed['error'] ) ) ];
+        return [ 'success' => false, 'message' => eme_message_error_div( $parsed['error'] ) ];
     }
 
     // Extract values
@@ -2736,7 +2736,7 @@ function eme_send_event_mail( $post_data ) {
 
     $parsed = eme_parse_event_mail_post();
     if ( isset( $parsed['error'] ) ) {
-        return [ 'success' => false, 'message' => eme_message_error_div( esc_html( $parsed['error'] ) ) ];
+        return [ 'success' => false, 'message' => eme_message_error_div( $parsed['error'] ) ];
     }
 
     // Extract values
@@ -3459,6 +3459,7 @@ function eme_emails_page() {
     // now show the form
 ?>
 <div class="wrap">
+<h1 style="padding: 0;"></h1> <!-- empty h1 to anchor any notices to, these are rendered by WP js below the first h1 -->
 <div class="eme-tabs" <?php echo $data_forced_tab; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded data attribute string ?>>
     <div class="eme-tab" data-tab="tab-eventmails"><?php esc_html_e( 'Event related email', 'events-made-easy' ); ?></div>
     <div class="eme-tab" data-tab="tab-genericmails"><?php esc_html_e( 'Generic email', 'events-made-easy' ); ?></div>

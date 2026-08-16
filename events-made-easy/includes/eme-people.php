@@ -1047,6 +1047,7 @@ function eme_csv_tasksignups_report( $event_id ) {
     $line[] = get_option( 'eme_address2_string' );
     $line[] = __( 'City', 'events-made-easy' );
     $line[] = __( 'Postal code', 'events-made-easy' );
+    /* translators: "state" refers to a geographical region (e.g., province, canton, department) */
     $line[] = __( 'State', 'events-made-easy' );
     $line[] = __( 'Country', 'events-made-easy' );
     $line[] = __( 'Email', 'events-made-easy' );
@@ -1221,6 +1222,7 @@ function eme_csv_booking_report( $event_id ) {
     $line[] = get_option( 'eme_address2_string' );
     $line[] = __( 'City', 'events-made-easy' );
     $line[] = __( 'Postal code', 'events-made-easy' );
+    /* translators: "state" refers to a geographical region (e.g., province, canton, department) */
     $line[] = __( 'State', 'events-made-easy' );
     $line[] = __( 'Country', 'events-made-easy' );
     $line[] = __( 'Email', 'events-made-easy' );
@@ -1839,8 +1841,6 @@ function eme_printable_booking_report( $event_id ) {
 
 function eme_person_verify_layout() {
 ?>
-    <div class="wrap nosubsub">
-    <div id="poststuff">
     <h1><?php esc_html_e( 'Verify link between people and WP', 'events-made-easy' ); ?></h1>
 <?php
     // the next function returns a row containing multiple person ids per line (csv), lastname,firstname,email,wp_id
@@ -1976,10 +1976,6 @@ function eme_person_verify_layout() {
         esc_html_e( 'No issues found', 'events-made-easy' );
     }
     endif;
-?>
-    </div>
-    </div>
-<?php
 }
 
 function eme_render_people_table_and_filters( $limit_to_group = 0) {
@@ -2439,12 +2435,7 @@ function eme_people_table( $message = '', $active_tab = 'tab-people' ) {
     <!-- ==================== VERIFY TAB ==================== -->
     <div class="eme-tab-content" id="tab-verify">
 <?php if ( current_user_can( get_option( 'eme_cap_edit_people' ) ) ) :
-    if ( isset( $_GET['eme_admin_action'] ) && eme_sanitize_request($_GET['eme_admin_action']) == 'verify_people' ) :
         eme_person_verify_layout();
-    else :
-        // translators: %s is the URL to verify EME people integrity
-        printf( wp_kses_post( __( "Click <a href='%s'>here</a> to verify the integrity of EME people", 'events-made-easy' ) ), esc_url( admin_url( "admin.php?page=$plugin_page&eme_admin_action=verify_people" ) ) );
-    endif;
 else : ?>
     <p><?php esc_html_e( 'You have no right to verify people!', 'events-made-easy' ); ?></p>
 <?php endif; ?>
@@ -2646,7 +2637,7 @@ function eme_person_edit_layout( $person_id = 0, $message = '' ) {
         <td></td>
         </tr>
         <tr>
-        <td><label for="state_code"><?php esc_html_e( 'State', 'events-made-easy' ); ?></label></td>
+        <td><label for="state_code"><?php /* translators: "state" refers to a geographical region (e.g., province, canton, department) */ esc_html_e( 'State', 'events-made-easy' ); ?></label></td>
         <td><?php echo eme_ui_select( $person['state_code'], 'state_code', $state_arr, '', 0, 'eme_snapselect_state_class' ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?></td>
         <td></td>
         </tr>
@@ -4356,6 +4347,7 @@ function eme_add_familymember_from_frontend( $main_person_id, $familymember ) {
     if ( ! empty( $_POST['state_code'] ) ) {
         $state_code = eme_sanitize_request( $_POST['state_code'] );
         $state_name = eme_get_state_name( $state_code, $country_code, $lang );
+        /* translators: "state" refers to a geographical region (e.g., province, canton, department) */
         if ( empty( $state_name ) ) {
             return [
                 0 => 0,
@@ -4500,6 +4492,7 @@ function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname
     if ( ! empty( $_POST['state_code'] ) ) {
         $state_code = eme_sanitize_request( $_POST['state_code'] );
         $state_name = eme_get_state_name( $state_code, $country_code, $lang );
+        /* translators: "state" refers to a geographical region (e.g., province, canton, department) */
         if ( empty( $state_name ) ) {
             return [
                 0 => 0,

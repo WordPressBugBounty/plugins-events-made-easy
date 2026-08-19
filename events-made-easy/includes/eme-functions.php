@@ -2497,9 +2497,9 @@ function _eme_kses_single( $value, $allow_unfiltered ) {
         }
     }
     // always allow span, style and meta
-    $allowed_html[ 'span '] = [];
-    $allowed_html[ 'meta '] = [];
-    $allowed_html[ 'style '] = [];
+    $allowed_html[ 'span' ] = [];
+    $allowed_html[ 'meta' ] = [];
+    $allowed_html[ 'style' ] = [];
 
     add_filter( 'safe_style_css', 'eme_safe_css_attributes' );
     // brute-force remove script tags, even if wp_kses wouldn't do it
@@ -2589,6 +2589,7 @@ function eme_nl2br_save_html( $string ) {
     if ( empty( $string ) || ! str_contains( $string, "\n" ) ) {
         return $string;
     }
+
     $htmleditor = get_option( 'eme_htmleditor' );
     // If not tinymce and the string already looks like authored HTML,
     // respect it as-is
@@ -4458,8 +4459,13 @@ function eme_message_error_div($message, $is_dismissible = 0) {
     return "<div class='notice notice-error $dismiss_class eme-message-admin'>" . wp_kses_post( $message ) . '</div>';
 }
 
+// backwars compatible
 function eme_apply_output_filters( $replacement, $target, $esc_html = false ) {
+    return eme_sanitize_placeholder_output( $replacement, $target, $esc_html);
+}
+function eme_sanitize_placeholder_output( $replacement, $target, $esc_html = false ) {
     if ( $target == 'html' ) {
+        $replacement = eme_kses($replacement);
         if ( $esc_html ) {
             $replacement = esc_html( $replacement );
         }

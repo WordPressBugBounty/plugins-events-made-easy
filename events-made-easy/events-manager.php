@@ -6,12 +6,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /*
 Plugin Name: Events Made Easy
-Version: 3.2.5
+Version: 3.2.6
 Plugin URI: https://www.e-dynamics.be/wordpress
 Description: Manage and display events and memberships. Also includes recurring events; locations; widgets; maps; RSVP; ICAL and RSS feeds; Paypal, Stripe, Mollie and others.
 Author: Franky Van Liedekerke
 Author URI: https://www.e-dynamics.be/
 Text Domain: events-made-easy
+Domain Path: /langs
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 */
@@ -34,7 +35,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
-define( 'EME_VERSION', '3.2.5' );
+define( 'EME_VERSION', '3.2.6' );
 define( 'EME_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EME_INCLUDE_DIR', EME_PLUGIN_DIR . 'includes/' );
 define( 'EME_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

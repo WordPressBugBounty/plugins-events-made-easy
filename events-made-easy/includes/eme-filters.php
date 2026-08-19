@@ -196,16 +196,17 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 		$replacement        = '';
 		$eventful           = 0;
 		$found              = 1;
+        $field_multiple     = $multiple;
 
 		$force_single = 0;
 		if ( strstr( $result, '#SINGLE' ) ) {
 			$result       = str_replace( '#SINGLE', '#', $result );
-			$multiple     = 0;
+			$field_multiple = 0;
 			$force_single = 1;
 		}
 		if ( strstr( $result, '#MULTIPLE' ) ) {
 			$result   = str_replace( '#MULTIPLE', '#', $result );
-			$multiple = 1;
+			$field_multiple = 1;
 		}
 
 		if ( preg_match( '/#_(EVENTFUL_)?FILTER_CATS(\{.+?\})?/', $result, $matches ) && get_option( 'eme_categories_enabled' ) ) {
@@ -215,7 +216,7 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 			if ( isset( $matches[2] ) ) {
 				// remove { and } (first and last char of second match)
 				$label = substr( $matches[2], 1, -1 );
-			} elseif ( $multiple ) {
+			} elseif ( $field_multiple ) {
 				$label = __( 'Select one or more categories', 'events-made-easy' );
 			} else {
 				$label = __( 'Select a category', 'events-made-easy' );
@@ -232,7 +233,7 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 				$cat_list = eme_array_remove_empty_elements( $cat_list );
 				if ( ! empty( $cat_list ) ) {
 					asort( $cat_list );
-					if ( $multiple ) {
+					if ( $field_multiple ) {
                         $replacement = eme_ui_multiselect( $selected_category, $cat_post_name, $cat_list, $multisize, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'", 1 );
 					} else {
 						$replacement = eme_ui_select( $selected_category, $cat_post_name, $cat_list, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'" );
@@ -246,7 +247,7 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 			if ( isset( $matches[2] ) ) {
 				// remove { and } (first and last char of second match)
 				$label = substr( $matches[2], 1, -1 );
-			} elseif ( $multiple ) {
+			} elseif ( $field_multiple ) {
 				$label = __( 'Select one or more locations', 'events-made-easy' );
 			} else {
 				$label = __( 'Select a location', 'events-made-easy' );
@@ -262,7 +263,7 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 				$loc_list = eme_array_remove_empty_elements( $loc_list );
 				if ( ! empty( $loc_list ) ) {
 					asort( $loc_list );
-					if ( $multiple ) {
+					if ( $field_multiple ) {
                         $replacement = eme_ui_multiselect( $selected_location, $loc_post_name, $loc_list, $multisize, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'", 1 );
 					} else {
 						$replacement = eme_ui_select( $selected_location, $loc_post_name, $loc_list, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'" );
@@ -274,18 +275,17 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 				$eventful = 1;
 			}
 			// per-type config: which location field feeds the list, its post name/selected value, and default labels
-			// translators: "state" refers to a geographical region (e.g., province, canton, department)
 			$field_config = [
 				'TOWNS'     => [ 'field' => 'location_city', 'post_name' => $city_post_name, 'selected' => $selected_city, 'label_multi' => __( 'Select one or more cities', 'events-made-easy' ), 'label_single' => __( 'Select a city', 'events-made-easy' ) ],
 				'CITIES'    => [ 'field' => 'location_city', 'post_name' => $city_post_name, 'selected' => $selected_city, 'label_multi' => __( 'Select one or more cities', 'events-made-easy' ), 'label_single' => __( 'Select a city', 'events-made-easy' ) ],
-				'STATES'    => [ 'field' => 'location_state', 'post_name' => $state_post_name, 'selected' => $selected_state, 'label_multi' => __( 'Select one or more states', 'events-made-easy' ), 'label_single' => __( 'Select a state', 'events-made-easy' ) ],
+                'STATES'    => [ 'field' => 'location_state', 'post_name' => $state_post_name, 'selected' => $selected_state, 'label_multi' => /* translators: "state" refers to a geographical region (e.g., province, canton, department) */ __( 'Select one or more states', 'events-made-easy' ), 'label_single' => /* translators: "state" refers to a geographical region (e.g., province, canton, department) */ __( 'Select a state', 'events-made-easy' ) ],
 				'COUNTRIES' => [ 'field' => 'location_country', 'post_name' => $country_post_name, 'selected' => $selected_country, 'label_multi' => __( 'Select one or more countries', 'events-made-easy' ), 'label_single' => __( 'Select a country', 'events-made-easy' ) ],
 			];
 			$cfg = $field_config[ $matches[2] ];
 			if ( isset( $matches[3] ) ) {
 				// remove { and } (first and last char of second match)
 				$label = substr( $matches[3], 1, -1 );
-			} elseif ( $multiple ) {
+			} elseif ( $field_multiple ) {
 				$label = $cfg['label_multi'];
 			} else {
 				$label = $cfg['label_single'];
@@ -304,7 +304,7 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
                 }
             }
             if (!empty($list)) {
-                if ( $multiple ) {
+                if ( $field_multiple ) {
                     $replacement = eme_ui_multiselect( $cfg['selected'], $cfg['post_name'], $list, $multisize, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'", 1 );
                 } else {
                     $replacement = eme_ui_select( $cfg['selected'], $cfg['post_name'], $list, '', 0, 'eme_snapselect_allow_empty', $aria_label . " data-placeholder='$label'" );
@@ -423,5 +423,3 @@ function eme_replace_filter_form_placeholders( $format, $multiple, $multisize, $
 
 	return do_shortcode( $format );
 }
-
-

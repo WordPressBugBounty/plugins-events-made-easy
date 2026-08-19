@@ -36,19 +36,19 @@ function eme_get_calendar_shortcode( $atts ) {
 	$full = filter_var($atts['full'], FILTER_VALIDATE_BOOLEAN);
 	$long_events = filter_var($atts['long_events'], FILTER_VALIDATE_BOOLEAN);
 
-	$month = $atts['month'];
-	$year = intval($atts['year']);
-	$category = $atts['category'];
-	$notcategory = $atts['notcategory'];
-	$author = $atts['author'];
-	$contact_person = $atts['contact_person'];
-	$location_id = $atts['location_id'];
-	$template_id = $atts['template_id'];
-	$holiday_id = $atts['holiday_id'];
-	$htmltable = $atts['htmltable'];
-	$htmldiv = $atts['htmldiv'];
-	$weekdays = $atts['weekdays'];
-	$ignore_filter = $atts['ignore_filter'];
+	$month = eme_sanitize_request( $atts['month'] ); // can be text too (this_month), so no intval
+	$year = intval( $atts['year'] );
+	$category = eme_sanitize_request( $atts['category'] );
+	$notcategory = eme_sanitize_request( $atts['notcategory'] );
+	$author = eme_sanitize_request( $atts['author'] );
+	$contact_person = eme_sanitize_request( $atts['contact_person'] );
+	$location_id = eme_sanitize_request( $atts['location_id'] );
+	$template_id = intval( $atts['template_id'] );
+	$holiday_id = intval( $atts['holiday_id'] );
+	$htmltable = filter_var( $atts['htmltable'], FILTER_VALIDATE_BOOLEAN );
+	$htmldiv = filter_var( $atts['htmldiv'], FILTER_VALIDATE_BOOLEAN );
+	$weekdays = eme_sanitize_request( $atts['weekdays'] );
+	$ignore_filter = filter_var( $atts['ignore_filter'], FILTER_VALIDATE_BOOLEAN );
 
 	// Allow specific months/years for the calendar display
 	if (isset($_GET['calmonth']) && $_GET['calmonth'] != '') {
@@ -281,6 +281,7 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 	if ( ! $full && has_filter( 'eme_cal_small_yearmonth' ) ) {
 		$cal_datestring = apply_filters( 'eme_cal_small_yearmonth', $cal_datestring, $iSelectedMonth, $iSelectedYear );
 	}
+    $cal_datestring = esc_html($cal_datestring);
 
 	// Get previous year and month
 	$iPrevYear  = $iSelectedYear;
@@ -390,7 +391,7 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 		if ( $holidays ) {
 			foreach ( $holidays as $day_key => $info ) {
 				if ( ! empty( $info['name'] ) ) {
-					$holiday_title = trim( esc_html( $info['name'] ) );
+					$holiday_title = trim( $info['name'] );
 					$eme_holiday_class = 'eme-cal-holidays';
 					if ( empty( $info['class'] ) ) {
 						$class = $eme_holiday_class;
@@ -401,7 +402,7 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 					if ( empty( $info['link'] ) ) {
 						$holiday_text = $info['name'];
 					} else {
-						$holiday_text = "<a href='" . $info['link'] . "' target='_blank' rel='noopener noreferrer'>" . $info['name'] . '</a>';
+						$holiday_text = "<a href='" . esc_url( $info['link'] ) . "' target='_blank' rel='noopener noreferrer'>" . esc_html( $info['name'] ) . '</a>';
 					}
 
 					// if there's an event that day, the day-number is a link and will be set later on
@@ -413,9 +414,9 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 						$event_date = explode( '-', $day_key );
 						$event_day  = ltrim( $event_date[2], '0' );
 						if ( ! empty( $info['link'] ) ) {
-							$event_day = "<a href='" . $info['link'] . "' target='_blank' rel='noopener noreferrer'>" . $event_day . '</a>';
+							$event_day = "<a href='" . esc_url( $info['link'] ) . "' target='_blank' rel='noopener noreferrer'>" . $event_day . '</a>';
 						}
-						$cells[ $day_key ] = "<span class='$eme_holiday_class' title='$holiday_title'>$event_day</span>";
+						$cells[ $day_key ] = "<span class='$eme_holiday_class' title='" . esc_attr( $holiday_title ) . "'>$event_day</span>";
 						if ( $full ) {
 							$cells[ $day_key ] .= "<br><span class='$class'>$holiday_text</span><br>";
 						}
@@ -476,7 +477,7 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 			$class = apply_filters( 'eme_calday_url_class_filter', $class );
 		}
 		if ( ! empty( $class ) ) {
-			$class = "class='$class'";
+			$class = "class='" . esc_attr( $class ) . "'";
 		}
 
 		$cells[ $day_key ] = "<span class='span-eme-calday span-eme-calday-$event_day'><a title='" . esc_attr( $link_title ) . "' href='" . esc_url( $cal_day_link ) . "' $class>$event_day</a></span>";
@@ -537,8 +538,8 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 				} else {
 					$sClass .= " eventful event-day-$iCalendarDay";
 				}
-				$sCalTblCell = "<td class='$sClass'>" . $cells[ $calstring ] . "</td>\n";
-				$sCalDivCell = "<div class='emeDivTableCell $sClass'>" . $cells[ $calstring ] . "</div>\n";
+			$sCalTblCell = "<td class='" . esc_attr( $sClass ) . "'>" . $cells[ $calstring ] . "</td>\n";
+			$sCalDivCell = "<div class='emeDivTableCell " . esc_attr( $sClass ) . "'>" . $cells[ $calstring ] . "</div>\n";
 			} else {
 				if ( $isPreviousMonth ) {
 					$sClass .= ' eventless-pre';
@@ -549,8 +550,8 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 				} else {
 					$sClass .= ' eventless';
 				}
-				$sCalTblCell = "<td class='$sClass'><span class='span-eme-calday span-eme-calday-$iCalendarDay'>$iCalendarDay</span></td>\n";
-				$sCalDivCell = "<div class='emeDivTableCell $sClass'>$iCalendarDay</div>\n";
+			$sCalTblCell = "<td class='" . esc_attr( $sClass ) . "'><span class='span-eme-calday span-eme-calday-$iCalendarDay'>$iCalendarDay</span></td>\n";
+			$sCalDivCell = "<div class='emeDivTableCell " . esc_attr( $sClass ) . "'>$iCalendarDay</div>\n";
 			}
 
 			// only show wanted columns
@@ -598,22 +599,21 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 		}
 
 		if ( $full ) {
-			$sCalTblDayNames .= "<td class='" . $weekday_header_class[ $j ] . "'>" . $wp_locale->get_weekday_abbrev( $weekday_names[ $j ] ) . '</td>';
-			$sCalDivDayNames .= "<div class='emeDivTableHead " . $weekday_header_class[ $j ] . "'>" . $wp_locale->get_weekday_abbrev( $weekday_names[ $j ] ) . '</div>';
+			$sCalTblDayNames .= "<td class='" . $weekday_header_class[ $j ] . "'>" . esc_html($wp_locale->get_weekday_abbrev( $weekday_names[ $j ] )) . '</td>';
+			$sCalDivDayNames .= "<div class='emeDivTableHead " . $weekday_header_class[ $j ] . "'>" . esc_html($wp_locale->get_weekday_abbrev( $weekday_names[ $j ] )) . '</div>';
 		} else {
-			$sCalTblDayNames .= "<td class='" . $weekday_header_class[ $j ] . "'>" . $wp_locale->get_weekday_initial( $weekday_names[ $j ] ) . '</td>';
-			$sCalDivDayNames .= "<div class='emeDivTableHead " . $weekday_header_class[ $j ] . "'>" . $wp_locale->get_weekday_initial( $weekday_names[ $j ] ) . '</div>';
+			$sCalTblDayNames .= "<td class='" . $weekday_header_class[ $j ] . "'>" . esc_html($wp_locale->get_weekday_initial( $weekday_names[ $j ] )) . '</td>';
+			$sCalDivDayNames .= "<div class='emeDivTableHead " . $weekday_header_class[ $j ] . "'>" . esc_html($wp_locale->get_weekday_initial( $weekday_names[ $j ] )) . '</div>';
 		}
 	}
 
 	// the real links are created via js when clicking on the prev-month or next-month class-links
-	$random        = ( wp_rand( 100, 200 ) );
-	$cal_div_id    = "eme-calendar-$random";
-	$previous_link = "<a class='prev-month eme-cal-prev-month' href='#' data-full='$full' data-htmltable='$htmltable' data-htmldiv='$htmldiv' data-long_events='$long_events' data-month='$iPrevMonth' data-year='$iPrevYear' data-category='$category' data-author='$author' data-contact_person='$contact_person' data-location_id='$location_id' data-notcategory='$notcategory' data-template_id='$template_id' data-holiday_id='$holiday_id' data-weekdays='$weekdays' data-calendar_divid='$cal_div_id'>&lt;&lt;</a>";
-	$next_link     = "<a class='next-month eme-cal-next-month' href=\"#\" data-full='$full' data-htmltable='$htmltable' data-htmldiv='$htmldiv' data-long_events='$long_events' data-month='$iNextMonth' data-year='$iNextYear' data-category='$category' data-author='$author' data-contact_person='$contact_person' data-location_id='$location_id' data-notcategory='$notcategory' data-template_id='$template_id' data-holiday_id='$holiday_id' data-weekdays='$weekdays' data-calendar_divid='$cal_div_id'>&gt;&gt;</a>";
+	$cal_div_id    = "eme-calendar-".eme_random_id();
+	$previous_link = "<a class='prev-month eme-cal-prev-month' href='#' data-full='" . esc_attr( $full ) . "' data-htmltable='" . esc_attr( $htmltable ) . "' data-htmldiv='" . esc_attr( $htmldiv ) . "' data-long_events='" . esc_attr( $long_events ) . "' data-month='" . esc_attr( $iPrevMonth ) . "' data-year='" . esc_attr( $iPrevYear ) . "' data-category='" . esc_attr( $category ) . "' data-author='" . esc_attr( $author ) . "' data-contact_person='" . esc_attr( $contact_person ) . "' data-location_id='" . esc_attr( $location_id ) . "' data-notcategory='" . esc_attr( $notcategory ) . "' data-template_id='" . esc_attr( $template_id ) . "' data-holiday_id='" . esc_attr( $holiday_id ) . "' data-weekdays='" . esc_attr( $weekdays ) . "' data-calendar_divid='" . esc_attr( $cal_div_id ) . "'>&lt;&lt;</a>";
+	$next_link     = "<a class='next-month eme-cal-next-month' href='#' data-full='" . esc_attr( $full ) . "' data-htmltable='" . esc_attr( $htmltable ) . "' data-htmldiv='" . esc_attr( $htmldiv ) . "' data-long_events='" . esc_attr( $long_events ) . "' data-month='" . esc_attr( $iNextMonth ) . "' data-year='" . esc_attr( $iNextYear ) . "' data-category='" . esc_attr( $category ) . "' data-author='" . esc_attr( $author ) . "' data-contact_person='" . esc_attr( $contact_person ) . "' data-location_id='" . esc_attr( $location_id ) . "' data-notcategory='" . esc_attr( $notcategory ) . "' data-template_id='" . esc_attr( $template_id ) . "' data-holiday_id='" . esc_attr( $holiday_id ) . "' data-weekdays='" . esc_attr( $weekdays ) . "' data-calendar_divid='" . esc_attr( $cal_div_id ) . "'>&gt;&gt;</a>";
 
 	$full ? $class = 'eme-calendar-full' : $class = 'eme-calendar';
-	$calendar      = "<div class='$class' id='$cal_div_id'>";
+	$calendar      = "<div class='$class' id='" . esc_attr( $cal_div_id ) . "'>";
 
 	if ( count( $weekday_arr ) ) {
 		$colspan = count( $weekday_arr );
@@ -646,7 +646,7 @@ function eme_get_calendar( $category=0, $notcategory=0, $full=0, $month='', $yea
 	$calendar .= '</div>';
 
 	if ( $do_echo ) {
-		echo $calendar; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted calendar HTML built in this function
+		echo $calendar; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- calendar HTML built and escaped in this function
 	} else {
 		return $calendar;
 	}
@@ -672,15 +672,15 @@ function eme_calendar_ajax() {
 	( ! empty( $_POST['holiday_id'] ) ) ? $holiday_id         = intval( $_POST['holiday_id'] ) : $holiday_id = '';
 	( ! empty( $_POST['weekdays'] ) ) ? $weekdays             = eme_sanitize_request( $_POST['weekdays'] ) : $weekdays = ''; // this can be a string like 0,2,3,5
 
-	echo eme_get_calendar( full: $full, month: $month, year: $year, long_events: $long_events, category: $category, author: $author, contact_person: $contact_person, location_id: $location_id, notcategory: $notcategory, template_id: $template_id, weekdays: $weekdays, holiday_id: $holiday_id, htmltable: $htmltable, htmldiv: $htmldiv ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted calendar HTML built by eme_get_calendar()
+	echo eme_get_calendar( full: $full, month: $month, year: $year, long_events: $long_events, category: $category, author: $author, contact_person: $contact_person, location_id: $location_id, notcategory: $notcategory, template_id: $template_id, weekdays: $weekdays, holiday_id: $holiday_id, htmltable: $htmltable, htmldiv: $htmldiv ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- calendar HTML built and escaped by eme_get_calendar()
 	wp_die();
 }
 
 function eme_replace_calendar_placeholders( $format, $event, $cal_day, $target = 'html', $lang = '' ) {
 	// replace EME language tags as early as possible
-        $format = eme_translate_string( $format );
+    $format = eme_translate_string( $format );
 
-	if ( $target == 'htmlmail' || $target == 'html_nohtml2br' ) {
+	if ( $target == 'htmlmail' ) {
 		$target = 'html';
 	}
 	if ( has_filter( 'eme_cal_format_prefilter' ) ) {

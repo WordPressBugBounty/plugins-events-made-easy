@@ -4912,7 +4912,7 @@ function eme_get_events_scope_condition( $limit_start, $limit_end, $show_ongoing
 }
 
 // main function querying the database event table
-function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset = 0, $location_id = '', $category = '', $author = '', $contact_person = '', $show_ongoing = 1, $notcategory = '', $show_recurrent_events_once = 0, $extra_conditions = [], $count = 0, $include_customformfields = 0, $search_customfieldids = '', $search_customfields = '', $include_unlisted = 0 ) {
+function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset = 0, $location_id = '', $category = '', $author = '', $contact_person = '', $show_ongoing = 1, $notcategory = '', $show_recurrent_events_once = 0, $extra_conditions = [], $count = 0, $include_customformfields = 0, $search_customfieldids = '', $search_customfields = '', $include_unlisted = 0, $search_customfieldrows = [] ) {
     global $wpdb;
 
     $events_table    = EME_DB_PREFIX . EME_EVENTS_TBNAME;
@@ -5605,6 +5605,30 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
         $columns = "$events_table.*,$locations_table.location_name,$locations_table.location_address1,$locations_table.location_address2,$locations_table.location_zip,$locations_table.location_city,$locations_table.location_state,$locations_table.location_country,$locations_table.location_latitude,$locations_table.location_longitude,$locations_table.location_attributes,$locations_table.location_properties";
     }
 
+    // custom field filters: each row is an independent, AND'd EXISTS condition.
+    // Additive to the single-value $search_customfields/$search_customfieldids params above (the public shortcode API) —
+    // used by the admin multi-row filter UI instead.
+    if ( ! empty( $search_customfieldrows ) && is_array( $search_customfieldrows ) ) {
+        $answers_table_cf         = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+        $formfields_searchable_cf = eme_get_searchable_formfields( 'events', 1 );
+        $searchable_ids           = array_map( 'intval', wp_list_pluck( $formfields_searchable_cf, 'field_id' ) );
+        foreach ( $search_customfieldrows as $row ) {
+            $field_id = intval( $row['fieldid'] ?? 0 );
+            if ( ! $field_id || ! in_array( $field_id, $searchable_ids, true ) ) {
+                continue; // ignore empty/unselected rows and non-searchable fields
+            }
+            $value = isset( $row['value'] ) ? trim( (string) $row['value'] ) : '';
+            if ( $value === '' ) {
+                $conditions[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table_cf WHERE related_id=$events_table.event_id AND type='event' AND field_id=%d AND answer='')", $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } elseif ( ! empty( $row['exact'] ) ) {
+                $conditions[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table_cf WHERE related_id=$events_table.event_id AND type='event' AND field_id=%d AND answer=%s)", $field_id, $value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } else {
+                $conditions[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table_cf WHERE related_id=$events_table.event_id AND type='event' AND field_id=%d AND answer LIKE %s)", $field_id, '%' . $wpdb->esc_like( $value ) . '%' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
+        }
+    }
+
+    $where    = implode( ' AND ', $conditions );
     $where    = implode( ' AND ', $conditions );
     $sql_join = '';
     if ( $include_customformfields ) {
@@ -5914,7 +5938,7 @@ function eme_import_csv_events() {
     }
 
     // get the first row as keys and lowercase them
-    $headers = array_map( 'strtolower', fgetcsv( $handle, 0, $delimiter, $enclosure ) );
+    $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
 
     // check required columns
     if ( ! in_array( 'event_name', $headers ) ) {
@@ -5922,7 +5946,7 @@ function eme_import_csv_events() {
     } else {
         $empty_props = eme_init_event_props( );
         // now loop over the rest
-        while ( ( $row = fgetcsv( $handle, 0, $delimiter, $enclosure ) ) !== false ) {
+        while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $line = array_combine( $headers, $row );
             // remove columns with empty values
             $line = eme_array_remove_empty_elements( $line );
@@ -5932,8 +5956,8 @@ function eme_import_csv_events() {
             $event_id    = 0;
             if ( ! isset( $line['location_id'] ) && isset( $line['location_name'] ) && isset( $line['location_address1'] ) && isset( $line['location_city'] ) ) {
                 // if the location already exists: update it
-                if ( isset( $line['external_ref'] ) ) {
-                    $location_id = eme_check_location_external_ref( $line['external_ref'] );
+                if ( isset( $line['location_external_ref'] ) ) {
+                    $location_id = eme_check_location_external_ref( $line['location_external_ref'] );
                 }
                 if ( ! $location_id && isset( $line['location_latitude'] ) && isset( $line['location_longitude'] ) ) {
                     $location_id = eme_check_location_coord( $line['location_latitude'], $line['location_longitude'] );
@@ -6039,8 +6063,8 @@ function eme_import_csv_events() {
                     }
                 }
 
-                if ( isset( $line['external_ref'] ) ) {
-                    $event_id = eme_check_event_external_ref( $line['external_ref'] );
+                if ( isset( $line['event_external_ref'] ) ) {
+                    $event_id = eme_check_event_external_ref( $line['event_external_ref'] );
                 }
 
                 $line = eme_sanitize_event( $line );
@@ -6151,6 +6175,10 @@ function eme_events_table( $message = '', $active_tab = '' ) {
 <div id="poststuff">
     <h1 style="padding: 0;"></h1> <!-- empty h1 to anchor any (admin) notices to, these are rendered by WP js below the first h1 -->
     <?php echo $message; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message is pre-escaped HTML ?>
+    <?php 
+        $used_field_id = intval( $_GET['used_field_id'] ?? 0 );
+        eme_render_used_field_notice($used_field_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message already escaped
+    ?>
 
     <div class="eme-tabs"<?php echo $show_tab_attr; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- hardcoded data attribute ?>>
     <div class="eme-tab" data-tab="tab-events"><?php esc_html_e( 'Events', 'events-made-easy' ); ?></div>
@@ -6174,9 +6202,10 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <form method='post' action="#">
         <select id="events_scope" name="scope">
 <?php
+    $scope_default = $used_field_id ? 'all' : 'future';
     foreach ( $scope_names as $key => $value ) {
         $selected = '';
-        if ( $key == 'future' ) {
+        if ( $key == $scope_default ) {
             $selected = "selected='selected'";
         }
         echo "<option value='".esc_attr($key)."' $selected>".esc_html($value)."</option>"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded
@@ -6195,7 +6224,6 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <input type="search" name="search_name" id="events_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
         <input id="events_search_start_date" type="text" name="events_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="events_search_end_date" type="text" name="events_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <button id="EventsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
         <button type="button" class="eme-filters-toggle" data-showhide="events_extra_searchfields"><span class="eme-filters-toggle-icon">&#9660;</span> <?php esc_html_e( 'Extra filters', 'events-made-easy' ); ?></button>
         <div id="events_extra_searchfields" class='eme-filters-panel'>
 <?php
@@ -6206,18 +6234,16 @@ function eme_events_table( $message = '', $active_tab = '' ) {
             <input type="search" name="search_location" id="events_search_location" placeholder="<?php esc_attr_e( 'Filter on location', 'events-made-easy' ); ?>" class="eme_searchfilter">
 <?php
     if ( ! empty( $formfields_searchable ) ) {
-        echo '<input type="search" name="search_customfields" id="events_search_customfields" placeholder="' . esc_attr__( 'Custom field value to search', 'events-made-easy' ) . '" class="eme_searchfilter" size=20>';
-        $label = __( 'Custom fields to filter on', 'events-made-easy' );
-        $extra_attributes = 'aria-label="' . esc_html( $label ) . '" data-placeholder="' . esc_html( $label ) . '"';
-        echo eme_ui_multiselect_key_value( '', 'events_search_customfieldids', $formfields_searchable, 'field_id', 'field_name', 5, '', 0, 'eme_snapselect', $extra_attributes, 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value()
+        eme_render_customfield_filter_rows( $formfields_searchable, [], '' );
     }
 ?>
             <div id="hint">
-            <?php esc_html_e( 'Hint: when searching for custom field values, you can optionally limit which custom fields you want to search in the "Custom fields to filter on" select-box shown.', 'events-made-easy' ); ?><br>
+            <?php esc_html_e( 'Hint: pick a custom field and enter a value to filter on. Click "+ Add custom field filter" to filter on multiple fields at once (all conditions must match); use the × to remove a filter.', 'events-made-easy' ); ?><br>
             </div>
         </div>
 <?php
 ?>
+        <button id="EventsLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter events', 'events-made-easy' ); ?></button>
         </form>
         </div>
 <?php
@@ -6247,7 +6273,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <?php eme_rightclickhint(); ?>
         </form>
         </div>
-<?php endif; ?>
+        <?php endif; ?>
         <div id="EventsTableContainer" data-extrafields='<?php echo esc_attr( $extrafields ); ?>' data-extrafieldnames='<?php echo esc_attr( $extrafieldnames ); ?>' data-extrafieldsearchable='<?php echo esc_attr( $extrafieldsearchable ); ?>'></div>
     </div>
 
@@ -9867,6 +9893,7 @@ function eme_admin_enqueue_js() {
         'eme-discounts' => ['eme-discounts'],
         'eme-countries' => ['eme-countries'],
         'eme-locations' => ['eme-locations'],
+        'eme-import' => ['eme-locations'], // the ajax call for coordinate resolving is in eme_admin_locations.js
         'eme-people' => ['eme-people','eme-members'], // we need members too when editing dynamic member groups
         'eme-members', 'eme-memberships' => ['eme-members'],
         'eme-registration-approval', 'eme-registration-seats' => ['eme-rsvp'],
@@ -9957,6 +9984,11 @@ function eme_ajax_events_list() {
     if ( ! empty( $search_name ) ) {
         $where_arr[] = $wpdb->prepare( 'event_name LIKE %s', '%' . $wpdb->esc_like( $search_name ) . '%' );
     }
+    $used_field_id = intval( $_POST['used_field_id'] ?? 0 );
+    if ( $used_field_id ) {
+        $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+        $where_arr[] = $wpdb->prepare( "event_id IN (SELECT related_id FROM $answers_table WHERE type='event' AND field_id=%d)", $used_field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    }
     if ( ! empty( $search_start_date ) && ! empty( $search_end_date ) ) {
         $where_arr[] = $wpdb->prepare( 'event_start >= %s', $search_start_date );
         $where_arr[] = $wpdb->prepare( 'event_end <= %s', $search_end_date . ' 23:59:59' );
@@ -10005,28 +10037,25 @@ function eme_ajax_events_list() {
     // $where_arr contains already-prepared SQL fragments, passed via extra_conditions['prepared']
 
     // we ask only for the event_id column here, more efficient
-    $count_only            = 1;
-    $formfields_searchable = eme_get_searchable_formfields( 'events' );
-    $field_ids_arr         = [];
-    foreach ( $formfields_searchable as $formfield ) {
-        $field_id        = $formfield['field_id'];
-        $field_ids_arr[] = $field_id;
-    }
-    if ( ! empty( $_POST['search_customfieldids'] ) && eme_is_integer_array( $_POST['search_customfieldids'] ) ) {
-        $field_ids = join( ',', array_map( 'intval', $_POST['search_customfieldids'] ) );
-    } else {
-        $field_ids = join( ',', $field_ids_arr );
-    }
-    if ( isset( $_POST['search_customfields'] ) && $_POST['search_customfields'] != '' ) {
-        $search_customfields = eme_sanitize_request( $_POST['search_customfields'] );
-    } else {
-        $search_customfields = '';
+    $count_only = 1;
+    $cf_ids   = eme_sanitize_request( $_POST['search_customfieldids'] ?? [] );
+    $cf_vals  = eme_sanitize_request( $_POST['search_customfieldvalues'] ?? [] );
+    $cf_exact = eme_sanitize_request( $_POST['search_customfieldexact'] ?? [] );
+    $search_customfieldrows = [];
+    if ( is_array( $cf_ids ) ) {
+        foreach ( $cf_ids as $idx => $field_id ) {
+            $search_customfieldrows[] = [
+                'fieldid' => $field_id,
+                'value'   => $cf_vals[ $idx ] ?? '',
+                'exact'   => $cf_exact[ $idx ] ?? 0,
+            ];
+        }
     }
 
     $extra_cond = ! empty( $where_arr ) ? [ 'prepared' => $where_arr ] : [];
-    $events_count = eme_get_events( scope: $scope, order: '', location_id: $location_ids, category: $category, extra_conditions: $extra_cond, count: $count_only, include_customformfields: 1, search_customfieldids: $field_ids, search_customfields: $search_customfields );
+    $events_count = eme_get_events( scope: $scope, order: '', location_id: $location_ids, category: $category, extra_conditions: $extra_cond, count: $count_only, include_customformfields: 1, search_customfieldrows: $search_customfieldrows );
 
-    $events  = eme_get_events( limit: $PageSize, scope: $scope, order: $orderby, offset: $StartIndex, location_id: $location_ids, category: $category, extra_conditions: $extra_cond, include_customformfields: 1, search_customfieldids: $field_ids, search_customfields: $search_customfields );
+    $events  = eme_get_events( limit: $PageSize, scope: $scope, order: $orderby, offset: $StartIndex, location_id: $location_ids, category: $category, extra_conditions: $extra_cond, include_customformfields: 1, search_customfieldrows: $search_customfieldrows );
     $event_status_array = eme_status_array();
     $eme_date_obj_now   = new emeExpressiveDate( 'now', EME_TIMEZONE );
 

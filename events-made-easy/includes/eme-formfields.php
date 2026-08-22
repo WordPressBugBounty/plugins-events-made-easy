@@ -178,6 +178,13 @@ function eme_formfields_page() {
                     return;
                 }
             } else {
+                // when adding a new field, make sure the name is not already used
+                $existing_field_id = $wpdb->get_var( $wpdb->prepare( "SELECT field_id FROM $formfields_table WHERE field_name = %s", $formfield['field_name'] ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared,WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is a safe variable
+                if ( ! empty( $existing_field_id ) ) {
+                    $message = "<div id='message' class='eme-message-error'>".__( 'Error: there is already a field with that name.', 'events-made-easy' )."</div>";
+                    eme_formfields_edit_layout( 0, $message, $formfield );
+                    return;
+                }
                 $validation_result = $wpdb->insert( $formfields_table, $formfield );
                 if ( $validation_result !== false ) {
                     $new_field_id = $wpdb->insert_id;
@@ -228,7 +235,7 @@ function eme_formfields_table_layout( $message = '' ) {
     <?php echo eme_ui_select( '', 'search_type', $field_types, __( 'Any', 'events-made-easy' ) ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <?php echo eme_ui_select( '', 'search_purpose', $field_purposes, __( 'Any', 'events-made-easy' ) ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select() ?>
     <input type="search" name="search_name" id="search_name" placeholder="<?php esc_attr_e( 'Field name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
-    <button id="FormfieldsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter fields', 'events-made-easy' ); ?></button>
+    <button id="FormfieldsLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter fields', 'events-made-easy' ); ?></button>
     </form>
 
     <div class="bulkactions">
@@ -288,10 +295,55 @@ function eme_formfields_edit_layout( $field_id = 0, $message = '', $t_formfield 
     }
 
     if ( $used ) {
-        $layout .= "
+        $usage_details = eme_get_formfield_usage_details( $field_id );
+        $usage_lines   = [];
+        foreach ( $usage_details as $type => $cnt ) {
+            switch ( $type ) {
+                case 'booking':
+                    $pending_url  = esc_url( admin_url( 'admin.php?page=eme-registration-approval&used_field_id=' . $field_id ) );
+                    $approved_url = esc_url( admin_url( 'admin.php?page=eme-registration-seats&used_field_id=' . $field_id ) );
+                    // translators: 1: number of bookings, 2: link to pending bookings, 3: link to approved bookings
+                    $usage_lines[] = sprintf( esc_html__( '%1$d RSVP bookings (%2$sPending%3$s | %4$sApproved%5$s)', 'events-made-easy' ), $cnt, "<a href='$pending_url'>", '</a>', "<a href='$approved_url'>", '</a>' );
+                    break;
+                case 'event':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-manager&used_field_id=' . $field_id ) );
+                    // translators: 1: number of events, 2: link to events list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d events (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+                case 'location':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-locations&used_field_id=' . $field_id ) );
+                    // translators: 1: number of locations, 2: link to locations list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d locations (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+                case 'member':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-members&used_field_id=' . $field_id ) );
+                    // translators: 1: number of members, 2: link to members list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d members (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+                case 'membership':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-memberships&used_field_id=' . $field_id ) );
+                    // translators: 1: number of memberships, 2: link to memberships list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d memberships (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+                case 'person':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-people&used_field_id=' . $field_id ) );
+                    // translators: 1: number of people, 2: link to people list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d people (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+                case 'tasksignup':
+                    $url = esc_url( admin_url( 'admin.php?page=eme-task-signups&used_field_id=' . $field_id ) );
+                    // translators: 1: number of task signups, 2: link to task signups list
+                    $usage_lines[] = sprintf( esc_html__( '%1$d task signups (%2$sView%3$s)', 'events-made-easy' ), $cnt, "<a href='$url'>", '</a>' );
+                    break;
+            }
+        }
+        $usage_list       = implode( '<br>', $usage_lines );
+        $warning_text     = __( 'Warning: this field is already used. Changing the field type or values might result in unwanted side effects.', 'events-made-easy' );
+        $layout          .= "
       <div id='eme_formfield_warning' class='notice below-h1 eme-message-admin'>
-         <p>" . __( 'Warning: this field is already used in RSVP replies, member signups, event or location definitions. Changing the field type or values might result in unwanted side effects.', 'events-made-easy' ) . '</p>
-      </div>';
+         <p><strong>$warning_text</strong></p>
+         <p>$usage_list</p>
+      </div>";
     }
 
     $layout .= "
@@ -458,6 +510,114 @@ function eme_check_used_formfield( $field_id ) {
     $prepared_query  = $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE field_id=%d", $field_id );
     $count  = $wpdb->get_var( $prepared_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     return $count;
+}
+
+function eme_get_formfield_usage_details( $field_id ) {
+    global $wpdb;
+    $table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+    $prepared_query = $wpdb->prepare( "SELECT type, COUNT(*) as cnt FROM $table WHERE field_id=%d GROUP BY type", $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $rows = $wpdb->get_results( $prepared_query, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $usage = [];
+    foreach ( $rows as $row ) {
+        $usage[ $row['type'] ] = intval( $row['cnt'] );
+    }
+    return $usage;
+}
+
+function eme_render_used_field_notice( $used_field_id = 0 ) {
+    if ( ! $used_field_id ) {
+        return;
+    }
+    $field = eme_get_formfield( $used_field_id );
+    if ( ! empty( $field ) ) {
+        $clear_url = esc_url( remove_query_arg( 'used_field_id' ) );
+        echo '<div class="notice below-h1 eme-message-admin"><p>';
+        // translators: %s is the field name
+        printf( esc_html__( 'Filtering on custom field: %s', 'events-made-easy' ), esc_html( $field['field_name'] ) );
+        echo " — <a href='$clear_url'>" . esc_html__( 'Clear filter', 'events-made-easy' ) . '</a>';
+        echo '</p></div>';
+    }
+}
+
+// Reusable across members/people/events/locations/tasks/rsvp: renders a repeatable
+// "field + value (+ exact)" filter row, each row an independent AND-condition.
+// $search_terms is expected to (optionally) contain 3 flat, index-aligned arrays:
+// search_customfieldids[], search_customfieldvalues[], search_customfieldexact[]
+function eme_render_customfield_filter_rows( $formfields_searchable, $search_terms = [], $id_prefix = '' ) {
+    $cf_ids   = $search_terms['search_customfieldids'] ?? [];
+    $cf_vals  = $search_terms['search_customfieldvalues'] ?? [];
+    $cf_exact = $search_terms['search_customfieldexact'] ?? [];
+    if ( empty( $cf_ids ) || ! is_array( $cf_ids ) ) {
+        $cf_ids = [ ];
+    }
+    $extra_attributes = ' data-placeholder="' . esc_attr__( 'Select custom field', 'events-made-easy' ) . '"';
+ 
+    // Legacy format (one value + optional list of field ids to OR-match it against, pre-dating
+    // the per-row filter UI). Not editable here — just show what's stored so it isn't silently lost.
+    $legacy_has_value    = isset( $search_terms['search_customfields'] ) && $search_terms['search_customfields'] !== '';
+    $legacy_has_fieldids = ! empty( $search_terms['search_customfieldids'] ) && is_array( $search_terms['search_customfieldids'] );
+    if ( $legacy_has_value || $legacy_has_fieldids ) {
+        $legacy_value = $search_terms['search_customfields'] ?? '';
+        $legacy_field_ids = $legacy_has_fieldids
+            ? array_map( 'intval', $search_terms['search_customfieldids'] )
+            : array_map( 'intval', wp_list_pluck( $formfields_searchable, 'field_id' ) );
+        $legacy_field_names = [];
+        foreach ( $formfields_searchable as $formfield ) {
+            if ( in_array( intval( $formfield['field_id'] ), $legacy_field_ids, true ) ) {
+                $legacy_field_names[] = $formfield['field_name'];
+            }
+        }
+        echo '<p class="eme_cf_legacy_notice description">';
+        if ( $legacy_value === '' ) {
+            printf(
+                /* translators: %s: comma-separated list of custom field names */
+                esc_html__( 'Previously saved filter (old format): %s is empty.', 'events-made-easy' ),
+                esc_html( implode( ', ', $legacy_field_names ) )
+            );
+        } else {
+            printf(
+                /* translators: 1: comma-separated list of custom field names, 2: match type (contains/equals), 3: search value */
+                esc_html__( 'Previously saved filter (old format): %1$s %2$s "%3$s".', 'events-made-easy' ),
+                esc_html( implode( ', ', $legacy_field_names ) ),
+                ! empty( $search_terms['search_exactmatch'] ) ? esc_html__( 'equals', 'events-made-easy' ) : esc_html__( 'contains', 'events-made-easy' ),
+                esc_html( $legacy_value )
+            );
+        }
+        echo ' ' . esc_html__( 'Add a filter below and save to convert it to the new format.', 'events-made-easy' ) . '</p>';
+    }
+?>
+    <div class="eme_cf_filters" id="<?php echo esc_attr( $id_prefix ); ?>eme_cf_filters">
+<?php
+    foreach ( array_values( $cf_ids ) as $key => $field_id ) {
+?>
+        <span class="eme_cf_filter_row">
+<?php
+        echo eme_ui_select_key_value( $field_id, 'search_customfieldids[]', $formfields_searchable, 'field_id', 'field_name', __( 'Select custom field', 'events-made-easy' ), 0, 'eme_snapselect eme_cf_filter_field', $extra_attributes, id_prefix: $id_prefix ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select_key_value()
+?>
+            <input type="search" value="<?php echo esc_attr( $cf_vals[ $key ] ?? '' ); ?>" name="search_customfieldvalues[]" placeholder="<?php esc_attr_e( 'Value to search', 'events-made-easy' ); ?>" class="eme_searchfilter eme_cf_filter_value" size="15">
+            <label class="eme_cf_filter_exact" title="<?php esc_attr_e( 'Exact match', 'events-made-easy' ); ?>">
+                <input type="checkbox" name="search_customfieldexact[]" value="1" class="eme_cf_filter_exact_input"<?php checked( ! empty( $cf_exact[ $key ] ) ); ?>> <?php esc_html_e( 'Exact', 'events-made-easy' ); ?>
+            </label>
+            <button type="button" class="eme_cf_filter_remove button" aria-label="<?php esc_attr_e( 'Remove this filter', 'events-made-easy' ); ?>">&times;</button>
+        </span>
+<?php
+    }
+?>
+    </div>
+    <button type="button" class="button eme_cf_filter_add" data-target="<?php echo esc_attr( $id_prefix ); ?>eme_cf_filters"><?php esc_html_e( '+ Add custom field filter', 'events-made-easy' ); ?></button>
+    <template id="<?php echo esc_attr( $id_prefix ); ?>eme_cf_filters_template">
+        <span class="eme_cf_filter_row">
+<?php
+    echo eme_ui_select_key_value( '', 'search_customfieldids[]', $formfields_searchable, 'field_id', 'field_name', __( 'Select custom field', 'events-made-easy' ), 0, 'eme_snapselect dynamicfield eme_cf_filter_field', $extra_attributes, id_prefix: $id_prefix ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_select_key_value()
+?>
+            <input type="search" name="search_customfieldvalues[]" placeholder="<?php esc_attr_e( 'Value to search', 'events-made-easy' ); ?>" class="eme_searchfilter eme_cf_filter_value" size="15">
+            <label class="eme_cf_filter_exact" title="<?php esc_attr_e( 'Exact match', 'events-made-easy' ); ?>">
+                <input type="checkbox" name="search_customfieldexact[]" value="1" class="eme_cf_filter_exact_input"> <?php esc_html_e( 'Exact', 'events-made-easy' ); ?>
+            </label>
+            <button type="button" class="eme_cf_filter_remove button" aria-label="<?php esc_attr_e( 'Remove this filter', 'events-made-easy' ); ?>">&times;</button>
+        </span>
+    </template>
+<?php
 }
 
 function eme_get_formfields( $ids = '', $purpose = '' ) {

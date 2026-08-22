@@ -595,6 +595,10 @@ function eme_task_signups_table_layout( ) {
     </div>
 
     <h1><?php esc_html_e( 'Manage task signups', 'events-made-easy' ); ?></h1>
+    <?php
+        $used_field_id = intval( $_GET['used_field_id'] ?? 0 );
+        eme_render_used_field_notice($used_field_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message already escaped
+    ?>
 
     <form action="#" method="post">
     <?php if (isset($_GET['event_id'])) { ?>
@@ -612,9 +616,10 @@ function eme_task_signups_table_layout( ) {
         $scope_names['past']   = __( 'Past events', 'events-made-easy' );
         $scope_names['all']    = __( 'All events', 'events-made-easy' );
         $scope_names['future'] = __( 'Future events', 'events-made-easy' );
+        $scope_default = $used_field_id ? 'all' : 'future';
         foreach ( $scope_names as $key => $value ) {
             $selected = '';
-            if ( $key == 'future' ) {
+            if ( $key == $scope_default ) {
                 $selected = "selected='selected'";
             }
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded selected attribute
@@ -636,7 +641,13 @@ function eme_task_signups_table_layout( ) {
 
         <input id="search_start_date" type="text" name="search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="search_end_date" type="text" name="search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <button id="TaskSignupsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter task signups', 'events-made-easy' ); ?></button>
+        <?php
+        $formfields_searchable = eme_get_searchable_formfields( 'tasksignup', 1 );
+        if ( ! empty( $formfields_searchable ) ) {
+            eme_render_customfield_filter_rows( $formfields_searchable, [], '' );
+        }
+        ?>
+        <button id="TaskSignupsLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter task signups', 'events-made-easy' ); ?></button>
     <?php } ?>
     </form>
 
@@ -2041,6 +2052,8 @@ function eme_ajax_task_signups_list() {
     $events_table      = EME_DB_PREFIX . EME_EVENTS_TBNAME;
     $tasks_table       = EME_DB_PREFIX . EME_TASKS_TBNAME;
     $people_table      = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
+    $answers_table     = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+    $formfields_searchable = eme_get_searchable_formfields( 'tasksignup', 1 );
     $fTableResult      = [];
     if (!empty($_REQUEST['search_eventid'] )) {
         $search_eventid    = intval( $_REQUEST['search_eventid'] );
@@ -2066,6 +2079,10 @@ function eme_ajax_task_signups_list() {
     $where_arr = [];
     if ( $search_status >= 0 ) {
         $where_arr[] = $wpdb->prepare( 'signups.signup_status = %d', $search_status );
+    }
+    $used_field_id = intval( $_POST['used_field_id'] ?? 0 );
+    if ( $used_field_id ) {
+        $where_arr[] = $wpdb->prepare( "signups.id IN (SELECT related_id FROM $answers_table WHERE type='tasksignup' AND field_id=%d)", $used_field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
     if ( ! empty( $search_name ) ) {
         $where_arr[] = $wpdb->prepare( 'tasks.name LIKE %s', '%' . $wpdb->esc_like( $search_name ) . '%' );
@@ -2095,6 +2112,28 @@ function eme_ajax_task_signups_list() {
         $eme_date_obj_now = new emeExpressiveDate( 'now', EME_TIMEZONE );
         $search_end_date  = $eme_date_obj_now->getDateTime();
         $where_arr[]      = $wpdb->prepare( "events.event_end <= %s", $search_end_date);
+    }
+
+    // custom field filters: each row is an independent, AND'd EXISTS condition
+    $cf_ids   = eme_sanitize_request( $_POST['search_customfieldids'] ?? [] );
+    $cf_vals  = eme_sanitize_request( $_POST['search_customfieldvalues'] ?? [] );
+    $cf_exact = eme_sanitize_request( $_POST['search_customfieldexact'] ?? [] );
+    if ( ! empty( $formfields_searchable ) && is_array( $cf_ids ) && ! empty( $cf_ids ) ) {
+        $searchable_ids = array_map( 'intval', wp_list_pluck( $formfields_searchable, 'field_id' ) );
+        foreach ( $cf_ids as $idx => $field_id ) {
+            $field_id = intval( $field_id );
+            if ( ! $field_id || ! in_array( $field_id, $searchable_ids, true ) ) {
+                continue; // ignore empty/unselected rows and non-searchable fields
+            }
+            $value = isset( $cf_vals[ $idx ] ) ? trim( (string) $cf_vals[ $idx ] ) : '';
+            if ( $value === '' ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=signups.id AND type='tasksignup' AND field_id=%d AND answer='')", $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } elseif ( ! empty( $cf_exact[ $idx ] ) ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=signups.id AND type='tasksignup' AND field_id=%d AND answer=%s)", $field_id, $value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } else {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=signups.id AND type='tasksignup' AND field_id=%d AND answer LIKE %s)", $field_id, '%' . $wpdb->esc_like( $value ) . '%' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
+        }
     }
 
     if ( $where_arr ) {

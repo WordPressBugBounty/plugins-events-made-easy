@@ -247,7 +247,7 @@ function eme_import_csv_locations() {
     }
 
     // get the first row as keys and lowercase them
-    $headers = array_map( 'strtolower', fgetcsv( $handle, 0, $delimiter, $enclosure ) );
+    $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
 
     // check required columns
     if ( ! in_array( 'location_name', $headers ) || ! in_array( 'location_address1', $headers ) || ! in_array( 'location_city', $headers ) ) {
@@ -255,8 +255,7 @@ function eme_import_csv_locations() {
     } else {
         $empty_props = [];
         $empty_props = eme_init_location_props( $empty_props );
-        // now loop over the rest
-        while ( ( $row = fgetcsv( $handle, 0, $delimiter, $enclosure ) ) !== false ) {
+        while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $line = array_combine( $headers, $row );
             // remove columns with empty values
             $line        = eme_array_remove_empty_elements( $line );
@@ -286,9 +285,42 @@ function eme_import_csv_locations() {
 					}
 				}
 
+                // also import categories: a 'category_names' column, pipe-separated (e.g. "Music||Concerts").
+                // Names are matched against existing categories; whether an unmatched name gets
+                // auto-created or just skipped is controlled by the 'auto_create_categories' checkbox.
+                if ( isset( $line['category_names'] ) ) {
+                    $auto_create_categories = ! empty( $_POST['auto_create_categories'] );
+                    $cat_ids                = [];
+                    foreach ( eme_convert_multi2array( $line['category_names'] ) as $cat_name ) {
+                        if ( $auto_create_categories ) {
+                            $cat_id = eme_get_or_create_category_id_by_name( $cat_name );
+                        } else {
+                            $cat_id = eme_get_category_id_by_name_slug( trim( $cat_name ) );
+                        }
+                        if ( $cat_id ) {
+                            $cat_ids[] = $cat_id;
+                        }
+                    }
+                    if ( $cat_ids ) {
+                        $line['location_category_ids'] = implode( ',', $cat_ids );
+                    }
+                }
+
+                // location_latitude/location_longitude need to be valid float values; if missing or invalid,
+                // store null so the "resolve missing coordinates" action (on the import tab) can find and
+                // geocode them later, without blocking/throttling the import itself
+                if (empty($line['location_properties']['online_only'])) {
+                    if ( ! isset( $line['location_latitude'] ) || ! is_numeric( trim( $line['location_latitude'] ) ) ) {
+                        $line['location_latitude'] = null;
+                    }
+                    if ( ! isset( $line['location_longitude'] ) || ! is_numeric( trim( $line['location_longitude'] ) ) ) {
+                        $line['location_longitude'] = null;
+                    }
+                }
+
                 // if the location already exists: update it
-                if ( isset( $line['external_ref'] ) ) {
-                    $location_id = eme_check_location_external_ref( $line['external_ref'] );
+                if ( isset( $line['location_external_ref'] ) ) {
+                    $location_id = eme_check_location_external_ref( $line['location_external_ref'] );
                 }
                 #if (!$location_id && isset($line['location_latitude']) && isset($line['location_longitude']))
                 #   $location_id=eme_check_location_coord($line['location_latitude'],$line['location_longitude']);
@@ -840,19 +872,20 @@ function eme_locations_table( $message = '' ) {
 
         <h1><?php esc_html_e( 'Manage locations', 'events-made-easy' ); ?></h1>
         <?php echo $message; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message is pre-escaped HTML ?>
+        <?php
+            $used_field_id = intval( $_GET['used_field_id'] ?? 0 );
+            eme_render_used_field_notice($used_field_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message already escaped
+        ?>
 
     <form action="#" method="post">
     <input type="search" name="search_name" id="search_name" placeholder="<?php esc_attr_e( 'Location name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
-<?php
+    <?php
     $formfields_searchable = eme_get_searchable_formfields( 'locations' );
     if ( ! empty( $formfields_searchable ) ) {
-        echo '<input type="search" name="search_customfields" id="search_customfields" placeholder="' . esc_attr__( 'Custom field value to search', 'events-made-easy' ) . '" size=20>';
-        $label = __( 'Custom fields to filter on', 'events-made-easy' );
-        $extra_attributes = 'aria-label="' . esc_html( $label ) . '" data-placeholder="' . esc_html( $label ) . '"';
-        echo eme_ui_multiselect_key_value( '', 'search_customfieldids', $formfields_searchable, 'field_id', 'field_name', 5, '', 0, 'eme_snapselect', $extra_attributes, 1 ); //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- trusted HTML from eme_ui_multiselect_key_value()
+        eme_render_customfield_filter_rows( $formfields_searchable, [], '' );
     }
-?>
-    <button id="LocationsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter location', 'events-made-easy' ); ?></button>
+    ?>
+    <button id="LocationsLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter location', 'events-made-easy' ); ?></button>
 <?php
     if ( ! empty( $formfields_searchable ) ) {
 ?>
@@ -1341,16 +1374,16 @@ function eme_sanitize_location( $location ) {
         }
     }
 
-    if ( empty( $location['location_longitude'] ) ) {
-        $location['location_longitude'] = '';
-    } elseif ( ! is_numeric( $location['location_longitude'] ) ) {
+    if ( is_null( $location['location_longitude'] ) ) {
+        // explicit null (e.g. a location still pending coordinate resolution) is left as-is
+    } elseif ( empty( $location['location_longitude'] ) || ! is_numeric( $location['location_longitude'] ) ) {
         $location['location_longitude'] = '';
     } else {
         $location['location_longitude'] = floatval( $location['location_longitude'] );
     }
-    if ( empty( $location['location_latitude'] ) ) {
-        $location['location_latitude'] = '';
-    } elseif ( ! is_numeric( $location['location_latitude'] ) ) {
+    if ( is_null( $location['location_latitude'] ) ) {
+        // explicit null (e.g. a location still pending coordinate resolution) is left as-is
+    } elseif ( empty( $location['location_latitude'] ) || ! is_numeric( $location['location_latitude'] ) ) {
         $location['location_latitude'] = '';
     } else {
         $location['location_latitude'] = floatval( $location['location_latitude'] );
@@ -1507,6 +1540,48 @@ function eme_check_location_coord( $lat, $long ) {
     $prepared_sql = $wpdb->prepare( "SELECT location_id FROM $table_name WHERE location_latitude = %s AND location_longitude = %s", $lat, $long ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     return $wpdb->get_var( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
+
+function eme_geolocate_location( $line ) {
+    // search the coordinates for a location using nominatim.openstreetmap.org
+    // the public server allows max 1 request per second and no bulk geocoding,
+    // so we throttle consecutive requests during e.g. a csv import
+    static $last_call = 0;
+    $search_arr = [];
+    foreach ( [ 'location_address1', 'location_address2', 'location_city', 'location_state', 'location_zip', 'location_country' ] as $key ) {
+        if ( ! empty( $line[ $key ] ) ) {
+            $search_arr[] = $line[ $key ];
+        }
+    }
+    if ( empty( $search_arr ) && ! empty( $line['location_name'] ) ) {
+        $search_arr[] = $line['location_name'];
+    }
+    if ( empty( $search_arr ) ) {
+        return false;
+    }
+    $search_key = join( ', ', $search_arr );
+    $url  = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' . rawurlencode( $search_key );
+    $args = [
+        'user-agent' => 'Events-Made-Easy; WordPress plugin',
+        'timeout'    => 10,
+    ];
+    if ( $last_call ) {
+        $elapsed = microtime( true ) - $last_call;
+        if ( $elapsed < 1 ) {
+            usleep( intval( ( 1 - $elapsed ) * 1000000 ) );
+        }
+    }
+    $last_call = microtime( true );
+    $response  = wp_remote_get( $url, $args );
+    if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) != 200 ) {
+        return false;
+    }
+    $data = eme_json_decode_safe( wp_remote_retrieve_body( $response ) );
+    if ( empty( $data[0]['lat'] ) || empty( $data[0]['lon'] ) || ! is_numeric( $data[0]['lat'] ) || ! is_numeric( $data[0]['lon'] ) ) {
+        return false;
+    }
+    return [ 'latitude' => floatval( $data[0]['lat'] ), 'longitude' => floatval( $data[0]['lon'] ) ];
+}
+
 
 function eme_check_location_name_address( $location ) {
     global $wpdb;
@@ -2785,7 +2860,7 @@ function eme_global_map_json( $locations, $marker_clustering, $letter_icons ) {
         }
 
         # first we set the balloon info
-        if (!empty($location['location_properties']['balloon_format'] )) {
+        if (!eme_is_empty_string($location['location_properties']['balloon_format'] )) {
             $balloon_format = $location['location_properties']['balloon_format'];
         } else {
             $balloon_format = get_option( 'eme_location_balloon_format' );
@@ -2830,7 +2905,7 @@ function eme_single_location_map( $location, $width = 0, $height = 0, $zoom_fact
         $zoom_factor = get_option( 'eme_indiv_zoom_factor' );
     }
 
-    if (!empty($location['location_properties']['balloon_format'] )) {
+    if (!eme_is_empty_string($location['location_properties']['balloon_format'] )) {
         $balloon_format = $location['location_properties']['balloon_format'];
     } else {
         $balloon_format = get_option( 'eme_location_balloon_format' );
@@ -3019,11 +3094,39 @@ function eme_ajax_locations_list() {
 
     $table         = EME_DB_PREFIX . EME_LOCATIONS_TBNAME;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+    $formfields_searchable = eme_get_searchable_formfields( 'locations' );
     $search_name   = eme_sanitize_request( $_POST['search_name'] ?? '' );
     $where         = '';
     $where_arr     = [];
     if ( ! empty( $search_name ) ) {
         $where_arr[] = $wpdb->prepare( 'locations.location_name LIKE %s', '%' . $wpdb->esc_like( $search_name ) . '%' );
+    }
+    $used_field_id = intval( $_POST['used_field_id'] ?? 0 );
+    if ( $used_field_id ) {
+        $where_arr[] = $wpdb->prepare( "locations.location_id IN (SELECT related_id FROM $answers_table WHERE type='location' AND field_id=%d)", $used_field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    }
+
+    // custom field filters: each row is an independent, AND'd EXISTS condition
+    // locations have no dynamic-group/legacy-format concept, so no legacy branch needed here
+    $cf_ids   = eme_sanitize_request( $_POST['search_customfieldids'] ?? [] );
+    $cf_vals  = eme_sanitize_request( $_POST['search_customfieldvalues'] ?? [] );
+    $cf_exact = eme_sanitize_request( $_POST['search_customfieldexact'] ?? [] );
+    if ( ! empty( $formfields_searchable ) && is_array( $cf_ids ) && ! empty( $cf_ids ) ) {
+        $searchable_ids = array_map( 'intval', wp_list_pluck( $formfields_searchable, 'field_id' ) );
+        foreach ( $cf_ids as $idx => $field_id ) {
+            $field_id = intval( $field_id );
+            if ( ! $field_id || ! in_array( $field_id, $searchable_ids, true ) ) {
+                continue; // ignore empty/unselected rows and non-searchable fields
+            }
+            $value = isset( $cf_vals[ $idx ] ) ? trim( (string) $cf_vals[ $idx ] ) : '';
+            if ( $value === '' ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=locations.location_id AND type='location' AND field_id=%d AND answer='')", $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } elseif ( ! empty( $cf_exact[ $idx ] ) ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=locations.location_id AND type='location' AND field_id=%d AND answer=%s)", $field_id, $value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } else {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=locations.location_id AND type='location' AND field_id=%d AND answer LIKE %s)", $field_id, '%' . $wpdb->esc_like( $value ) . '%' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
+        }
     }
 
     // if the person is not allowed to manage all locations, show only events he can edit
@@ -3043,8 +3146,7 @@ function eme_ajax_locations_list() {
         $where = 'WHERE ' . implode( ' AND ', $where_arr );
     }
 
-    $formfields_searchable = eme_get_searchable_formfields( 'locations' );
-    $formfields            = eme_get_formfields( '', 'locations' );
+    $formfields = eme_get_formfields( '', 'locations' );
 
     $fTableResult = [];
     $limit    = eme_get_ftable_limit();
@@ -3054,39 +3156,16 @@ function eme_ajax_locations_list() {
         $count_sql = "SELECT COUNT(*) FROM $table AS locations $where"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $sql       = "SELECT locations.* FROM $table AS locations $where $orderby $limit"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     } else {
-        $field_ids_arr = [];
         $group_concat_sql = '';
         foreach ( $formfields_searchable as $formfield ) {
-            $field_ids_arr[] = $formfield['field_id'];
-            $field_id        = $formfield['field_id'];
-            // we need this GROUP_CONCAT so we can sort on those fields too (otherwise the columns FIELD_* don't exist in the returning sql
-            // but we'll do the GROUP_CONCAT only when needed of course
-            $field_id          = intval( $field_id );
+            $field_id          = intval( $formfield['field_id'] );
             $group_concat_sql .= "GROUP_CONCAT(CASE WHEN field_id = $field_id THEN answer END) AS 'FIELD_$field_id',"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $field_id is intval-sanitized database value
         }
-
-        if ( ! empty( $_POST['search_customfieldids'] ) && eme_is_integer_array( $_POST['search_customfieldids'] ) ) {
-            $cf_ids_int = array_map( 'intval', $_POST['search_customfieldids'] );
-        } else {
-            $cf_ids_int = array_map( 'intval', $field_ids_arr );
-        }
-        $cf_placeholders = implode( ',', array_fill( 0, count( $cf_ids_int ), '%d' ) );
-        $field_ids_prepared = $wpdb->prepare( "field_id IN ($cf_placeholders)", ...$cf_ids_int ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        if ( isset( $_POST['search_customfields'] ) && $_POST['search_customfields'] != '' ) {
-            $search_customfields = $wpdb->prepare( "answer LIKE %s", '%'.$wpdb->esc_like(eme_sanitize_request($_POST['search_customfields'])).'%' );
-            $sql_join        = "
-                   INNER JOIN (SELECT $group_concat_sql related_id FROM $answers_table
-                         WHERE $search_customfields AND $field_ids_prepared AND type='location'
-                         GROUP BY related_id
-                        ) ans
-                   ON locations.location_id=ans.related_id";
-        } else {
-            $sql_join = "
-                   LEFT JOIN (SELECT $group_concat_sql related_id FROM $answers_table WHERE type='location'
-                         GROUP BY related_id
-                        ) ans
-                   ON locations.location_id=ans.related_id";
-        }
+        $sql_join = "
+               LEFT JOIN (SELECT $group_concat_sql related_id FROM $answers_table WHERE type='location'
+                     GROUP BY related_id
+                    ) ans
+               ON locations.location_id=ans.related_id";
         $count_sql = "SELECT COUNT(*) FROM $table AS locations $sql_join $where"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         $sql       = "SELECT locations.* FROM $table AS locations $sql_join $where $orderby $limit"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
@@ -3106,22 +3185,22 @@ function eme_ajax_locations_list() {
             $record['location_name'] .= "&nbsp;<img style='vertical-align: middle;' src='" . esc_url(EME_PLUGIN_URL) . "images/warning.png' alt='warning' title='" . esc_attr__( 'Location map coordinates are empty! Please edit the location to correct this, otherwise it will not show correctly on your website.', 'events-made-easy' ) . "'>";
         }
         if ( ! empty( $location['location_category_ids'] ) ) {
-                        $categories            = explode( ',', $location['location_category_ids'] );
-                        $record['location_name'] .= "<br><span class='eme_small' title='" . esc_attr__( 'Category', 'events-made-easy' ) . "'>";
-                        $cat_names             = [];
-                        foreach ( $categories as $cat ) {
-                                $category = eme_get_category( $cat );
-                                if ( $category ) {
-                                        $cat_names[] = esc_html( eme_translate( $category['category_name'] ) );
-                                }
-                        }
-                        $record['location_name'] .= implode( ', ', $cat_names );
-                        $record['location_name'] .= '</span>';
+            $categories            = explode( ',', $location['location_category_ids'] );
+            $record['location_name'] .= "<br><span class='eme_small' title='" . esc_attr__( 'Category', 'events-made-easy' ) . "'>";
+            $cat_names             = [];
+            foreach ( $categories as $cat ) {
+                $category = eme_get_category( $cat );
+                if ( $category ) {
+                    $cat_names[] = esc_html( eme_translate( $category['category_name'] ) );
                 }
+            }
+            $record['location_name'] .= implode( ', ', $cat_names );
+            $record['location_name'] .= '</span>';
+        }
         if ( ! empty( $location['location_properties']['max_capacity'] ) ) {
-                        $record['location_name'] .= "<br><span class='eme_small' title='" . esc_attr__( 'Max capacity', 'events-made-easy' ) . "'>";
+            $record['location_name'] .= "<br><span class='eme_small' title='" . esc_attr__( 'Max capacity', 'events-made-easy' ) . "'>";
             $record['location_name'] .= __( 'Max capacity', 'events-made-easy' ) . " ".$location['location_properties']['max_capacity'];
-                        $record['location_name'] .= '</span>';
+            $record['location_name'] .= '</span>';
         }
 
         $record['location_address1']  = esc_html( eme_translate( $location['location_address1'] ) );
@@ -3387,4 +3466,60 @@ function eme_get_cf_location_ids( $val, $field_id, $is_multi = 0 ) {
     return $wpdb->get_col( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 
-?>
+add_action( 'wp_ajax_eme_resolve_location_coords', 'eme_ajax_resolve_location_coords' );
+function eme_ajax_resolve_location_coords() {
+    check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
+    if ( ! current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
+        wp_send_json( [ 'Result' => 'ERROR', 'htmlmessage' => __( 'No permission', 'events-made-easy' ) ] );
+    }
+    global $wpdb;
+    $table_name = EME_DB_PREFIX . EME_LOCATIONS_TBNAME;
+    $batch_size = 5; // ~5s worst case per call at the 1 req/sec geocoding throttle
+
+    // online_only lives inside the JSON location_properties column, so it can't be filtered in SQL;
+    // fetch a bit more than needed and skip those in PHP
+    $candidates = $wpdb->get_results(
+        "SELECT location_id, location_name, location_address1, location_address2, location_city, location_state, location_zip, location_country, location_properties
+         FROM $table_name
+         WHERE location_latitude IS NULL OR location_longitude IS NULL
+         ORDER BY location_id LIMIT " . ( $batch_size * 4 ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- fixed integer, not user input
+        ARRAY_A
+    );
+
+    $resolved = $failed = $processed = 0;
+    foreach ( $candidates as $loc ) {
+        if ( $processed >= $batch_size ) {
+            break;
+        }
+        $props = eme_json_decode_safe( $loc['location_properties'] );
+        if ( ! empty( $props['online_only'] ) ) {
+            continue; // permanently coordinate-less by design, not a pending item. We should not get here, but anyway ...
+        }
+        ++$processed;
+        $coords = eme_geolocate_location( $loc ); //eme_geolocate_location does its own pacing, no extra sleep needed here
+        if ( $coords !== false ) {
+            $wpdb->update(
+                $table_name,
+                [ 'location_latitude' => $coords['latitude'], 'location_longitude' => $coords['longitude'] ],
+                [ 'location_id' => $loc['location_id'] ]
+            );
+            wp_cache_delete( "eme_location {$loc['location_id']}" );
+            ++$resolved;
+        } else {
+            ++$failed;
+        }
+    }
+
+    $remaining = (int) $wpdb->get_var(
+        "SELECT COUNT(*) FROM $table_name WHERE location_latitude IS NULL OR location_longitude IS NULL" // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    );
+    // still an upper bound (includes online-only rows), but no longer counts intentionally-blank manual entries
+
+    wp_send_json( [
+        'Result'    => 'OK',
+        'processed' => $processed,
+        'resolved'  => $resolved,
+        'failed'    => $failed,
+        'remaining' => $remaining,
+    ] );
+}

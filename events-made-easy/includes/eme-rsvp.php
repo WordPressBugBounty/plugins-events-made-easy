@@ -4461,7 +4461,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_respondent_email_subject' );
             }
 
-            if ( ! empty( $event['event_respondent_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_respondent_email_body'] ) ) {
                 $person_body = $event['event_respondent_email_body'];
             } elseif ( $event['event_properties']['event_respondent_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_respondent_email_body_tpl'] );
@@ -4494,7 +4494,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_pending_email_subject' );
             }
 
-            if ( ! empty( $event['event_registration_pending_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_registration_pending_email_body'] ) ) {
                 $person_body = $event['event_registration_pending_email_body'];
             } elseif ( $event['event_properties']['event_registration_pending_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_pending_email_body_tpl'] );
@@ -4527,7 +4527,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_pending_email_subject' );
             }
 
-            if ( ! empty( $event['event_registration_pending_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_registration_pending_email_body'] ) ) {
                 $person_body = $event['event_registration_pending_email_body'];
             } elseif ( $event['event_properties']['event_registration_pending_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_pending_email_body_tpl'] );
@@ -4560,7 +4560,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_pending_email_subject' );
             }
 
-            if ( ! empty( $event['event_registration_pending_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_registration_pending_email_body'] ) ) {
                 $person_body = $event['event_registration_pending_email_body'];
             } elseif ( $event['event_properties']['event_registration_pending_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_pending_email_body_tpl'] );
@@ -4584,7 +4584,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_pending_reminder_email_subject' );
             }
 
-            if ( ! empty( $event['event_properties']['event_registration_pending_reminder_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_properties']['event_registration_pending_reminder_email_body'] ) ) {
                 $person_body = $event['event_properties']['event_registration_pending_reminder_email_body'];
             } elseif ( $event['event_properties']['event_registration_pending_reminder_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_pending_reminder_email_body_tpl'] );
@@ -4608,7 +4608,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_reminder_email_subject' );
             }
 
-            if ( ! empty( $event['event_registration_reminder_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_registration_reminder_email_body'] ) ) {
                 $person_body = $event['event_registration_reminder_email_body'];
             } elseif ( $event['event_properties']['event_registration_reminder_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_reminder_email_body_tpl'] );
@@ -4631,7 +4631,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
             $person_subject = get_option( 'eme_registration_trashed_email_subject' );
         }
 
-        if ( ! empty( $event['event_registration_trashed_email_body'] ) ) {
+        if ( ! eme_is_empty_string( $event['event_registration_trashed_email_body'] ) ) {
             $person_body = $event['event_registration_trashed_email_body'];
         } elseif ( $event['event_properties']['event_registration_trashed_email_body_tpl'] > 0 ) {
             $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_trashed_email_body_tpl'] );
@@ -4650,7 +4650,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
             $person_subject = get_option( 'eme_registration_updated_email_subject' );
         }
 
-        if ( ! empty( $event['event_registration_updated_email_body'] ) ) {
+        if ( ! eme_is_empty_string( $event['event_registration_updated_email_body'] ) ) {
             $person_body = $event['event_registration_updated_email_body'];
         } elseif ( $event['event_properties']['event_registration_updated_email_body_tpl'] > 0 ) {
             $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_updated_email_body_tpl'] );
@@ -4670,7 +4670,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
             $person_subject = get_option( 'eme_registration_cancelled_email_subject' );
         }
 
-        if ( ! empty( $event['event_registration_cancelled_email_body'] ) ) {
+        if ( ! eme_is_empty_string( $event['event_registration_cancelled_email_body'] ) ) {
             $person_body = $event['event_registration_cancelled_email_body'];
         } elseif ( $event['event_properties']['event_registration_cancelled_email_body_tpl'] > 0 ) {
             $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_cancelled_email_body_tpl'] );
@@ -4686,7 +4686,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
             $contact_subject = get_option( 'eme_contactperson_cancelled_email_subject' );
         }
 
-        if ( ! empty( $event['event_properties']['contactperson_registration_cancelled_email_body'] ) ) {
+        if ( ! eme_is_empty_string( $event['event_properties']['contactperson_registration_cancelled_email_body'] ) ) {
             $contact_body = $event['event_properties']['contactperson_registration_cancelled_email_body'];
         } elseif ( $event['event_properties']['contactperson_registration_cancelled_email_body_tpl'] > 0 ) {
             $contact_body = eme_get_template_format_plain( $event['event_properties']['contactperson_registration_cancelled_email_body_tpl'] );
@@ -4722,7 +4722,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_paid_email_subject' );
             }
 
-            if ( ! empty( $event['event_registration_paid_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_registration_paid_email_body'] ) ) {
                 $person_body = $event['event_registration_paid_email_body'];
             } elseif ( $event['event_properties']['event_registration_paid_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_paid_email_body_tpl'] );
@@ -4737,7 +4737,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $contact_subject = get_option( 'eme_contactperson_paid_email_subject' );
             }
 
-            if ( ! empty( $event['event_properties']['contactperson_registration_paid_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_properties']['contactperson_registration_paid_email_body'] ) ) {
                 $contact_body = $event['event_properties']['contactperson_registration_paid_email_body'];
             } elseif ( $event['event_properties']['contactperson_registration_paid_email_body_tpl'] > 0 ) {
                 $contact_body = eme_get_template_format_plain( $event['event_properties']['contactperson_registration_paid_email_body_tpl'] );
@@ -4772,7 +4772,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
             $contact_subject = get_option( 'eme_contactperson_ipn_email_subject' );
         }
 
-        if ( ! empty( $event['event_properties']['contactperson_registration_ipn_email_body'] ) ) {
+        if ( ! eme_is_empty_string( $event['event_properties']['contactperson_registration_ipn_email_body'] ) ) {
             $contact_body = $event['event_properties']['contactperson_registration_ipn_email_body'];
         } elseif ( $event['event_properties']['contactperson_registration_ipn_email_body_tpl'] > 0 ) {
             $contact_body = eme_get_template_format_plain( $event['event_properties']['contactperson_registration_ipn_email_body_tpl'] );
@@ -4796,7 +4796,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                 $person_subject = get_option( 'eme_registration_userpending_email_subject' );
             }
 
-            if ( ! empty( $event['event_properties']['event_registration_userpending_email_body'] ) ) {
+            if ( ! eme_is_empty_string( $event['event_properties']['event_registration_userpending_email_body'] ) ) {
                 $person_body = $event['event_properties']['event_registration_userpending_email_body'];
             } elseif ( $event['event_properties']['event_registration_userpending_email_body_tpl'] > 0 ) {
                 $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_userpending_email_body_tpl'] );
@@ -4827,7 +4827,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                     $person_subject = get_option( 'eme_registration_pending_email_subject' );
                 }
 
-                if ( ! empty( $event['event_registration_pending_email_body'] ) ) {
+                if ( ! eme_is_empty_string( $event['event_registration_pending_email_body'] ) ) {
                     $person_body = $event['event_registration_pending_email_body'];
                 } elseif ( $event['event_properties']['event_registration_pending_email_body_tpl'] > 0 ) {
                     $person_body = eme_get_template_format_plain( $event['event_properties']['event_registration_pending_email_body_tpl'] );
@@ -4842,7 +4842,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                     $contact_subject = get_option( 'eme_contactperson_pending_email_subject' );
                 }
 
-                if ( ! empty( $event['event_properties']['contactperson_registration_pending_email_body'] ) ) {
+                if ( ! eme_is_empty_string( $event['event_properties']['contactperson_registration_pending_email_body'] ) ) {
                     $contact_body = $event['event_properties']['contactperson_registration_pending_email_body'];
                 } elseif ( $event['event_properties']['contactperson_registration_pending_email_body_tpl'] > 0 ) {
                     $contact_body = eme_get_template_format_plain( $event['event_properties']['contactperson_registration_pending_email_body_tpl'] );
@@ -4884,7 +4884,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                     $person_subject = get_option( 'eme_respondent_email_subject' );
                 }
 
-                if ( ! empty( $event['event_respondent_email_body'] ) ) {
+                if ( ! eme_is_empty_string( $event['event_respondent_email_body'] ) ) {
                     $person_body = $event['event_respondent_email_body'];
                 } elseif ( $event['event_properties']['event_respondent_email_body_tpl'] > 0 ) {
                     $person_body = eme_get_template_format_plain( $event['event_properties']['event_respondent_email_body_tpl'] );
@@ -4899,7 +4899,7 @@ function eme_email_booking_action( $booking, $action, $is_multibooking = 0 ) {
                     $contact_subject = get_option( 'eme_contactperson_email_subject' );
                 }
 
-                if ( ! empty( $event['event_contactperson_email_body'] ) ) {
+                if ( ! eme_is_empty_string( $event['event_contactperson_email_body'] ) ) {
                     $contact_body = $event['event_contactperson_email_body'];
                 } elseif ( $event['event_properties']['event_contactperson_email_body_tpl'] > 0 ) {
                     $contact_body = eme_get_template_format_plain( $event['event_properties']['event_contactperson_email_body_tpl'] );
@@ -5350,7 +5350,7 @@ function eme_import_csv_payments() {
     }
 
     // get the first row as keys and lowercase them
-    $headers = array_map( 'strtolower', fgetcsv( $handle, 0, $delimiter, $enclosure ) );
+    $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
 
     // check required columns
     if ( ! in_array( 'payment_date', $headers ) || ! ( in_array( 'unique_nbr', $headers ) || in_array( 'payment_id', $headers ) || in_array( 'payment_randomid', $headers ) ) || ! in_array( 'amount', $headers ) ) {
@@ -5358,7 +5358,7 @@ function eme_import_csv_payments() {
     } else {
         $empty_props = eme_init_event_props( );
         // now loop over the rest
-        while ( ( $row = fgetcsv( $handle, 0, $delimiter, $enclosure ) ) !== false ) {
+        while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $line = array_combine( $headers, $row );
             // remove columns with empty values
             $line                = eme_array_remove_empty_elements( $line );
@@ -5493,7 +5493,13 @@ function eme_registration_seats_form_table( $pending = 0 ) {
     }
 ?>
 </h1>
-    <?php if ( $trash ) { ?>
+<?php
+    $used_field_id = intval( $_GET['used_field_id'] ?? 0 );
+    eme_render_used_field_notice($used_field_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- message already escaped
+    if ( $used_field_id ) {
+        $event_q_string .= '&used_field_id='. $used_field_id; 
+    }
+    if ( $trash ) { ?>
         <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&trash=0$event_q_string" ) ); ?>"><?php esc_html_e( 'Show regular content', 'events-made-easy' ); ?></a><br>
     <?php } else { ?>
         <a href="<?php echo esc_url( admin_url( "admin.php?page=$plugin_page&trash=1$event_q_string" ) ); ?>"><?php esc_html_e( 'Show trash content', 'events-made-easy' ); ?></a><br>
@@ -5516,9 +5522,10 @@ function eme_registration_seats_form_table( $pending = 0 ) {
 ?>
         <select id='scope' name='scope'>
 <?php
+        $scope_default = $used_field_id ? 'all' : 'future';
         foreach ( $scope_names as $key => $value ) {
             $selected = '';
-            if ( $key == 'future' ) {
+            if ( $key == $scope_default ) {
                 $selected = "selected='selected'";
             }
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $selected is hardcoded selected attribute
@@ -5550,12 +5557,17 @@ function eme_registration_seats_form_table( $pending = 0 ) {
         <?php if ( ! $person_id ) : ?>
         <input type="search" name="search_person" id="search_person" placeholder="<?php esc_attr_e( 'Filter on person', 'events-made-easy' ); ?>" size=15>
     <?php endif; ?>
-    <input type="search" name="search_customfields" id="search_customfields" placeholder="<?php esc_attr_e( 'Filter on custom field answer', 'events-made-easy' ); ?>" class='eme_searchfilter' size=15>
     <input type="search" name="search_unique" id="search_unique" placeholder="<?php esc_attr_e( 'Filter on unique nbr', 'events-made-easy' ); ?>" class='eme_searchfilter' size=15>
     <input type="search" name="search_paymentid" id="search_paymentid" placeholder="<?php esc_attr_e( 'Filter on payment id', 'events-made-easy' ); ?>" <?php if (isset($_GET['paymentid'])) echo esc_attr(intval($_GET['paymentid'])); else echo ''; ?> class='eme_searchfilter' size=15>
     <input type="search" name="search_pg_pid" id="search_pg_pid" placeholder="<?php esc_attr_e( 'Filter on payment GW id', 'events-made-easy' ); ?>" class='eme_searchfilter' size=15>
+    <?php
+    $formfields_searchable = eme_get_searchable_formfields( 'rsvp', 1 );
+    if ( ! empty( $formfields_searchable ) ) {
+        eme_render_customfield_filter_rows( $formfields_searchable, [], '' );
+    }
+    ?>
     </div>
-    <button id="BookingsLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter bookings', 'events-made-easy' ); ?></button>
+    <button id="BookingsLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter bookings', 'events-made-easy' ); ?></button>
     </form>
     </div>
     <div class="bulkactions">
@@ -6002,6 +6014,11 @@ function eme_ajax_bookings_list() {
         $where_arr[] = $wpdb->prepare('(bookings.status = %d OR bookings.status = %d)', EME_RSVP_STATUS_PENDING , EME_RSVP_STATUS_USERPENDING );
     }
 
+    $used_field_id = intval( $_POST['used_field_id'] ?? 0 );
+    if ( $used_field_id ) {
+        $where_arr[] = $wpdb->prepare( "bookings.booking_id IN (SELECT related_id FROM $answers_table WHERE type='booking' AND field_id=%d)", $used_field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    }
+
     if ( $q ) {
         $allowed_columns = eme_get_table_columns( $bookings_table );
 
@@ -6020,14 +6037,25 @@ function eme_ajax_bookings_list() {
             }
         }
     }
-    if ( ! empty( $_POST['search_customfields'] ) ) {
-        $search_customfields = '%' . $wpdb->esc_like( eme_sanitize_request($_POST['search_customfields']) ) . '%';
-        $prepared_sql        = $wpdb->prepare("SELECT related_id FROM $answers_table WHERE answer LIKE %s AND type='booking' GROUP BY related_id", $search_customfields); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-        $booking_ids         = $wpdb->get_col( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        if ( ! empty( $booking_ids ) ) {
-            $ids_arr_int = array_map('intval', $booking_ids);
-            $placeholders = implode(',', array_fill(0, count($ids_arr_int), '%d'));
-            $where_arr[] = $wpdb->prepare( "(bookings.booking_id IN ($placeholders))", ...$ids_arr_int );
+    // custom field filters: each row is an independent, AND'd EXISTS condition
+    $cf_ids   = eme_sanitize_request( $_POST['search_customfieldids'] ?? [] );
+    $cf_vals  = eme_sanitize_request( $_POST['search_customfieldvalues'] ?? [] );
+    $cf_exact = eme_sanitize_request( $_POST['search_customfieldexact'] ?? [] );
+    if ( ! empty( $formfields_searchable ) && is_array( $cf_ids ) && ! empty( $cf_ids ) ) {
+        $searchable_ids = array_map( 'intval', wp_list_pluck( $formfields_searchable, 'field_id' ) );
+        foreach ( $cf_ids as $idx => $field_id ) {
+            $field_id = intval( $field_id );
+            if ( ! $field_id || ! in_array( $field_id, $searchable_ids, true ) ) {
+                continue; // ignore empty/unselected rows and non-searchable fields
+            }
+            $value = isset( $cf_vals[ $idx ] ) ? trim( (string) $cf_vals[ $idx ] ) : '';
+            if ( $value === '' ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=bookings.booking_id AND type='booking' AND field_id=%d AND answer='')", $field_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } elseif ( ! empty( $cf_exact[ $idx ] ) ) {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=bookings.booking_id AND type='booking' AND field_id=%d AND answer=%s)", $field_id, $value ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            } else {
+                $where_arr[] = $wpdb->prepare( "EXISTS (SELECT 1 FROM $answers_table WHERE related_id=bookings.booking_id AND type='booking' AND field_id=%d AND answer LIKE %s)", $field_id, '%' . $wpdb->esc_like( $value ) . '%' ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
         }
     }
 

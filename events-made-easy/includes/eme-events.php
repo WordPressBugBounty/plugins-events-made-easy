@@ -6109,6 +6109,14 @@ function eme_import_csv_events() {
                             }
                         }
                     }
+
+                    // also import tasks and todos, stored as json in the 'eme_tasks'/'eme_todos' columns
+                    if ( isset( $line['eme_tasks'] ) ) {
+                        eme_store_imported_tasks( $event_id, $line['eme_tasks'] );
+                    }
+                    if ( isset( $line['eme_todos'] ) ) {
+                        eme_store_imported_todos( $event_id, $line['eme_todos'] );
+                    }
                 }
             } else {
                 ++$errors;
@@ -6304,7 +6312,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <input type="search" name="search_name" id="recurrences_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class="eme_searchfilter" size=10>
         <input id="recurrences_search_start_date" type="text" name="recurrences_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="recurrences_search_end_date" type="text" name="recurrences_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <button id="RecurrencesLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter recurrences', 'events-made-easy' ); ?></button>
+        <button id="RecurrencesLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter recurrences', 'events-made-easy' ); ?></button>
         </form>
         <br>
         <div class="bulkactions">
@@ -6345,7 +6353,7 @@ function eme_events_table( $message = '', $active_tab = '' ) {
         <input type="search" name="search_name" id="trash_search_name" placeholder="<?php esc_attr_e( 'Event name', 'events-made-easy' ); ?>" class='eme_searchfilter'>
         <input id="trash_search_start_date" type="text" name="trash_search_start_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on start date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
         <input id="trash_search_end_date" type="text" name="trash_search_end_date" value="" readonly="readonly" placeholder="<?php esc_attr_e( 'Filter on end date', 'events-made-easy' ); ?>" size=15 data-date='' class='eme_formfield_fdate eme_searchfilter'>
-        <button id="TrashLoadRecordsButton" class="button-secondary action"><?php esc_html_e( 'Filter trash', 'events-made-easy' ); ?></button>
+        <button id="TrashLoadRecordsButton" class="button-primary action"><?php esc_html_e( 'Filter trash', 'events-made-easy' ); ?></button>
         </form>
 <?php
     if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) || current_user_can( get_option( 'eme_cap_author_event' ) ) ) :
@@ -9491,17 +9499,24 @@ function eme_db_update_event( $line, $event_id, $event_is_part_of_recurrence = 0
         // manage waitinglist
         $updated_event = eme_get_event($event_id);
         eme_manage_waitinglist($updated_event);
-        $task_ids = eme_handle_tasks_post_adminform( $event_id, $day_difference );
-        if ( ! empty( $task_ids ) ) {
-            eme_delete_event_old_tasks( $event_id, $task_ids );
-        } else {
-            eme_delete_event_tasks( $event_id );
+        // only take posted tasks/todos into account, so updates not coming from
+        // the event form (like csv import or migrations) don't wipe existing tasks/todos.
+        // csv imports handle them via the 'eme_tasks'/'eme_todos' columns instead.
+        if ( isset( $_POST['eme_tasks'] ) ) {
+            $task_ids = eme_handle_tasks_post_adminform( $event_id, $day_difference );
+            if ( ! empty( $task_ids ) ) {
+                eme_delete_event_old_tasks( $event_id, $task_ids );
+            } else {
+                eme_delete_event_tasks( $event_id );
+            }
         }
-        $todo_ids = eme_handle_todos_post_adminform( $event_id, $day_difference );
-        if ( ! empty( $todo_ids ) ) {
-            eme_delete_event_old_todos( $event_id, $todo_ids );
-        } else {
-            eme_delete_event_todos( $event_id );
+        if ( isset( $_POST['eme_todos'] ) ) {
+            $todo_ids = eme_handle_todos_post_adminform( $event_id, $day_difference );
+            if ( ! empty( $todo_ids ) ) {
+                eme_delete_event_old_todos( $event_id, $todo_ids );
+            } else {
+                eme_delete_event_todos( $event_id );
+            }
         }
         return true;
     }

@@ -16,14 +16,18 @@ function eme_new_todo() {
 	return $todo;
 }
 
-function eme_handle_todos_post_adminform( $event_id ) {
+function eme_handle_todos_data( $event_id, $post_todos ) {
 	$eme_todos_arr = [];
-	if ( empty( $_POST['eme_todos'] ) ) {
+	if ( empty( $post_todos ) || ! is_array( $post_todos ) ) {
+		return $eme_todos_arr;
+	}
+	// only keep the array entries
+	$post_todos = array_filter( $post_todos, 'is_array' );
+	if ( empty( $post_todos ) ) {
 		return $eme_todos_arr;
 	}
 	$seq_nbr       = 1;
 	$todo_nbr_seen = 0;
-    $post_todos    = eme_sanitize_request( $_POST['eme_todos'] ); // sanitize immediately the whole array
 	foreach ( $post_todos as $eme_todo ) {
 		if ( ! empty( $eme_todo['todo_nbr'] ) && intval( $eme_todo['todo_nbr'] ) > $todo_nbr_seen ) {
 			$todo_nbr_seen = intval( $eme_todo['todo_nbr'] );
@@ -33,8 +37,8 @@ function eme_handle_todos_post_adminform( $event_id ) {
 	foreach ( $post_todos as $eme_todo ) {
 		$eme_todo['todo_seq']   = $seq_nbr;
 		$eme_todo['event_id']   = $event_id;
-		$eme_todo['todo_offset'] = intval( $eme_todo['todo_offset'] );
-		if ( eme_is_empty_string( $eme_todo['name'] ) ) {
+		$eme_todo['todo_offset'] = intval( $eme_todo['todo_offset'] ?? 0 );
+		if ( eme_is_empty_string( $eme_todo['name'] ?? '' ) ) {
 			continue;
 		}
 		// we check for todo nbr to know if we need an update or insert
@@ -51,6 +55,33 @@ function eme_handle_todos_post_adminform( $event_id ) {
 		++$seq_nbr;
 	}
 	return $eme_todos_arr;
+}
+
+function eme_handle_todos_post_adminform( $event_id ) {
+	if ( empty( $_POST['eme_todos'] ) ) {
+		return [];
+	}
+	return eme_handle_todos_data( $event_id, eme_sanitize_request( $_POST['eme_todos'] ) );
+}
+
+// store todos coming from an imported json string (the 'eme_todos' csv column), same logic as the admin form
+function eme_store_imported_todos( $event_id, $todos_json ) {
+	if ( ! is_string( $todos_json ) || eme_is_empty_string( $todos_json ) ) {
+		return [];
+	}
+	$todos_arr = eme_json_decode_safe( $todos_json );
+	// only act on valid json arrays, so we don't touch anything on invalid input
+	if ( ! is_array( $todos_arr ) ) {
+		return [];
+	}
+	$todo_ids = eme_handle_todos_data( $event_id, eme_sanitize_request( $todos_arr ) );
+	// sync: remove todos that are no longer present in the imported data
+	if ( ! empty( $todo_ids ) ) {
+		eme_delete_event_old_todos( $event_id, $todo_ids );
+	} else {
+		eme_delete_event_todos( $event_id );
+	}
+	return $todo_ids;
 }
 
 function eme_db_insert_todo( $line ) {
@@ -164,6 +195,34 @@ function eme_get_event_todos( $event_id ) {
 	return $wpdb->get_results( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 
+function eme_render_event_todo_row( $count, $todo, $event ) {
+	?>
+				<tr id="eme_row_todo_<?php echo esc_attr( $count ); ?>" >
+				<td>
+				<?php echo "<img class='eme-sortable-handle' src='" . esc_url(EME_PLUGIN_URL) . "images/reorder.png' alt='" . esc_attr__( 'Reorder', 'events-made-easy' ) . "' title='" . esc_attr__( 'Reorder', 'events-made-easy' ) . "'>"; ?>
+				</td>
+				<td>
+				<?php if ( ! isset( $event['is_duplicate'] ) ) : // we set the todo ids only if it is not a duplicate event ?>
+					<input type='hidden' id="eme_todos_<?php echo esc_attr( $count ); ?>_todo_id" name="eme_todos[<?php echo esc_attr( $count ); ?>][todo_id]" aria-label="hidden index" value="<?php if ( isset( $todo['todo_id'] ) ) { echo esc_attr( $todo['todo_id'] );} ?>">
+					<input type='hidden' id="eme_todos_<?php echo esc_attr( $count ); ?>_todo_nbr" name="eme_todos[<?php echo esc_attr( $count ); ?>][todo_nbr]" aria-label="hidden index" value="<?php if ( isset( $todo['todo_nbr'] ) ) { echo esc_attr( $todo['todo_nbr'] );} ?>">
+				<?php endif; ?>
+				</td>
+				<td>
+				<input required='required' type='text' id="eme_todos_<?php echo esc_attr( $count ); ?>_name" name="eme_todos[<?php echo esc_attr( $count ); ?>][name]" size="12" aria-label="name" value="<?php echo esc_attr( $todo['name'] ); ?>">
+				</td>
+				<td>
+				<input type='text' name='eme_todos[<?php echo esc_attr( $count ); ?>][todo_offset]' id='eme_todos_<?php echo esc_attr( $count ); ?>_todo_offset' size="5" aria-label="event offset in days" value="<?php echo esc_attr( $todo['todo_offset'] ); ?>">
+				</td>
+				<td style="width: 60%;">
+				<textarea class="eme_fullresizable" id="eme_todos_<?php echo esc_attr( $count ); ?>_description" name="eme_todos[<?php echo esc_attr( $count ); ?>][description]" ><?php echo esc_html( $todo['description'] ); ?></textarea>
+				</td>
+				<td>
+				<a href="#" class='eme_remove_todo'><?php echo "<img class='eme_remove_todo' src='" . esc_url(EME_PLUGIN_URL) . "images/cross.png' alt='" . esc_attr__( 'Remove', 'events-made-easy' ) . "' title='" . esc_attr__( 'Remove', 'events-made-easy' ) . "'>"; ?></a><a href="#" class="eme_add_todo"><?php echo "<img class='eme_add_todo' src='" . esc_url(EME_PLUGIN_URL) . "images/plus_16.png' alt='" . esc_attr__( 'Add new todo', 'events-made-easy' ) . "' title='" . esc_attr__( 'Add new todo', 'events-made-easy' ) . "'>"; ?></a>
+				</td>
+				</tr>
+	<?php
+}
+
 function eme_meta_box_div_event_todos( $event ) {
 	if ( isset( $event['is_duplicate'] ) ) {
 		$todos = eme_get_event_todos( $event['orig_id'] );
@@ -190,36 +249,15 @@ function eme_meta_box_div_event_todos( $event ) {
 			<?php
 			// if there are no entries in the array, make 1 empty entry in it, so it renders at least 1 row
 			if ( ! is_array( $todos ) || count( $todos ) == 0 ) {
-				$info     = eme_new_todo();
-				$todos    = [ $info ];
+				$todos = [ eme_new_todo() ];
 			}
 			foreach ( $todos as $count => $todo ) {
-				?>
-				<tr id="eme_row_todo_<?php echo esc_attr( $count ); ?>" >
-				<td>
-				<?php echo "<img class='eme-sortable-handle' src='" . esc_url(EME_PLUGIN_URL) . "images/reorder.png' alt='" . esc_attr__( 'Reorder', 'events-made-easy' ) . "'>"; ?>
-				</td>
-				<td>
-				<?php if ( ! isset( $event['is_duplicate'] ) ) : // we set the todo ids only if it is not a duplicate event ?>
-					<input type='hidden' id="eme_todos_<?php echo esc_attr( $count ); ?>_todo_id" name="eme_todos[<?php echo esc_attr( $count ); ?>][todo_id]" aria-label="hidden index" value="<?php if ( isset( $todo['todo_id'] ) ) { echo esc_attr( $todo['todo_id'] );} ?>">
-					<input type='hidden' id="eme_todos_<?php echo esc_attr( $count ); ?>_todo_nbr" name="eme_todos[<?php echo esc_attr( $count ); ?>][todo_nbr]" aria-label="hidden index" value="<?php if ( isset( $todo['todo_nbr'] ) ) { echo esc_attr( $todo['todo_nbr'] );} ?>">
-				<?php endif; ?>
-				</td>
-				<td>
-				<input required='required' type='text' id="eme_todos_<?php echo esc_attr( $count ); ?>_name" name="eme_todos[<?php echo esc_attr( $count ); ?>][name]" size="12" aria-label="name" value="<?php echo esc_attr( $todo['name'] ); ?>">
-				</td>
-				<td>
-				<input type='text' name='eme_todos[<?php echo esc_attr( $count ); ?>][todo_offset]' id='eme_todos_<?php echo esc_attr( $count ); ?>_todo_offset' size="5" aria-label="event offset in days" value="<?php echo esc_attr( $todo['todo_offset'] ); ?>">
-				</td>
-				<td style="width: 60%;">
-				<textarea class="eme_fullresizable" id="eme_todos_<?php echo esc_attr( $count ); ?>_description" name="eme_todos[<?php echo esc_attr( $count ); ?>][description]" ><?php echo esc_html( $todo['description'] ); ?></textarea>
-				</td>
-				<td>
-				<a href="#" class='eme_remove_todo'><?php echo "<img class='eme_remove_todo' src='" . esc_url(EME_PLUGIN_URL) . "images/cross.png' alt='" . esc_attr__( 'Remove', 'events-made-easy' ) . "' title='" . esc_attr__( 'Remove', 'events-made-easy' ) . "'>"; ?></a><a href="#" class="eme_add_todo"><?php echo "<img class='eme_add_todo' src='" . esc_url(EME_PLUGIN_URL) . "images/plus_16.png' alt='" . esc_attr__( 'Add new todo', 'events-made-easy' ) . "' title='" . esc_attr__( 'Add new todo', 'events-made-easy' ) . "'>"; ?></a>
-				</td>
-				</tr>
-				<?php
+				eme_render_event_todo_row( $count, $todo, $event );
 			}
+			// a pristine row inside a template tag, used by js to add new todos
+			echo '<template id="eme_todos_template">';
+			eme_render_event_todo_row( '__IDX__', eme_new_todo(), $event );
+			echo '</template>';
 			?>
 		</tbody>
 		</table>
@@ -234,7 +272,7 @@ function eme_get_past_unsent_todos() {
 	$events_table = EME_DB_PREFIX . EME_EVENTS_TBNAME;
 	$eme_date_obj_now = new emeExpressiveDate( 'now', EME_TIMEZONE );
 	$search_date  = $eme_date_obj_now->getDate();
-	$prepared_sql = $wpdb->prepare("SELECT $table.* FROM $table LEFT JOIN $events_table ON $table.event_id=$events_table.event_id WHERE reminder_sent=0 AND $events.table.event_status != %d' AND DATE_SUB($events_table.event_start,INTERVAL $table.todo_offset DAY) < %s", EME_EVENT_STATUS_TRASH, $search_date . ' 23:59:00'); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is a safe variable
+	$prepared_sql = $wpdb->prepare("SELECT $table.* FROM $table LEFT JOIN $events_table ON $table.event_id=$events_table.event_id WHERE reminder_sent=0 AND $events_table.event_status != %d' AND DATE_SUB($events_table.event_start,INTERVAL $table.todo_offset DAY) < %s", EME_EVENT_STATUS_TRASH, $search_date . ' 23:59:00'); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is a safe variable
 	return $wpdb->get_results( $prepared_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 

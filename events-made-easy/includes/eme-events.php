@@ -287,7 +287,7 @@ function eme_init_event_props( $props = [], $new_event=0 ) {
         if (eme_is_list_of_numbers($props[$opt])) {
             $props[$opt]=$props[$opt];
         } else {
-            $props[$opt]=intval($props[$opt]);
+            $props[$opt]='';
         }
     }
 
@@ -4278,6 +4278,7 @@ function eme_get_events_list( $limit = -1, $scope = 'future', $order = 'ASC', $f
         $eme_filters['eme_cat_filter']     = 1;
         $eme_filters['eme_loc_filter']     = 1;
         $eme_filters['eme_city_filter']    = 1;
+        $eme_filters['eme_state_filter']   = 1;
         $eme_filters['eme_country_filter'] = 1;
         $eme_filters['eme_scope_filter']   = 1;
         $eme_filters['eme_contact_filter'] = 1;
@@ -4657,6 +4658,18 @@ function eme_get_events_list_shortcode( $atts ) {
                 $atts['location_id'] = -1;
             }
         }
+        if ( ! empty( $_REQUEST['eme_state_filter'] ) ) {
+            $states  = eme_sanitize_request( $_REQUEST['eme_state_filter'] );
+            $tmp_ids = eme_get_state_location_ids( $states );
+            if ( empty( $location_id_arr ) ) {
+                $location_id_arr = $tmp_ids;
+            } else {
+                $location_id_arr = array_intersect( $location_id_arr, $tmp_ids );
+            }
+            if ( empty( $location_id_arr ) ) {
+                $atts['location_id'] = -1;
+            }
+        }
         if ( ! empty( $_REQUEST['eme_country_filter'] ) ) {
             $countries = eme_sanitize_request( $_REQUEST['eme_country_filter'] );
             $tmp_ids   = eme_get_country_location_ids( $countries );
@@ -4681,8 +4694,9 @@ function eme_get_events_list_shortcode( $atts ) {
         }
         foreach ( $_REQUEST as $key => $value ) {
             $key = eme_sanitize_request( $key );
-            $value = eme_sanitize_request( $value );
             if ( preg_match( '/eme_customfield_filter(\d+)/', $key, $matches ) ) {
+                $value = eme_sanitize_request( $value );
+                if (eme_is_empty_string($value)) continue;
                 $field_id  = intval( $matches[1] );
                 $formfield = eme_get_formfield( $field_id );
                 if ( ! empty( $formfield ) ) {

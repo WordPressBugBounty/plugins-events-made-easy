@@ -3786,14 +3786,14 @@ function eme_get_event_placeholder_handler_definitions() {
         },
         '/#_IS_CONTACTPERSON/' => function( $result, $matches, $ctx ) {
             $event = $ctx['event'];
-            if ( $event['event_contactperson_id'] == $ctx['current_userid'] || ( $event['event_contactperson_id'] == -1 && $event['event_author'] == $ctx['current_userid'] ) ) {
+            if ( $event['event_contactperson_id'] == $ctx['current_userid'] || ( $event['event_contactperson_id'] == 0 && $event['event_author'] == $ctx['current_userid'] ) ) {
                 return 1;
             }
             return 0;
         },
         '/#_IS_AUTHOR_OR_CONTACTPERSON/' => function( $result, $matches, $ctx ) {
             $event = $ctx['event'];
-            if ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] || ( $event['event_contactperson_id'] == -1 && $event['event_author'] == $ctx['current_userid'] ) ) {
+            if ( $event['event_author'] == $ctx['current_userid'] || $event['event_contactperson_id'] == $ctx['current_userid'] || ( $event['event_contactperson_id'] == 0 && $event['event_author'] == $ctx['current_userid'] ) ) {
                 return 1;
             }
             return 0;
@@ -5414,14 +5414,14 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
         if ( is_numeric( $contact_person ) ) {
             $contact_id  = intval( $contact_person );
             $conditions[] = $wpdb->prepare(
-                "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                 $contact_id,
                 $contact_id
             );
         } elseif ( $contact_person == '#_MYSELF' ) {
             $current_userid = get_current_user_id();
             $conditions[]   = $wpdb->prepare(
-                "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                 $current_userid,
                 $current_userid
             );
@@ -5430,7 +5430,7 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
             if ( ! empty( $authinfo->ID ) ) {
                 $userid       = $authinfo->ID;
                 $conditions[] = $wpdb->prepare(
-                    "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                    "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                     $userid,
                     $userid
                 );
@@ -5445,14 +5445,14 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
             if ( is_numeric( $authname ) ) {
                 $contact_id = intval( $authname );
                 $contact_person_conditions[] = $wpdb->prepare(
-                    "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                    "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                     $contact_id,
                     $contact_id
                 );
             } elseif ( $authname == '#_MYSELF' ) {
                 $current_userid              = get_current_user_id();
                 $contact_person_conditions[] = $wpdb->prepare(
-                    "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                    "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                     $current_userid,
                     $current_userid
                 );
@@ -5461,7 +5461,7 @@ function eme_get_events( $limit = 0, $scope = 'future', $order = 'ASC', $offset 
                 if ( ! empty( $authinfo->ID ) ) {
                     $userid                      = $authinfo->ID;
                     $contact_person_conditions[] = $wpdb->prepare(
-                        "(event_contactperson_id = %d OR (event_contactperson_id = -1 AND event_author = %d))",
+                        "(event_contactperson_id = %d OR (event_contactperson_id = 0 AND event_author = %d))",
                         $userid,
                         $userid
                     );
@@ -5951,6 +5951,23 @@ function eme_import_csv_events() {
         $delimiter = ',';
     }
 
+    // the things to sanitize differently, all the others get eme_sanitize_request
+    $kses_fields = [
+        'event_seats', 'price', 'currency',
+        'event_url', 'event_image_url', 'event_image_id', 'event_prefix', 'event_slug',
+        'event_page_title_format', 'event_contactperson_email_body',
+        'event_registration_recorded_ok_html', 'event_respondent_email_body',
+        'event_registration_pending_email_body', 'event_registration_updated_email_body',
+        'event_registration_cancelled_email_body', 'event_registration_trashed_email_body',
+        'event_registration_form_format', 'event_cancel_form_format',
+        'event_registration_paid_email_body',
+    ];
+    $maybe_unfiltered_fields = [ 'event_single_event_format', 'event_notes', 'location_description' ];
+    $intval_fields = [
+        'event_tasks', 'event_todos', 'event_rsvp', 'event_contactperson_id', 'event_author',
+        'registration_requires_approval', 'registration_wp_users_only', 'task_requires_approval',
+    ];
+
     // get the first row as keys and lowercase them
     $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
 
@@ -5964,6 +5981,20 @@ function eme_import_csv_events() {
             $line = array_combine( $headers, $row );
             // remove columns with empty values
             $line = eme_array_remove_empty_elements( $line );
+            foreach ( $line as $key => $value ) {
+                if ( preg_match( '/^(att|prop|answer)_/', $key ) ) {
+                    continue; // raw value feeds eme_json_decode_safe() downstream or gets sanitized at insert — not free text
+                }
+                if ( in_array( $key, $kses_fields, true ) ) {
+                    $line[ $key ] = eme_kses( $value );
+                } elseif ( in_array( $key, $maybe_unfiltered_fields, true ) ) {
+                    $line[ $key ] = eme_kses_maybe_unfiltered( $value );
+                } elseif ( in_array( $key, $intval_fields, true ) ) {
+                    $line[ $key ] = intval( $value );
+                } else {
+                    $line[ $key ] = eme_sanitize_request( $value );
+                }
+            }
 
             // first we import the mentioned location, then we add that location id to the event
             $location_id = 0;
@@ -6012,7 +6043,7 @@ function eme_import_csv_events() {
                                     ],
                                     [ '%d', '%d', '%s' ]
                                 );
-                                eme_insert_answer( 'location', $location_id, $field_id, $value);
+                                eme_insert_answer( 'location', $location_id, $field_id, eme_kses_maybe_unfiltered( $value ) );
                             }
                         }
                     }
@@ -6032,14 +6063,14 @@ function eme_import_csv_events() {
                     $line['location_id'] = $location_id;
                 }
 
-			// also import attributes
+                // also import attributes
 				foreach ( $line as $key => $value ) {
 					if ( preg_match( '/^att_(.*)$/', $key, $matches ) ) {
 						$att = $matches[1];
 						if ( ! isset( $line['event_attributes'] ) ) {
 							$line['event_attributes'] = [];
 						}
-						$line['event_attributes'][ $att ] = eme_json_decode_safe( $value );
+						$line['event_attributes'][ $att ] = eme_kses( eme_json_decode_safe( $value ) );
 					}
 				}
 
@@ -6051,7 +6082,7 @@ function eme_import_csv_events() {
 							$line['event_properties'] = [];
 						}
 						if ( array_key_exists( $prop, $empty_props ) ) {
-							$line['event_properties'][ $prop ] = eme_json_decode_safe( $value );
+							$line['event_properties'][ $prop ] = eme_kses( eme_json_decode_safe( $value ) );
 						}
 					}
 				}
@@ -6119,7 +6150,7 @@ function eme_import_csv_events() {
                                     ],
                                     [ '%d', '%d', '%s' ]
                                 );
-                                eme_insert_answer( 'event', $event_id, $field_id, $value);
+                                eme_insert_answer( 'event', $event_id, $field_id, eme_kses_maybe_unfiltered( $value ) );
                             }
                         }
                     }
@@ -9414,7 +9445,7 @@ function eme_db_insert_event( $line, $event_is_part_of_recurrence = 0, $day_diff
     if ( empty( $line['event_author'] ) ) {
         $line['event_author'] = get_current_user_id();
     }
-    if ( empty( $line['event_contactperson_id'] ) ) {
+    if ( !isset( $line['event_contactperson_id'] ) ) {
         $line['event_contactperson_id'] = $line['event_author'];
     }
     if ( empty( $line['event_slug'] ) ) {
@@ -9466,7 +9497,7 @@ function eme_db_update_event( $line, $event_id, $event_is_part_of_recurrence = 0
     if ( empty( $line['event_author'] ) ) {
         $line['event_author'] = get_current_user_id();
     }
-    if ( empty( $line['event_contactperson_id'] ) ) {
+    if ( !isset( $line['event_contactperson_id'] ) ) {
         $line['event_contactperson_id'] = $line['event_author'];
     }
     if ( empty( $line['event_slug'] ) ) {

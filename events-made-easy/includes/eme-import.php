@@ -364,7 +364,10 @@ function eme_import_csv_countries() {
     } else {
         while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $country = array_combine( $headers, $row );
-            $res     = eme_db_insert_country( $country );
+            foreach ( $country as $key => $value ) {
+                $country[ $key ] = eme_sanitize_request( $value );
+            }
+            $res = eme_db_insert_country( $country );
             if ( $res ) {
                 ++$inserted;
             } else {
@@ -418,6 +421,10 @@ function eme_import_csv_states() {
     } else {
         $delimiter = ',';
     }
+
+    // the things to sanitize differently, all the others get eme_sanitize_request
+    $intval_fields = [ 'country_id' ];
+
     $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
     if ( ! in_array( 'code', $headers ) || ! in_array( 'name', $headers ) || ( ! in_array( 'country_id', $headers ) && ! in_array( 'country_alpha2', $headers ) ) ) {
         $message = __( 'Not all required fields present.', 'events-made-easy' );
@@ -432,6 +439,13 @@ function eme_import_csv_states() {
                 // translators: %s is the CSV row data that failed to import
                 $error_msg .= '<br>' . esc_html( sprintf( __( 'Not imported (country not found): %s', 'events-made-easy' ), implode( ',', $row ) ) );
                 continue;
+            }
+            foreach ( $state as $key => $value ) {
+                if ( in_array( $key, $intval_fields, true ) ) {
+                    $state[ $key ] = intval( $value );
+                } else {
+                    $state[ $key ] = eme_sanitize_request( $value );
+                }
             }
             $res   = eme_db_insert_state( $state );
             if ( $res ) {
@@ -486,6 +500,10 @@ function eme_import_csv_discounts() {
     } else {
         $delimiter = ',';
     }
+
+    // the things to sanitize differently, all the others get eme_sanitize_request
+    $intval_fields = [ 'use_per_seat', 'strcase', 'count', 'maxcount' ];
+
     $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
     if ( ! in_array( 'name', $headers ) || ! in_array( 'type', $headers ) || ! in_array( 'coupon', $headers ) || ! in_array( 'value', $headers ) ) {
         $message = __( 'Not all required fields present.', 'events-made-easy' );
@@ -494,6 +512,13 @@ function eme_import_csv_discounts() {
         $empty_props = eme_init_discount_props( $empty_props );
         while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $line = array_combine( $headers, $row );
+            foreach ( $line as $key => $value ) {
+                if ( in_array( $key, $intval_fields, true ) ) {
+                    $line[ $key ] = intval( $value );
+                } else {
+                    $line[ $key ] = eme_sanitize_request( $value );
+                }
+            }
             // also import properties
             foreach ( $line as $key => $value ) {
                 if ( preg_match( '/^prop_(.*)$/', $key, $matches ) ) {
@@ -578,12 +603,23 @@ function eme_import_csv_discountgroups() {
     } else {
         $delimiter = ',';
     }
+
+    // the things to sanitize differently, all the others get eme_sanitize_request
+    $intval_fields = [ 'maxdiscounts' ];
+
     $headers = array_map( 'strtolower', fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') );
     if ( ! in_array( 'name', $headers ) ) {
         $message = __( 'Not all required fields present.', 'events-made-easy' );
     } else {
         while ( ( $row = fgetcsv( stream: $handle, separator: $delimiter, enclosure: $enclosure, escape: '') ) !== false ) {
             $discountgroup = array_combine( $headers, $row );
+            foreach ( $discountgroup as $key => $value ) {
+                if ( in_array( $key, $intval_fields, true ) ) {
+                    $discountgroup[ $key ] = intval( $value );
+                } else {
+                    $discountgroup[ $key ] = eme_sanitize_request( $value );
+                }
+            }
             $res           = eme_db_insert_dgroup( $discountgroup );
             if ( $res ) {
                 ++$inserted;

@@ -1061,7 +1061,6 @@ function eme_meta_box_div_event_tasks( $event, $edit_recurrence = 0 ) {
 }
 
 function eme_meta_box_div_event_task_settings( $event ) {
-    $eme_prop_task_reminder_days         = esc_html( $event['event_properties']['task_reminder_days'] );
     $extra_attributes                    = 'data-placeholder="' . esc_attr__( 'Select one or more groups', 'events-made-easy' ) . '"';
     ?>
     <div id='div_event_task_settings'>
@@ -1090,7 +1089,7 @@ function eme_meta_box_div_event_task_settings( $event ) {
             <label for="eme_prop_task_allow_overlap"><?php esc_html_e( 'Allow overlap for task signups?', 'events-made-easy' ); ?></label>
         </p>
         <p id='p_task_reminder_days'>
-            <input id="eme_prop_task_reminder_days" name='eme_prop_task_reminder_days' type='text' value="<?php echo esc_attr( $eme_prop_task_reminder_days ); ?>">
+            <input id="eme_prop_task_reminder_days" name='eme_prop_task_reminder_days' type='text' value="<?php echo esc_attr( $event['event_properties']['task_reminder_days'] ); ?>">
             <label for="eme_prop_task_reminder_days"><?php esc_html_e( 'Set the number of days before task signup reminder emails will be sent (counting from the start date of the task). If you want to send out multiple reminders, seperate the days here by commas. Leave empty for no reminder emails.', 'events-made-easy' ); ?></label>
         </p>
     </div>
@@ -2201,7 +2200,7 @@ function eme_ajax_task_signups_list() {
             $localized_taskend_date      = eme_localized_datetime( $row['task_end'], EME_TIMEZONE, 1 );
             $localized_signup_date       = eme_localized_datetime( $row['signup_date'], EME_TIMEZONE, 1 );
             $row['event_name']  = "<strong><a href='" . esc_url( admin_url( 'admin.php?page=eme-manager&eme_admin_action=edit_event&event_id=' . $row['event_id'] ) ) . "' title='" . esc_attr__( 'Edit event', 'events-made-easy' ) . "'>" . esc_html( eme_translate( $row['event_name'] ) ) . '</a></strong><br>' . $localized_start_date . ' - ' . $localized_end_date;
-            $csv_address = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=tasksignups_csv&event_id=' . $row['event_id'] . '&eme_admin_nonce=' . wp_create_nonce( 'eme_admin' ) ) );
+            $csv_address = esc_url( admin_url( 'admin.php?page=eme-people&eme_admin_action=tasksignups_csv&event_id=' . $row['event_id'] . '&eme_admin_nonce=' . eme_admin_report_hash( $row['event_id'], 'tasksignups_csv' ) ) );
             $row['event_name'] .= " (<a id='tasksignups_csv_" . $row['event_id'] . "' href='".esc_url($csv_address)."'>" . esc_html__( 'CSV export', 'events-made-easy' ) . '</a>)';
             $row['task_name']   = esc_html( $row['task_name'] );
             $row['comment']     = nl2br(esc_html( $row['comment'] ));
@@ -2218,7 +2217,7 @@ function eme_ajax_task_signups_list() {
             foreach ( $formfields as $formfield ) {
                 foreach ( $answers as $answer ) {
                     if ( $answer['field_id'] == $formfield['field_id']) {
-                        $val = eme_answer2readable( $answer['answer'], $formfield, 1, ',', 'text', 1 );
+                        $val = eme_answer2readable( $answer['answer'], $formfield, 1, ',', 'html', 1 );
                         // the 'FIELD_' value is used by the container-js
                         $answerkey = 'FIELD_' . $answer['field_id'];
                         if ( isset( $row[ $answerkey ] ) ) {

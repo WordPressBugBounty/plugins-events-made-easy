@@ -379,6 +379,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data && data.Result) {
                 EME.$('#eme_dynpersondata').innerHTML = data.Result;
                 eme_init_widgets(true);
+            } else {
+                EME.$('#eme_dynpersondata').replaceChildren();
             }
         });
     }

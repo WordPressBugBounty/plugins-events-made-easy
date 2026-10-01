@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 3.2.20
+Stable tag: 3.2.21
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,14 +99,20 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.2.21  (2026/10/01) =
+* Mollie API update
+* Frontend submit form suppports generic placeholders inside the form format too
+* Make the map work also in frontend submit (again)
+* Allow location autocomplete field to be cleared
+
 = 3.2.20  (2026/09/26) =
-* use setHTML in some cases, improvement in security over innerHTML
-* fix csv/print reports from within the booking screen
+* Use setHTML in some cases, improvement in security over innerHTML
+* Fix csv/print reports from within the booking screen
 
 = 3.2.19  (2026/09/22) =
-* fdatepicker update
-* make old #_EVENTPRINTBOOKINGSURL/LINK and CSV placeholders work again
-* small escape fixes
+* Fdatepicker update
+* Make old #_EVENTPRINTBOOKINGSURL/LINK and CSV placeholders work again
+* Small escape fixes
 
 = 3.2.18  (2026/09/12) =
 * Don't escape custom field answers for fields of type events/locations/memberships

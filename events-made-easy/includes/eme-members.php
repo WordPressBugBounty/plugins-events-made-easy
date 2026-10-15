@@ -451,18 +451,65 @@ function eme_update_member_usage_count( $member ) {
     }
 }
 
-function eme_get_members( $member_ids, $extra_search = '', $offset = 0, $pagesize = 0 ) {
+function eme_get_members( $member_ids, $extra_search = '', $offset = 0, $pagesize = 0, $order = '' ) {
     global $wpdb;
+    eme_clear_orderby_error();
     $people_table      = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     $members_table     = EME_DB_PREFIX . EME_MEMBERS_TBNAME;
     $memberships_table = EME_DB_PREFIX . EME_MEMBERSHIPS_TBNAME;
-    if ( ! empty( $member_ids ) && eme_is_integer_array( $member_ids ) ) {
+    $answers_table     = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+
+    // we can provide our own order statements
+    $order                  = preg_replace( '/,$|ORDER BY /i', '', (string) $order );
+    // allow ASC/DESC to be given in any case
+    if ( strcasecmp( $order, 'ASC' ) === 0 || strcasecmp( $order, 'DESC' ) === 0 ) {
+        $order = strtoupper( $order );
+    }
+    $orderby                = '';
+    $order_on_custom_fields = 0;
+    $used_custom_order      = false;
+    if ( $order == 'ASC' || $order == 'DESC' ) {
+        // order as the full name dictates, like eme_get_persons() does
+        $orderby = eme_get_name_orderby( $order, 'member_id' );
+    } elseif ( ! eme_is_empty_string( $order ) ) {
+        if ( eme_sanitize_sql_orderby( $order ) ) {
+            $used_custom_order      = true;
+            $orderby                = 'ORDER BY ' . $order;
+            $order_on_custom_fields = (bool) preg_match( '/FIELD_\d+/', $order );
+        } else {
+            $orderby = eme_get_name_orderby( 'ASC', 'member_id' );
+        }
+    }
+
+    // if ordering on a custom field is requested, load in that custom field too
+    $sql_join = '';
+    if ( $order_on_custom_fields ) {
+        $formfields_searchable = eme_get_searchable_formfields( 'members', 1 );
+        $group_concat_sql      = '';
+        foreach ( $formfields_searchable as $formfield ) {
+            $field_id          = intval( $formfield['field_id'] );
+            $group_concat_sql .= "GROUP_CONCAT(CASE WHEN field_id = $field_id THEN answer END) AS 'FIELD_$field_id',"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $field_id is intval-sanitized database value
+        }
+        if ( ! empty( $group_concat_sql ) ) {
+            $sql_join = "
+               LEFT JOIN (SELECT $group_concat_sql related_id FROM $answers_table
+                 WHERE related_id>0 AND type='member'
+                 GROUP BY related_id
+                ) ans
+               ON members.member_id=ans.related_id";
+        }
+    }
+
+    $member_ids_int = [];
+    $have_ids = ! empty( $member_ids ) && eme_is_integer_array( $member_ids );
+    if ( $have_ids ) {
         $member_ids_int = array_map( 'intval', $member_ids );
         $placeholders   = implode( ',', array_fill( 0, count( $member_ids_int ), '%d' ) );
         $sql     = $wpdb->prepare( "SELECT members.*, people.lastname, people.firstname, people.email, memberships.name AS membership_name
             FROM $members_table AS members
             LEFT JOIN $memberships_table AS memberships ON members.membership_id=memberships.membership_id
             LEFT JOIN $people_table AS people ON members.person_id=people.person_id
+            $sql_join
             WHERE members.member_id IN ($placeholders)", ...$member_ids_int ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
         if ( ! empty( $extra_search ) ) {
             $sql .= " AND $extra_search";
@@ -472,17 +519,29 @@ function eme_get_members( $member_ids, $extra_search = '', $offset = 0, $pagesiz
             FROM $members_table AS members
             LEFT JOIN $memberships_table AS memberships ON members.membership_id=memberships.membership_id
             LEFT JOIN $people_table AS people ON members.person_id=people.person_id
+            $sql_join
 ";
         if ( ! empty( $extra_search ) ) {
             $sql .= " WHERE $extra_search";
         }
+    }
+    // no ordering requested: keep the order of the ids we received
+    if ( empty( $orderby ) && $have_ids ) {
+        $orderby = 'ORDER BY FIELD(members.member_id,' . implode( ',', $member_ids_int ) . ')';
+    }
+    if ( ! empty( $orderby ) ) {
+        $sql .= " $orderby";
     }
     if ( $pagesize > 0 ) {
         $limit  = intval( $pagesize );
         $offset = max( 0, intval( $offset ) );
         $sql   .= $wpdb->prepare( ' LIMIT %d OFFSET %d', $limit, $offset );
     }
-    $members = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared
+    $members = $wpdb->get_results( $sql, ARRAY_A ) ?? []; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.PreparedSQL.NotPrepared
+    if ( $used_custom_order && ! empty( $wpdb->last_error ) ) {
+        error_log( 'EME: SQL error in ' . __FUNCTION__ . ' with custom order parameters' );
+        eme_mark_orderby_error();
+    }
     foreach ( $members as $key => $member ) {
         $members[ $key ] = eme_get_extra_member_data( $member );
     }
@@ -1217,24 +1276,37 @@ function eme_add_update_member( $member_id = 0, $send_mail = 1 ) {
         }
         $err       = '';
         $person_id = 0;
+        // who is allowed to register somebody else as a member (author members may only manage their
+        // own member info, that's covered by the ownership check on the submitted person id below)
+        $allow_book_for_others = $eme_is_admin_request || current_user_can( get_option( 'eme_cap_edit_members' ) );
+        $submitted_person      = false;
         if ( ! empty( $_POST['person_id'] ) ) {
-            $person_id = intval( $_POST['person_id'] );
-            $person    = eme_get_person( $person_id );
-            if ( ! $person ) {
-                $err       = __( 'No such person found', 'events-made-easy' );
-                $person_id = 0;
+            $submitted_person = eme_get_person( intval( $_POST['person_id'] ) );
+        }
+        // the frontend form doesn't know better than the logged in user, so only trust the submitted
+        // person id in the backend, for our own person or when we may register somebody else
+        if ( $submitted_person && ( $allow_book_for_others ||
+            ( is_user_logged_in() && intval( $submitted_person['wp_id'] ) === get_current_user_id() ) ) ) {
+            $person_id = $submitted_person['person_id'];
+        } elseif ( ! isset( $_POST['lastname'] ) || eme_is_empty_string( $_POST['lastname'] ) ) {
+            if ( ! empty( $_POST['person_id'] ) && ! $submitted_person ) {
+                $err = __( 'No such person found', 'events-made-easy' );
+            } elseif ( ! empty( $_POST['person_id'] ) ) {
+                $err = __( 'The name and email address you entered do not match your account.', 'events-made-easy' );
+            } else {
+                // we need at least lastname
+                $err = __( 'Please enter at least the last name for a new member', 'events-made-easy' );
             }
-        } elseif ( eme_is_empty_string( $_POST['lastname'] ) ) {
-            // we need at least lastname
-            $err = __( 'Please enter at least the last name for a new member', 'events-made-easy' );
-        } elseif ( ! $eme_is_admin_request && ! eme_is_email_frontend( eme_sanitize_email( $_POST['email'] ) ) ) {
+        } elseif ( ! isset( $_POST['email'] ) || ( ! $eme_is_admin_request && ! eme_is_email_frontend( eme_sanitize_email( $_POST['email'] ) ) ) ) {
             // we need an email
             $err = __( 'Please enter a valid email address', 'events-made-easy' );
         } elseif ( $membership['properties']['create_wp_user'] && ! eme_is_email( eme_sanitize_email( $_POST['email'] ) ) ) {
             // we need an email
             $err = __( 'Please enter a valid email address', 'events-made-easy' );
         } else {
-            $wp_id          = eme_get_wpid_by_post();
+            // only the backend can pass a wp id (to link a NEW person to the selected wp user): for the frontend
+            // eme_add_update_person_from_form decides (our own wp id for a new person, never for an existing one)
+            $wp_id = $eme_is_admin_request ? eme_get_wpid_by_post() : 0;
             $bookerLastName = eme_sanitize_request( $_POST['lastname'] );
             if ( isset( $_POST['firstname'] ) ) {
                 $bookerFirstName = eme_sanitize_request( $_POST['firstname'] );
@@ -1243,9 +1315,15 @@ function eme_add_update_member( $member_id = 0, $send_mail = 1 ) {
             }
             $bookerEmail = eme_sanitize_email( $_POST['email'] );
 
-            $res       = eme_add_update_person_from_form( 0, $bookerLastName, $bookerFirstName, $bookerEmail, $wp_id, $membership['properties']['create_wp_user'] );
-            $person_id = $res[0];
-            $err       = $res[1];
+            if ( ! $eme_is_admin_request && ! $allow_book_for_others && $membership['properties']['registration_wp_users_only'] &&
+                ! eme_person_is_own_or_new_for_user( $bookerLastName, $bookerFirstName, $bookerEmail ) ) {
+                // for wp users only memberships, those who may not register somebody else can only use their own person
+                $err = __( 'The name and email address you entered do not match your account.', 'events-made-easy' );
+            } else {
+                $res       = eme_add_update_person_from_form( 0, $bookerLastName, $bookerFirstName, $bookerEmail, $wp_id, $membership['properties']['create_wp_user'], 0, $allow_book_for_others );
+                $person_id = $res[0];
+                $err       = $res[1];
+            }
         }
         if ( ! $person_id ) {
             $result = $err;
@@ -1879,7 +1957,10 @@ function eme_member_form( $member, $membership_id, $from_backend = 0 ) {
         $form_html .= "<span id='honeypot_check'><input type='text' name='honeypot_check' value='' autocomplete='off'></span>";
     }
     $form_html .= "<input type='hidden' id='membership_id' name='membership_id' value='$membership_id'>";
-    $form_html .= "<input type='hidden' name='wp_id' value='$wp_id'>";
+    if ( $from_backend ) {
+        // only the backend form may submit a wp id, the frontend deduces it from the logged in user
+        $form_html .= "<input type='hidden' name='wp_id' value='$wp_id'>";
+    }
 
     // in the backend start/end/status is already mentioned, so no need to that again
     if ( ! $from_backend && ! empty( $member['member_id'] ) ) {
@@ -3573,6 +3654,12 @@ function eme_dyndata_member_ajax() {
     // has an extra frontend nonce set (even if executed in the backend)
     check_ajax_referer( 'eme_frontend', 'eme_frontend_nonce' );
 
+    // the backend forms post an admin nonce, the frontend forms don't: without it this is a frontend
+    // request, whatever the (forgeable) referer says
+    if ( ! isset( $_POST['eme_admin_nonce'] ) ) {
+        eme_mark_frontend_request();
+    }
+
     header( 'Content-type: application/json; charset=utf-8' );
     $membership_id = 0;
     if ( ! empty( $_POST['membership_id'] ) ) {
@@ -3582,8 +3669,6 @@ function eme_dyndata_member_ajax() {
     if ( ! empty( $_POST['member_id'] ) ) {
         if (eme_is_admin_request()) {
             check_admin_referer( 'eme_admin', 'eme_admin_nonce' );
-        } else {
-            check_ajax_referer( 'eme_frontend', 'eme_frontend_nonce' );
         }
         if ( ! current_user_can( get_option( 'eme_cap_edit_members' ) ) ) {
             wp_die();
@@ -3614,8 +3699,11 @@ function eme_dyndata_member_ajax() {
                     $grouping = intval( $condition['grouping'] );
                 }
                 if ( $condition['field'] == '#_GROUPS' ) {
-                    $wp_id 	     = eme_get_wpid_by_post();
-                    $entered_val = join( ',', array_map( 'esc_html', eme_get_persongroup_names( 0, $wp_id ) ) );
+                    // the groups of the person these details match (if we may use that person), no wp id involved.
+                    // No match means a new person, and a new person has no groups.
+                    $group_person = eme_get_usable_person_by_post( current_user_can( get_option( 'eme_cap_edit_members' ) ) );
+                    $group_names  = $group_person ? eme_get_persongroup_names( $group_person['person_id'] ) : [];
+                    $entered_val  = join( ',', array_map( 'esc_html', $group_names ) );
                 } else {
                     // indicate "1" to make sure the answers are taken from the POST, and not from the existing member
                     $entered_val = eme_replace_member_placeholders( $condition['field'], $membership, $member, 'html', '', 1 );
@@ -4867,6 +4955,7 @@ function eme_members_shortcode( $atts ) {
         [
             'group_id'           => 0,
             'membership_id'      => 0,
+            'order'              => '',
             'template_id'        => 0,
             'template_id_header' => 0,
             'template_id_footer' => 0,
@@ -4876,6 +4965,7 @@ function eme_members_shortcode( $atts ) {
 
     $group_id           = eme_sanitize_request($atts['group_id']);
     $membership_id      = eme_sanitize_request($atts['membership_id']);
+    $order              = eme_sanitize_request($atts['order']);
     $template_id        = intval($atts['template_id']);
     $template_id_header = intval($atts['template_id_header']);
     $template_id_footer = intval($atts['template_id_footer']);
@@ -4885,6 +4975,11 @@ function eme_members_shortcode( $atts ) {
     } elseif ( ! empty( $membership_id ) ) {
         $member_ids = eme_get_memberships_member_ids( $membership_id );
     } else {
+        return '';
+    }
+
+    // no members found (or an invalid group/membership id), don't fall back to listing all members
+    if ( empty( $member_ids ) || ! eme_is_integer_array( $member_ids ) ) {
         return '';
     }
 
@@ -4904,8 +4999,12 @@ function eme_members_shortcode( $atts ) {
     }
     $output = '';
     $lang   = eme_detect_lang();
-    foreach ( $member_ids as $member_id ) {
-        $member     = eme_get_member( $member_id );
+    $members = eme_get_members( $member_ids, '', 0, 0, $order );
+    if ( eme_get_orderby_error() ) {
+        eme_clear_orderby_error();
+        return eme_message_error_div( __( 'The shortcode parameters are not correct.', 'events-made-easy' ) );
+    }
+    foreach ( $members as $member ) {
         $membership = eme_get_membership( $member['membership_id'] );
         $output    .= eme_replace_member_placeholders( $format, $membership, $member, 'html', $lang );
     }
@@ -5151,6 +5250,7 @@ function eme_access_meta_box_save( $post_id ) {
 add_action( 'wp_ajax_eme_add_member', 'eme_add_member_ajax' );
 add_action( 'wp_ajax_nopriv_eme_add_member', 'eme_add_member_ajax' );
 function eme_add_member_ajax() {
+    eme_mark_frontend_request();
     if ( ! isset( $_POST['honeypot_check'] ) || ! empty( $_POST['honeypot_check'] ) ) {
         $form_html = __( "Bot detected. If you believe you've received this message in error please contact the site owner.", 'events-made-easy' );
         echo wp_json_encode(
@@ -6275,10 +6375,7 @@ function eme_import_csv_members() {
             $membership = eme_get_membership( $line['membership'] );
             if ( $membership ) {
                 // if the person already exists: update him
-                $person = eme_get_person_by_name_and_email( $line['lastname'], $line['firstname'], $line['email'] );
-                if ( ! $person ) {
-                    $person = eme_get_person_by_email_only( $line['email'] );
-                }
+                $person = eme_get_matching_person( $line['lastname'], $line['firstname'], $line['email'] );
                 if ( $person ) {
                     $person_id = $person['person_id'];
                 } else {
@@ -6469,7 +6566,7 @@ function eme_import_csv_member_dynamic_answers() {
             $person_id  = 0;
             $membership = eme_get_membership( $line['membership'] );
             if ( $membership ) {
-                $person = eme_get_person_by_name_and_email( $line['lastname'], $line['firstname'], $line['email'] );
+                $person = eme_get_matching_person( $line['lastname'], $line['firstname'], $line['email'] );
                 if ( $person ) {
                     $person_id = $person['person_id'];
                 } else {

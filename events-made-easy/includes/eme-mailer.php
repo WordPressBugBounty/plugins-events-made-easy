@@ -4160,15 +4160,13 @@ function eme_sub_do( $lastname, $firstname, $email, $group_ids ) {
         $group_ids = array_intersect( $group_ids, $subscribable_groupids );
     }
 
-    $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-    if ( ! $person ) {
-        $person = eme_get_person_by_email_only( $email );
-    }
+    $person = eme_get_matching_person( $lastname, $firstname, $email );
     if ( ! empty( $person ) ) {
         $res = eme_add_persongroups( $person['person_id'], $group_ids, 1 );
     } else {
         $wp_id = 0;
         // if the user is logged in, we overwrite the lastname/firstname with that info
+        // this should already be the case (the form fixes it, but we don't always trust users)
         if ( is_user_logged_in() ) {
             $wp_id     = get_current_user_id();
             $user_info = get_userdata( $wp_id );
@@ -4177,15 +4175,22 @@ function eme_sub_do( $lastname, $firstname, $email, $group_ids ) {
                 $lastname = $user_info->display_name;
             }
             $firstname = $user_info->user_firstname;
+            $person = eme_get_matching_person( $lastname, $firstname, $email );
         }
-        $res2      = eme_add_update_person_from_form( 0, $lastname, $firstname, $email, $wp_id );
-        $person_id = $res2[0];
-        if ( $person_id ) {
-            $res = eme_add_persongroups( $person_id, $group_ids, 1 );
+        if ( ! empty( $person ) ) {
+            $res = eme_add_persongroups( $person['person_id'], $group_ids, 1 );
+        } else {
+            $res2      = eme_add_update_person_from_form( 0, $lastname, $firstname, $email, $wp_id );
+            $person_id = $res2[0];
+            if ( $person_id ) {
+                $res = eme_add_persongroups( $person_id, $group_ids, 1 );
+            }
         }
     }
     if ( $res ) {
         eme_update_email_massmail( $email, 1 );
+        // subscribing means the person gives GDPR consent too
+        eme_update_email_gdpr( $email );
     }
     return $res;
 }

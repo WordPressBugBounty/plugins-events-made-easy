@@ -61,10 +61,8 @@ function eme_actions_early_init() {
         check_ajax_referer( 'eme_frontend', 'eme_frontend_nonce' );
         $no_wp_die = 1;
         if ( is_user_logged_in() && isset( $_POST['eme_event_ids'] ) ) {
-            $event          = eme_get_event( intval( $_POST['eme_event_ids'][0] ) );
-            $current_userid = get_current_user_id();
-            if ( ! empty( $event ) && ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
-                ( current_user_can( get_option( 'eme_cap_author_event' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) ) {
+            $event = eme_get_event( intval( $_POST['eme_event_ids'][0] ) );
+            if ( ! empty( $event ) && current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
                 eme_ajax_people_autocomplete( $no_wp_die );
             }
         }
@@ -107,9 +105,7 @@ function eme_actions_early_init() {
         } elseif ( is_user_logged_in() && isset( $_POST['eme_event_ids'] ) ) {
             check_ajax_referer( 'eme_frontend', 'eme_frontend_nonce' );
             $event          = eme_get_event( intval( $_POST['eme_event_ids'][0] ) );
-            $current_userid = get_current_user_id();
-            if ( ! empty( $event ) && ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
-                ( current_user_can( get_option( 'eme_cap_author_event' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) ) {
+            if ( ! empty( $event ) && eme_user_can_book_for_others( $event ) ) {
                 eme_ajax_people_autocomplete( $no_wp_die, $event['registration_wp_users_only'] );
             }
         } else {
@@ -503,7 +499,7 @@ function eme_register_scripts() {
     wp_register_style('jodit-css', EME_PLUGIN_URL . 'js/jodit/jodit.fat.min.css', [], EME_VERSION);
     wp_register_script('eme-jodit', EME_PLUGIN_URL . 'js/eme_jodit.js', ['jodit-js'], EME_VERSION, [ 'in_footer' => true ]);
     $translation_array = [
-	    'translate_adminnonce'      => wp_create_nonce( 'eme_admin' ),
+        'translate_joditnonce'      => wp_create_nonce( 'eme_jodit' ),
 	    'translate_flanguage'       => $language,
 	    'translate_insertimage'     => __('Insert image', 'events-made-easy' ),
 	    'translate_insert'          => __('Insert', 'events-made-easy' ),
@@ -812,7 +808,7 @@ function eme_ajax_process_bounces() {
 // AJAX handler for rendering shortcodes in Jodit preview
 add_action('wp_ajax_eme_jodit_preview_render', 'eme_jodit_preview_render');
 function eme_jodit_preview_render() {
-    check_ajax_referer( 'eme_admin', 'eme_admin_nonce' );
+    check_ajax_referer( 'eme_jodit', 'eme_jodit_nonce' );
     if (!current_user_can( get_option( 'eme_cap_edit_events' ) ) ) {
         wp_send_json_error('Unauthorized', 403);
     }

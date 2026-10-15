@@ -1129,6 +1129,41 @@ function eme_invite_url( $event, $email, $lastname, $firstname, $lang ) {
     return $the_link;
 }
 
+// A valid invite link is a capability to book for the invited person, even if that person
+// belongs to another wp user. The hash already binds the email/lastname/firstname to the event,
+// so the submitted booking details must be exactly the invited ones.
+function eme_invite_allows_booking_for( $event_id, $lastname, $firstname, $email ) {
+    if ( ! eme_check_invite_url( $event_id ) ) {
+        return false;
+    }
+    if ( isset( $_REQUEST['eme_email'] ) && strcasecmp( eme_sanitize_email( $_REQUEST['eme_email'] ), (string) $email ) !== 0 ) {
+        return false;
+    }
+    if ( ! empty( $_REQUEST['eme_ln'] ) && strcasecmp( eme_sanitize_request( $_REQUEST['eme_ln'] ), (string) $lastname ) !== 0 ) {
+        return false;
+    }
+    if ( ! empty( $_REQUEST['eme_fn'] ) && strcasecmp( eme_sanitize_request( $_REQUEST['eme_fn'] ), (string) $firstname ) !== 0 ) {
+        return false;
+    }
+    return true;
+}
+
+// Capability part: may the current user make a booking for somebody else for this event?
+// These are the same rights the backend booking pages require: registrations managers, or the
+// author/contact person of the event when they have the "author" registrations right.
+// Doesn't depend on the (forgeable) referer, so use this where a decision must not be spoofable.
+function eme_user_can_book_for_others( $event ) {
+    if ( empty( $event ) || ! is_array( $event ) || ! is_user_logged_in() ) {
+        return false;
+    }
+    if ( current_user_can( get_option( 'eme_cap_registrations' ) ) ) {
+        return true;
+    }
+    $current_userid = get_current_user_id();
+    return current_user_can( get_option( 'eme_cap_author_registrations' ) ) &&
+        ( (int) $event['event_author'] === $current_userid || (int) $event['event_contactperson_id'] === $current_userid );
+}
+
 function eme_rsvp_checkurl( $booking_id ) {
     $hash = wp_hash( $booking_id . '|' . 'check_rsvp' , 'nonce' );
     // no language: it is checked by someone else in the browser
@@ -2312,21 +2347,36 @@ function eme_dyndata_rsvp_ajax() {
     check_ajax_referer( 'eme_frontend', 'eme_frontend_nonce' );
 
     header( 'Content-type: application/json; charset=utf-8' );
+
+    $backend_request = false;
+    // the backend forms post an admin nonce, the frontend forms don't: without it this is a frontend
+    // request, whatever the (forgeable) referer says
+    if ( ! isset( $_POST['eme_admin_nonce'] ) ) {
+        eme_mark_frontend_request();
+    } else {
+        // nonce present: we already check it
+        check_admin_referer( "eme_admin", 'eme_admin_nonce' );
+        if (eme_is_admin_request()) {
+            $backend_request = true;
+        }
+    }
+
     // first detect multibooking
     $event_ids = [];
     if ( ! empty( $_POST['eme_event_ids'] ) ) {
         $event_ids = array_map( 'intval', $_POST['eme_event_ids'] );
-    } elseif ( eme_is_admin_request() && ! empty( $_POST['event_id'] ) ) {
+    } elseif ( $backend_request && ! empty( $_POST['event_id'] ) ) {
         // the case when adding a booking in the backend
         $event_ids = [ 0 => intval( $_POST['event_id'] ) ];
     }
 
-    if ( ! empty( $_POST['booking_id'] ) ) {
+    if ( $backend_request && ! empty( $_POST['booking_id'] ) ) {
         // the case when editing a booking in the backend
         $booking_id = intval( $_POST['booking_id'] );
-        check_admin_referer( "eme_admin", 'eme_admin_nonce' );
         $booking   = eme_get_booking( $booking_id );
-        $event_ids = [ 0 => $booking['event_id'] ];
+        if ($booking) {
+            $event_ids = [ 0 => $booking['event_id'] ];
+        }
     } else {
         $booking = [];
     }
@@ -2337,6 +2387,13 @@ function eme_dyndata_rsvp_ajax() {
         if ( empty( $event ) ) {
             continue;
         }
+ 
+        // the backend cases need the right to manage the bookings of this event (checked on capabilities, not on the referer)
+        $can_book_for_others = eme_user_can_book_for_others( $event );
+        if ( $backend_request && ! $can_book_for_others ) {
+            continue;
+        }
+
         // we use a fake booking to get an initial price based on current entered data
         $fake_booking = eme_fake_booking( $event );
         if ( ! empty( $booking ) ) {
@@ -2362,8 +2419,11 @@ function eme_dyndata_rsvp_ajax() {
                 }
 
                 if ( $condition['field'] == '#_GROUPS' ) {
-                    $wp_id       = eme_get_wpid_by_post();
-                    $entered_val = join( ',', array_map( 'esc_html', eme_get_persongroup_names( 0, $wp_id ) ) );
+                    // the groups of the person these details match (if we may use that person), no wp id involved.
+                    // No match means a new person, and a new person has no groups.
+                    $group_person = eme_get_usable_person_by_post( $can_book_for_others );
+                    $group_names  = $group_person ? eme_get_persongroup_names( $group_person['person_id'] ) : [];
+                    $entered_val  = join( ',', array_map( 'esc_html', $group_names ) );
                 } else {
                     // indicate "1" to make sure the answers are taken from the POST, and not from the existing member
                     $entered_val = eme_replace_booking_placeholders( $condition['field'], $event, $fake_booking, 0, 'html', '', 1 );
@@ -2474,6 +2534,10 @@ function _eme_kses_single( $value, $allow_unfiltered ) {
         return $value;
     }
     $value = eme_strip_weird( $value );
+    // decode entities BEFORE stripping tags, so an attacker can't hide a tag as
+    // &lt;img onerror=...&gt; to sneak past wp_kses and reappear as live markup
+    // once the browser decodes it again on render
+    $value = html_entity_decode( $value, ENT_QUOTES, 'UTF-8' );
     // To filter out JS, we should use domdocument, but the problem is that sometimes the
     // html is intentional incomplete, which would cause issues with domdocument
     // See https://codereview.stackexchange.com/questions/30045/regex-to-remove-inline-javascript-from-string
@@ -2904,6 +2968,21 @@ function eme_sanitize_sql_orderby( $orderby ) {
     return false;
 }
 
+// a simple flag to signal that a query with custom (user supplied) ordering parameters resulted in an
+// SQL error: the frontend shows a generic error message to the visitor, the details only reach the server error log
+function eme_clear_orderby_error() {
+    global $eme_orderby_error;
+    $eme_orderby_error = false;
+}
+function eme_mark_orderby_error() {
+    global $eme_orderby_error;
+    $eme_orderby_error = true;
+}
+function eme_get_orderby_error() {
+    global $eme_orderby_error;
+    return ! empty( $eme_orderby_error );
+}
+
 function eme_sort_stringlenth( $a, $b ) {
     return strlen( $b ) - strlen( $a );
 }
@@ -3315,6 +3394,14 @@ function eme_replaceiframe( $text ) {
 }
 
 function eme_is_admin_request() {
+    // The referer used below is sent by the client, so it can be forged: a logged-in user can post to
+    // admin-ajax.php with a referer pointing to the admin area. The handlers of the frontend form submits
+    // therefore mark themselves as frontend (see eme_mark_frontend_request), after which nothing
+    // the client sends can make the request count as a backend request.
+    if ( defined( 'EME_FRONTEND_REQUEST' ) ) {
+        return false;
+    }
+
     // Get admin URL and referrer.
     $admin_url = strtolower( admin_url() );
     $referrer  = strtolower( wp_get_referer() );
@@ -3331,6 +3418,13 @@ function eme_is_admin_request() {
         }
     } else {
         return false;
+    }
+}
+
+// to be called first thing in the handlers of the frontend form submits (bookings, members, tasks)
+function eme_mark_frontend_request() {
+    if ( ! defined( 'EME_FRONTEND_REQUEST' ) ) {
+        define( 'EME_FRONTEND_REQUEST', true );
     }
 }
 

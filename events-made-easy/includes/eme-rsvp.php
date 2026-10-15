@@ -148,8 +148,7 @@ function eme_add_multibooking_form( $events, $template_id_header = 0, $template_
         }
     }
 
-    if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
-        ( current_user_can( get_option( 'eme_cap_author_event' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) {
+    if ( eme_user_can_book_for_others( $event ) ) {
         $search_tables = get_option( 'eme_autocomplete_sources' );
         if ( $search_tables != 'none' ) {
             wp_enqueue_script( 'eme-autocomplete-form' );
@@ -179,11 +178,7 @@ function eme_add_multibooking_form( $events, $template_id_header = 0, $template_
     if ( $only_if_not_registered ) {
         $form_html .= "<input type='hidden' name='only_if_not_registered' value='$only_if_not_registered'>";
     }
-    if ( ! eme_is_admin_request() && ( $registration_wp_users_only || $event['event_status'] == EME_EVENT_STATUS_PRIVATE || $event['event_status'] == EME_EVENT_STATUS_DRAFT || $event['event_status'] == EME_EVENT_STATUS_FS_DRAFT ) ) {
-        // if in the frontend and wp membership is required
-        // and we're logged in (otherwise we don't get here)
-        $form_html .= "<input type='hidden' name='wp_id' value='$current_userid'>";
-    }
+    // no wp_id field in the frontend form: a wp id is never taken from a frontend request
     $form_html .= "<input type='hidden' name='person_id' value=''>";
 
     if ( $is_multibooking ) {
@@ -856,6 +851,7 @@ function eme_cancel_bookings_form_shortcode( $atts ) {
 add_action( 'wp_ajax_eme_add_bookings', 'eme_add_bookings_ajax' );
 add_action( 'wp_ajax_nopriv_eme_add_bookings', 'eme_add_bookings_ajax' );
 function eme_add_bookings_ajax() {
+    eme_mark_frontend_request();
     // check for spammers as early as possible
     if ( ! isset( $_POST['honeypot_check'] ) || ! empty( $_POST['honeypot_check'] ) ) {
         $form_html = __( "Bot detected. If you believe you've received this message in error please contact the site owner.", 'events-made-easy' );
@@ -1239,10 +1235,7 @@ function eme_cancel_bookings_ajax() {
             $bookerFirstName = '';
         }
         $bookerEmail = eme_sanitize_email( $_POST['email'] );
-        $booker      = eme_get_person_by_name_and_email( $bookerLastName, $bookerFirstName, $bookerEmail );
-        if ( ! $booker ) {
-            $booker = eme_get_person_by_email_only( $bookerEmail );
-        }
+        $booker      = eme_get_matching_person( $bookerLastName, $bookerFirstName, $bookerEmail );
         if ( $booker ) {
             $person_id   = $booker['person_id'];
             $booking_ids = eme_get_booking_ids_by_person_event_id( $person_id, $event_id );
@@ -1366,21 +1359,13 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
         $bookerLastName  = '';
         $bookerFirstName = '';
         $bookerEmail     = '';
-        $booker_wp_id    = 0;
-        if ( is_user_logged_in() ) {
-            // if the user has the correct rights, we take the booker id from the form, otherwise we ignore it
-            $current_userid = get_current_user_id();
-            if ( $eme_is_admin_request ) {
-                // a booking from the backend? Then we take the wp id from the post, not the current logged in user
-                $booker_wp_id = eme_get_wpid_by_post();
-            } elseif ( ! $eme_is_admin_request && ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
-                // a booking from the frontend from the event author or contactperson with correct rights?
-                // Then we also take the wp id from the post, not the current logged in user
-                ( current_user_can( get_option( 'eme_cap_author_event' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) ) {
-                $booker_wp_id = eme_get_wpid_by_post();
-            } else {
-                $booker_wp_id = $current_userid;
-            }
+        // who is allowed to make this booking for somebody else? (backend, event editors, author/contact person)
+        $allow_book_for_others = eme_user_can_book_for_others( $event );
+        // just an extra safety check that a user in admin has the needed rights
+        if ( $eme_is_admin_request && ! $allow_book_for_others ) {
+            // same right the backend booking pages require
+            $form_html .= __( 'Access denied!', 'events-made-easy' );
+            continue;
         }
 
         if ( $event['event_status'] == EME_EVENT_STATUS_TRASH ) {
@@ -1399,10 +1384,6 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
             if ( ! is_user_logged_in() ) {
                 $form_html .= __( 'WP membership required to continue', 'events-made-easy' );
                 continue;
-            } elseif ( ! $booker_wp_id ) {
-                // we require a user to be WP registered to be able to book
-                $form_html .= __( 'Please select a WP member from the lastname autocomplete selection', 'events-made-easy' );
-                continue;
             }
         }
         if ( isset( $_POST['lastname'] ) && isset( $_POST['email'] ) ) {
@@ -1419,9 +1400,28 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
             // to be backwards compatible, don't require bookerFirstName here: it can be empty for forms that just use #_NAME
             continue;
         }
+        // a valid invite link for these exact booking details also allows booking for somebody else
+        $invite_allows_booking  = eme_invite_allows_booking_for( $event['event_id'], $bookerLastName, $bookerFirstName, $bookerEmail );
+        $allow_book_for_others  = $allow_book_for_others || $invite_allows_booking;
+
+        // events for wp users only: those who may not book for somebody else can only book for their own person
+        // (or, when they don't have one yet, for a new one that will be linked to their wp user)
+        if ( $registration_wp_users_only && ! $eme_is_admin_request && ! $allow_book_for_others &&
+            ! eme_person_is_own_or_new_for_user( $bookerLastName, $bookerFirstName, $bookerEmail ) ) {
+            $form_html .= __( 'The name and email address you entered do not match your account.', 'events-made-easy' );
+            continue;
+        }
 
         // things we check in the frontend only
         if ( ! $eme_is_admin_request ) {
+            // an invite-only event isn't just a form-rendering restriction: the booking itself must
+            // come from a valid invite link for this event and must be for the invited person
+            if ( $event['event_properties']['invite_only'] && ! $invite_allows_booking ) {
+                $invite_format = get_option( 'eme_rsvp_invitation_required_string' );
+                $form_html    .= eme_replace_event_placeholders( $invite_format, $event );
+                continue;
+            }
+
             // we require an email, but only in the frontend
             // this allows the rare case of persons without email to be booked for an event
             if ( ! eme_is_email_frontend( $bookerEmail ) ) {
@@ -1431,14 +1431,16 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
 
             if ( $event['event_properties']['person_only_once'] ) {
                 $booker = false;
-                if ( isset( $_POST['person_id'] ) ) {
-                    $booker = eme_get_person( intval( $_POST['person_id'] ) );
+                if ( !empty( $_POST['person_id'] ) ) {
+                    // only trust the submitted person id for our own person or when booking for others is allowed
+                    $submitted_person = eme_get_person( intval( $_POST['person_id'] ) );
+                    if ( $submitted_person && ( $allow_book_for_others ||
+                        ( is_user_logged_in() && intval( $submitted_person['wp_id'] ) === get_current_user_id() ) ) ) {
+                        $booker = $submitted_person;
+                    }
                 }
                 if ( empty( $booker ) ) {
-                    $booker = eme_get_person_by_name_and_email( $bookerLastName, $bookerFirstName, $bookerEmail );
-                    if ( ! $booker ) {
-                        $booker = eme_get_person_by_email_only( $bookerEmail );
-                    }
+                    $booker = eme_get_usable_person( $bookerLastName, $bookerFirstName, $bookerEmail, $allow_book_for_others );
                 }
                 if ( ! empty( $booker ) ) {
                     $tmp_booking_ids = eme_get_booking_ids_by_person_event_id( $booker['person_id'], $event_id );
@@ -1568,6 +1570,23 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
                     continue;
                 }
             }
+
+            // an invite-only discount may only be used by the person the invitation was sent to,
+            // so check the invite against the submitted booking details (a valid invite link on its
+            // own is not enough here: it could belong to somebody else)
+            if ( ! $invite_allows_booking && ! empty( $tmp_booking['discountids'] ) ) {
+                $applied_discountids = eme_is_serialized( $tmp_booking['discountids'] )
+                    ? array_keys( eme_json_decode_safe( $tmp_booking['discountids'] ) )
+                    : explode( ',', $tmp_booking['discountids'] );
+                foreach ( $applied_discountids as $applied_discount_id ) {
+                    $applied_discount = eme_get_discount( $applied_discount_id );
+                    if ( $applied_discount && ! empty( $applied_discount['properties']['invite_only'] ) ) {
+                        $form_html .= __( 'An invitation is required to use the discount you entered', 'events-made-easy' );
+                        // 2: leave the event loop, we're inside the discount foreach
+                        continue 2;
+                    }
+                }
+            }
         }
 
         if ( has_filter( 'eme_eval_booking_filter' ) ) {
@@ -1610,7 +1629,9 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
                     'bookerLastName' =>$bookerLastName,
                     'bookerFirstName' => $bookerFirstName,
                     'bookerEmail' => $bookerEmail,
-                    'booker_wp_id' => $booker_wp_id,
+                    // a wp id for a new person can only come from the backend (the selected wp user)
+                    'link_wp_id' => $eme_is_admin_request ? eme_get_wpid_by_post() : 0,
+                    'allow_book_for_others' => $allow_book_for_others,
                     'event' => $event,
                     'tmp_booking' => $tmp_booking
                 ];
@@ -1663,13 +1684,13 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
     // now we have all booking info ready to be made without errors
     foreach ($booking_info_to_be_made as $t_info) {
         $event = $t_info['event'];
-        $res   = eme_add_update_person_from_form( 0, $t_info['bookerLastName'], $t_info['bookerFirstName'], $t_info['bookerEmail'], $t_info['booker_wp_id'], $event['event_properties']['create_wp_user'] );
+        $res   = eme_add_update_person_from_form( 0, $t_info['bookerLastName'], $t_info['bookerFirstName'], $t_info['bookerEmail'], $t_info['link_wp_id'], $event['event_properties']['create_wp_user'], 0, $t_info['allow_book_for_others'] );
         $person_id = $res[0];
         // ok, just to be safe: check the person_id of the booker
         if ( $person_id ) {
             $booker = eme_get_person( $person_id );
-            // if the user is logged in and the phone field is not empty, update that in the user profile
-            if ( ! empty( $booker['wp_id'] ) && ! eme_is_empty_string( $booker['phone'] ) ) {
+            // only sync the phone for our own person, not for somebody else we booked for
+            if ( ! empty( $booker['wp_id'] ) && intval( $booker['wp_id'] ) === get_current_user_id() && ! eme_is_empty_string( $booker['phone'] ) ) {
                 eme_update_user_phone( $booker['wp_id'], $booker['phone'] );
             }
 
@@ -1696,7 +1717,7 @@ function eme_multibook_seats( $events, $send_mail, $format, $is_multibooking = 1
                     // everything ok? So then we add the user in WP if desired
                     // this will only do it if the booker is not logged in and his email doesn't exist in wp yet
                     // we don't check the result of the eme_create_wp_user function
-                    if ( $event['event_properties']['create_wp_user'] > 0 && ! $t_info['booker_wp_id'] && ! email_exists( $booker['email'] ) ) {
+                    if ( $event['event_properties']['create_wp_user'] > 0 && empty( $booker['wp_id'] ) && ! email_exists( $booker['email'] ) ) {
                         eme_create_wp_user( $booker );
                     }
                     // now everything is done, so execute the hook if present

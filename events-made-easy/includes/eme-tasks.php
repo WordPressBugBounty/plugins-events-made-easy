@@ -1567,8 +1567,7 @@ function eme_tasks_signupform_shortcode( $atts ) {
     }
 
     $current_userid = get_current_user_id();
-    if ( current_user_can( get_option( 'eme_cap_edit_events' ) ) ||
-        ( current_user_can( get_option( 'eme_cap_author_event' ) ) && ( $event['event_author'] == $current_userid || $event['event_contactperson_id'] == $current_userid ) ) ) {
+    if ( current_user_can( get_option( 'eme_cap_manage_task_signups' ) ) ) {
         $search_tables = get_option( 'eme_autocomplete_sources' );
         if ( $search_tables != 'none' ) {
             wp_enqueue_script( 'eme-autocomplete-form' );
@@ -1650,6 +1649,7 @@ function eme_tasks_signupform_shortcode( $atts ) {
             $signupform_format = get_option( 'eme_task_form_format' );
         }
         $result .= eme_replace_task_signupformfields_placeholders( $form_id, $signupform_format, $event );
+        $result .= '</form></div>';
     } else {
         if ( ! empty( $notasks_template_id ) ) {
             $result = "<div id='eme-tasks-message' class='eme-message-info eme-tasks-message eme-no-tasks'>" . eme_get_template_format( $notasks_template_id ) . '</div>';
@@ -1658,7 +1658,6 @@ function eme_tasks_signupform_shortcode( $atts ) {
         }
     }
 
-    $result .= '</form></div>';
     return $result;
 }
 
@@ -1864,6 +1863,7 @@ function eme_replace_tasksignup_placeholders( $format, $signup, $person, $event,
 add_action( 'wp_ajax_eme_tasks', 'eme_tasks_ajax' );
 add_action( 'wp_ajax_nopriv_eme_tasks', 'eme_tasks_ajax' );
 function eme_tasks_ajax() {
+    eme_mark_frontend_request();
     // check for spammers as early as possible
     if ( ! isset( $_POST['honeypot_check'] ) || ! empty( $_POST['honeypot_check'] ) ) {
         $message = __( "Bot detected. If you believe you've received this message in error please contact the site owner.", 'events-made-easy' );
@@ -1930,10 +1930,11 @@ function eme_tasks_ajax() {
     $message   = '';
     $nok       = 0;
     $ok        = 0;
+    // exact match only: a nameless person (matched on email only) must go through
+    // eme_add_update_person_from_form below, which fills in the submitted name
     $t_person = eme_get_person_by_name_and_email( $bookerLastName, $bookerFirstName, $bookerEmail );
-    if (!empty($t_person)) {
-        $person_id = $t_person['person_id'];
-    }
+    $matched_personid = ! empty( $t_person ) ? intval( $t_person['person_id'] ) : 0;
+    $matched_wp_id    = ! empty( $t_person ) ? intval( $t_person['wp_id'] ) : 0;
     foreach ( wp_unslash( $_POST['eme_task_signups'] ) as $event_id => $task_id_arr ) { // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
         $event_id              = intval( $event_id );
         $event                 = eme_get_event( $event_id );
@@ -1941,8 +1942,24 @@ function eme_tasks_ajax() {
         $registered_users_only = $event['event_properties']['task_registered_users_only'];
         $only_one_signup_pp    = $event['event_properties']['task_only_one_signup_pp'];
         $signup_status         = ($event['event_properties']['task_requires_approval'])? 0 : 1;
+        // the backend uses this right to manage task signups
+        $allow_book_for_others = current_user_can( get_option( 'eme_cap_manage_task_signups' ) );
+        // the person we matched may belong to another wp user: only use it when it isn't linked to a wp user,
+        // when it's our own person or when we're allowed to sign up for somebody else, otherwise
+        // eme_add_update_person_from_form further down decides
+        if ( $matched_personid && ( $matched_wp_id === 0 || $matched_wp_id === intval( $booker_wp_id ) || $allow_book_for_others ) ) {
+            $person_id = $matched_personid;
+        } else {
+            $person_id = 0;
+        }
         if ( $registered_users_only && ! $booker_wp_id ) {
             $message .= get_option( 'eme_rsvp_login_required_string' );
+            $nok      = 1;
+            continue;
+        }
+        if ( $registered_users_only && ! $allow_book_for_others && ! eme_person_is_own_or_new_for_user( $bookerLastName, $bookerFirstName, $bookerEmail ) ) {
+            // registered users only: those who may not sign up somebody else can only use their own person
+            $message .= __( 'The name and email address you entered do not match your account.', 'events-made-easy' );
             $nok      = 1;
             continue;
         }
@@ -1968,9 +1985,14 @@ function eme_tasks_ajax() {
             }
             $add_update_person_from_form_err = '';
             if ( ! $person_id && !empty($bookerLastName) && !empty($bookerEmail) ) {
-                $res         = eme_add_update_person_from_form( 0, $bookerLastName, $bookerFirstName, $bookerEmail );
+                $res         = eme_add_update_person_from_form( 0, $bookerLastName, $bookerFirstName, $bookerEmail, 0, 0, 0, $allow_book_for_others );
                 $person_id   = $res[0];
                 $add_update_person_from_form_err = $res[1];
+                if ( $person_id ) {
+                    // remember the resolution for the remaining events of this submit
+                    $matched_personid = $person_id;
+                    $matched_wp_id     = intval( eme_get_wpid_by_personid( $person_id ) );
+                }
             }
             if ( ! empty( $person_id ) ) {
                 // no doubles

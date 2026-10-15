@@ -24,7 +24,7 @@ function eme_new_person() {
         'state_code'        => '',
         'country_code'      => '',
         'lang'              => eme_detect_lang(),
-        'wp_id'             => null,
+        'wp_id'             => 0,
         'massmail'          => get_option( 'eme_people_massmail' ),
         'newsletter'        => get_option( 'eme_people_newsletter' ),
         'gdpr'              => 0,
@@ -265,6 +265,10 @@ function eme_people_shortcode( $atts ) {
         $persons = eme_get_grouppersons( $atts['group_id'], $atts['order'] );
     } else {
         $persons = eme_get_persons( '', '', '', $atts['order']);
+    }
+    if ( eme_get_orderby_error() ) {
+        eme_clear_orderby_error();
+        return eme_message_error_div( __( 'The shortcode parameters are not correct.', 'events-made-easy' ) );
     }
 
     $format            = '';
@@ -931,10 +935,7 @@ function eme_import_csv_people() {
                 }
             }
             // if the person already exists: update him
-            $person = eme_get_person_by_name_and_email( $line['lastname'], $line['firstname'], $line['email'] );
-            if ( ! $person ) {
-                $person = eme_get_person_by_email_only( $line['email'] );
-            }
+            $person = eme_get_matching_person( $line['lastname'], $line['firstname'], $line['email'] );
             $person_id = 0;
             if ( $person ) {
                 $person_id = eme_db_update_person( $person['person_id'], $line );
@@ -2950,7 +2951,34 @@ function eme_person_replace_image_input( $person, $relative_div = 0 ) {
     return $output;
 }
 
-// API function for people wanting to check if somebody is already registered
+// may the current user use this person for a booking/registration/signup?
+function eme_person_is_usable( $person, $allow_for_others = false ) {
+    if ( ! $person ) {
+        return false;
+    }
+    // an unlinked person (wp_id 0) can be used like an anonymous booking; a linked person only by its own
+    // wp user, unless we're allowed to book/register for somebody else
+    $found_wp_id = intval( $person['wp_id'] );
+    return $allow_for_others || $found_wp_id === 0 || $found_wp_id === get_current_user_id();
+}
+
+// for callers that already hold the details (bookings, the fake-person branch)
+function eme_get_usable_person( $lastname, $firstname, $email, $allow_for_others = false ) {
+    // only called from frontend, so be a little more strict here
+    if ( ! eme_is_email_frontend( $email ) ) {
+        return false;
+    }
+    $person = eme_get_matching_person( $lastname, $firstname, $email );
+    return eme_person_is_usable( $person, $allow_for_others ) ? $person : false;
+}
+
+// for the two dyndata handlers, which only have POST
+function eme_get_usable_person_by_post( $allow_for_others = false ) {
+    $person = eme_get_person_by_post();
+    return eme_person_is_usable( $person, $allow_for_others ) ? $person : false;
+}
+
+// API function simply getting the person from POST info
 function eme_get_person_by_post() {
     if ( isset( $_POST['lastname'] ) && isset( $_POST['email'] ) ) {
         $lastname = eme_sanitize_request( $_POST['lastname'] );
@@ -2963,11 +2991,27 @@ function eme_get_person_by_post() {
         if ( ! eme_is_email_frontend( $email ) ) {
             return false;
         }
-        $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-        return $person;
+        return eme_get_matching_person( $lastname, $firstname, $email );
     } else {
         return false;
     }
+}
+
+// For registrations restricted to wp users: people who may not book/register for somebody else can only use
+// their own person or, when they don't have one yet, a new one (which will be linked to their wp user)
+function eme_person_is_own_or_new_for_user( $lastname, $firstname, $email ) {
+    if ( ! is_user_logged_in() ) {
+        return false;
+    }
+    $own_wp_id = get_current_user_id();
+    $person    = eme_get_matching_person( $lastname, $firstname, $email );
+    if ( $person ) {
+        return intval( $person['wp_id'] ) === $own_wp_id;
+    }
+    // a new person only gets linked to our wp user when it has our own email (see eme_add_update_person_from_form),
+    // otherwise it would be an unlinked person, which isn't allowed on wp-users-only registrations
+    $user_info = get_userdata( $own_wp_id );
+    return eme_count_persons_with_wp_id( $own_wp_id ) == 0 && ! empty( $user_info ) && strcasecmp( $user_info->user_email, (string) $email ) === 0;
 }
 
 function eme_count_persons_by_email( $email ) {
@@ -3012,6 +3056,17 @@ function eme_get_person_by_email_only( $email ) {
     return $res;
 }
 
+// The lookup used for frontend forms: an exact lastname/firstname/email match first, then a person that
+// only has that email (empty name). Use this everywhere a form needs to know "who is this person",
+// so all checks agree with what eme_add_update_person_from_form will actually use.
+function eme_get_matching_person( $lastname, $firstname, $email ) {
+    $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
+    if ( ! $person ) {
+        $person = eme_get_person_by_email_only( $email );
+    }
+    return $person;
+}
+
 function eme_get_person_by_name_and_email( $lastname, $firstname, $email, $skip_personid=0 ) {
     // INFO: database searches are case insensitive
     // we order by "wp_id DESC" so if someone matches with and without wp_id, the one with wp_id wins
@@ -3046,7 +3101,7 @@ function eme_get_person_by_name_and_email( $lastname, $firstname, $email, $skip_
 function eme_get_personid_by_wpid( $wp_id ) {
     global $wpdb;
     $people_table = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
-    $prepared_sql = $wpdb->prepare( "SELECT person_id FROM $people_table WHERE wp_id = %d LIMIT 1", $wp_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+    $prepared_sql = $wpdb->prepare( "SELECT person_id FROM $people_table WHERE wp_id = %d AND status=%d LIMIT 1", $wp_id, EME_PEOPLE_STATUS_ACTIVE ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     return intval( $wpdb->get_var( $prepared_sql ) ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 function eme_get_wpid_by_personid( $person_id ) {
@@ -3066,9 +3121,9 @@ function eme_get_used_wpids( $exclude_id = 0 ) {
     }
     $people_table = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     if ( ! empty( $exclude_id ) ) {
-        $prepared_sql = $wpdb->prepare( "SELECT DISTINCT wp_id FROM $people_table WHERE wp_id <> %d", $exclude_id ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $prepared_sql = $wpdb->prepare( "SELECT DISTINCT wp_id FROM $people_table WHERE wp_id <> %d AND status = %d", $exclude_id, EME_PEOPLE_STATUS_ACTIVE ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     } else {
-        $prepared_sql = "SELECT DISTINCT wp_id FROM $people_table"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        $prepared_sql = $wpdb->prepare( "SELECT DISTINCT wp_id FROM $people_table WHERE status = %d", EME_PEOPLE_STATUS_ACTIVE ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
     }
     $result = $wpdb->get_col( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
     wp_cache_set( $cache_key, $result, 'eme', 60 );
@@ -3143,15 +3198,17 @@ function eme_get_person_by_wp_id( $wp_id ) {
         $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
     } else {
         // imagine there is no user yet, but someone matching with this info (lastname, firstname, email), then we add the wp id to that existing user
-        $person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-        if ( ! $person ) {
-            $person = eme_get_person_by_email_only( $email );
-        }
+        $person = eme_get_matching_person( $lastname, $firstname, $email );
         if ( ! empty( $person ) ) {
-            $res = eme_update_person_wp_id( $person['person_id'], $wp_id );
-            wp_cache_delete( "eme_person_wpid $wp_id" );
-            if ( $res !== false ) {
-                $person['wp_id'] = $wp_id;
+            if ( ! empty( $person['wp_id'] ) ) {
+                // that person already belongs to another wp user: never take it over
+                $person = false;
+            } else {
+                $res = eme_update_person_wp_id( $person['person_id'], $wp_id );
+                wp_cache_delete( "eme_person_wpid $wp_id" );
+                if ( $res !== false ) {
+                    $person['wp_id'] = $wp_id;
+                }
             }
         }
     }
@@ -3685,8 +3742,27 @@ function eme_delete_groups( $group_ids ) {
     }
 }
 
+// returns the ORDER BY clause to sort people on their name, honoring the configured name format
+// $order must be 'ASC' or 'DESC', $tiebreaker is the column used to keep the result order stable
+function eme_get_name_orderby( $order, $tiebreaker ) {
+    if ( $order !== 'DESC' ) {
+        $order = 'ASC';
+    }
+    if ( ! preg_match( '/^\w+$/', $tiebreaker ) ) {
+        $tiebreaker = 'person_id';
+    }
+    $name_format = get_option( 'eme_full_name_format' );
+    $last_pos  = strpos( $name_format, '#_LASTNAME' );
+    $first_pos = strpos( $name_format, '#_FIRSTNAME' );
+    if ( $last_pos === false || ( $last_pos !== false && $first_pos !== false && $last_pos > $first_pos ) ) {
+        return "ORDER BY firstname $order,lastname $order,$tiebreaker $order";
+    }
+    return "ORDER BY lastname $order,firstname $order,$tiebreaker $order";
+}
+
 function eme_get_persons( $person_ids = '', $extra_search = '', $limit = '', $order = 'ASC' ) {
     global $wpdb;
+    eme_clear_orderby_error();
     $people_table  = EME_DB_PREFIX . EME_PEOPLE_TBNAME;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
 
@@ -3705,30 +3781,34 @@ function eme_get_persons( $person_ids = '', $extra_search = '', $limit = '', $or
         $where = 'WHERE ' . implode( ' AND ', $where_arr );
     }
 
+    // remove trailing ',' and initial "ORDER BY " if present (it will be re-added)
+    $order = preg_replace( '/,$|ORDER BY /i', '', (string) $order );
+    // allow ASC/DESC to be given in any case
+    if ( strcasecmp( $order, 'ASC' ) === 0 || strcasecmp( $order, 'DESC' ) === 0 ) {
+        $order = strtoupper( $order );
+    }
+
     $orderby                = '';
     $order_on_custom_fields = 0;
+    $used_custom_order      = false;
     if ( $order == 'ASC' || $order == 'DESC' ) {
         // let's try to order as the full name dictates
-        $name_format = get_option( 'eme_full_name_format' );
-        if ( strpos( $name_format, '#_LASTNAME' ) > strpos( $name_format, '#_FIRSTNAME' ) ) {
-            $orderby = "ORDER BY firstname $order,lastname $order,person_id $order";
-        } else {
-            $orderby = "ORDER BY lastname $order,firstname $order,person_id $order";
-        }
+        $orderby = eme_get_name_orderby( $order, 'person_id' );
     } elseif ( ! eme_is_empty_string( $order ) && preg_match( '/^[\w_\-\, ]+$/', $order ) ) {
+        $used_custom_order = true;
         $order_arr = [];
         if ( preg_match( '/^[\w_\-\, ]+$/', $order ) ) {
             $order_tmp_arr = explode( ',', $order );
             foreach ( $order_tmp_arr as $order_ell ) {
                 $asc_desc = 'ASC';
-                if ( preg_match( '/DESC$/', $order_ell ) ) {
+                if ( preg_match( '/DESC$/i', $order_ell ) ) {
                     $asc_desc = 'DESC';
                 }
                 // if ordering on a custom field is requested, set a var indicating that
                 if ( preg_match( '/FIELD_\d+/', $order_ell ) ) {
                     $order_on_custom_fields = 1;
                 }
-                $order_ell   = trim( preg_replace( '/ASC$|DESC$|\s/', '', $order_ell ) );
+                $order_ell   = trim( preg_replace( '/ASC$|DESC$|\s/i', '', $order_ell ) );
                 $order_arr[] = "$order_ell $asc_desc";
             }
         }
@@ -3762,7 +3842,11 @@ function eme_get_persons( $person_ids = '', $extra_search = '', $limit = '', $or
 
     $sql = "SELECT * FROM $people_table $sql_join $where $orderby $limit"; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-    $persons = $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    $persons = $wpdb->get_results( $sql, ARRAY_A ) ?? []; // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+    if ( $used_custom_order && ! empty( $wpdb->last_error ) ) {
+        error_log( 'EME: SQL error in ' . __FUNCTION__ . ' with custom order parameters' );
+        eme_mark_orderby_error();
+    }
     foreach ( $persons as $key => $person ) {
         $person['properties'] = eme_init_person_props( eme_json_decode_safe( $person['properties'] ) );
         $persons[ $key ]      = $person;
@@ -4206,10 +4290,7 @@ function eme_add_update_person_from_backend( $person_id = 0 ) {
         $res_id = $updated_personid;
     } else {
         // check existing
-        $t_person = eme_get_person_by_name_and_email( $person['lastname'], $person['firstname'], $person['email'] );
-        if ( ! $t_person ) {
-            $t_person = eme_get_person_by_email_only( $person['email'] );
-        }
+        $t_person = eme_get_matching_person( $person['lastname'], $person['firstname'], $person['email'] );
         if ( $t_person ) {
             $person_id        = $t_person['person_id'];
             $updated_personid = eme_db_update_person( $person_id, $person );
@@ -4392,10 +4473,10 @@ function eme_add_familymember_from_frontend( $main_person_id, $familymember ) {
     } elseif ( isset( $_POST['bd_email'] ) ) {
         $person['bd_email'] = intval( $_POST['bd_email'] );
     }
-    if ( isset( $_POST['gdpr'] ) ) {
-        $person['gdpr']      = intval( $_POST['gdpr'] );
-        $person['gdpr_date'] = current_time( 'mysql', false );
-    }
+    // family members entered in a membership form also give GDPR consent: the checkbox only blocks the
+    // frontend form, the backend always stores consent
+    $person['gdpr']      = 1;
+    $person['gdpr_date'] = current_time( 'mysql', false );
     $person['lang']              = $lang;
     $person['state_code']        = $state_code;
     $person['country_code']      = $country_code;
@@ -4404,16 +4485,20 @@ function eme_add_familymember_from_frontend( $main_person_id, $familymember ) {
     $person['firstname']         = eme_sanitize_request( $firstname );
     $person['email']             = $email;
 
-    $t_person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-    if ( ! $person ) {
-        $person = eme_get_person_by_email_only( $email );
-    }
+    $t_person = eme_get_matching_person( $lastname, $firstname, $email );
     // if we have a matching person, update that one. But make sure we"re not updating the main one (can happen if someone entered the main account details also as member)
     if ( $t_person && $t_person['person_id'] != $main_person_id ) {
-        $person_id = $t_person['person_id'];
-        $res       = eme_db_update_person( $person_id, $person );
-        if ( $res ) {
-            eme_store_family_answers( $person_id, $familymember );
+        $person_id    = $t_person['person_id'];
+        $found_wp_id  = intval( $t_person['wp_id'] );
+        $caller_wp_id = is_user_logged_in() ? get_current_user_id() : 0;
+        $may_update   = eme_is_admin_request() || $found_wp_id === 0 || $found_wp_id === $caller_wp_id;
+        // a person that belongs to another wp user is used for the family membership as-is,
+        // their record is not ours to overwrite
+        if ( $may_update ) {
+            $res = eme_db_update_person( $person_id, $person );
+            if ( $res ) {
+                eme_store_family_answers( $person_id, $familymember );
+            }
         }
     } else {
         $person_id = eme_db_insert_person( $person );
@@ -4424,7 +4509,10 @@ function eme_add_familymember_from_frontend( $main_person_id, $familymember ) {
     return $person_id;
 }
 
-function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname = '', $email = '', $wp_id = 0, $create_wp_user = 0, $return_fake_person = 0 ) {
+// $wp_id is only honoured when $allow_book_for_others is set (the backend selecting a wp user for a NEW person),
+// it is never taken from a frontend request. Without it a new person gets the wp id of the logged in user (if that
+// wp id isn't linked to a person yet), and an existing person never gets its wp id changed here.
+function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname = '', $email = '', $wp_id = 0, $create_wp_user = 0, $return_fake_person = 0, $allow_book_for_others = 0 ) {
     $person = [];
 
     if ( ! $return_fake_person && ! empty( $email ) && ! eme_is_email_frontend( $email ) ) {
@@ -4526,10 +4614,10 @@ function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname
     if ( isset( $_POST['bd_email'] ) ) {
         $person['bd_email'] = intval( $_POST['bd_email'] );
     }
-    if ( isset( $_POST['gdpr'] ) ) {
-        $person['gdpr']      = intval( $_POST['gdpr'] );
-        $person['gdpr_date'] = current_time( 'mysql', false );
-    }
+    // submitting any booking/membership/task/subscribe form means the person gives GDPR consent: the
+    // checkbox only blocks the form on the frontend, the backend always stores consent
+    $person['gdpr']      = 1;
+    $person['gdpr_date'] = current_time( 'mysql', false );
     if ( ! empty( $_POST['phone'] ) ) {
         $person['phone'] = eme_sanitize_request( $_POST['phone'] );
     }
@@ -4542,7 +4630,6 @@ function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname
 
     if ( $return_fake_person ) {
         $person['person_id']    = -1;
-        $person['wp_id']        = eme_get_wpid_by_post();
         $person['lastname'] = eme_sanitize_request( $_POST['lastname'] );
         if ( isset( $_POST['firstname'] ) ) {
             $person['firstname'] = eme_sanitize_request( $_POST['firstname'] );
@@ -4550,27 +4637,56 @@ function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname
             $person['firstname'] = '';
         }
         $person['email'] = eme_sanitize_email( $_POST['email'] );
+        // no wp id from the request: use the wp id of the person these details match (if we may use it),
+        // or our own wp id if that isn't linked to a person yet
+        $fake_wp_id   = 0;
+        $found_person = eme_get_usable_person( $person['lastname'], $person['firstname'], $person['email'], $allow_book_for_others );
+        if ( $found_person ) {
+            $fake_wp_id = intval( $found_person['wp_id'] );
+        } elseif ( is_user_logged_in() && eme_count_persons_with_wp_id( get_current_user_id() ) == 0 ) {
+            $fake_wp_id = get_current_user_id();
+        }
+        $person['wp_id'] = $fake_wp_id;
         return $person;
     } elseif ( ! $person_id ) {
-        $wp_count = 0;
-        if ( $wp_id > 0 ) {
-            $wp_count = eme_count_persons_with_wp_id( $wp_id );
+        // the wp id a NEW person gets linked to: the explicit one (only for those who may book for others, e.g. the
+        // backend selecting a wp user), otherwise our own wp id but only when the submitted email is our own WP
+        // email (so clearing the fields and registering somebody else does not link their identity to us).
+        // Never if that wp id already belongs to a person (so we can't create two persons with the same wp id).
+        $new_wp_id = 0;
+        if ( $allow_book_for_others ) {
+            $new_wp_id = intval( $wp_id );
+        } elseif ( is_user_logged_in() ) {
+            $current_user = get_userdata( get_current_user_id() );
+            if ( $current_user && strcasecmp( $current_user->user_email, $email ) === 0 ) {
+                $new_wp_id = get_current_user_id();
+            }
         }
-        $t_person = eme_get_person_by_name_and_email( $lastname, $firstname, $email );
-        if ( ! $t_person ) {
-            $t_person = eme_get_person_by_email_only( $email );
+        if ( $new_wp_id > 0 && eme_count_persons_with_wp_id( $new_wp_id ) > 0 ) {
+            $new_wp_id = 0;
+        }
+        $t_person = eme_get_matching_person( $lastname, $firstname, $email );
+        if ( $t_person && eme_is_empty_string( $t_person['lastname'] ) && eme_is_empty_string( $t_person['firstname'] ) ) {
             // we found a person matching with email only, meaning empty lastname/firstname, so we update it
             // this prevents people from updating their name/email with only a case-difference from the frontend
-            if ( $t_person ) {
-                $person['lastname']  = eme_sanitize_request( $lastname );
-                $person['firstname'] = eme_sanitize_request( $firstname );
-            }
+            $person['lastname']  = eme_sanitize_request( $lastname );
+            $person['firstname'] = eme_sanitize_request( $firstname );
         }
         if ( $t_person ) {
-            $person_id = $t_person['person_id'];
-            if ( $wp_id > 0 && $wp_count == 0 && $t_person['wp_id'] == 0 ) {
-                $person['wp_id'] = intval( $wp_id );
+            // the person we matched may belong to another wp user: only people who are allowed to book or
+            // register for somebody else (the callers decide that, see $allow_book_for_others) may use it.
+            // A person that isn't linked to a wp user can be used by anyone (like an anonymous booking).
+            // The wp id of an existing person is never changed here.
+            $found_wp_id = intval( $t_person['wp_id'] );
+            if ( ! $allow_book_for_others && $found_wp_id > 0 && $found_wp_id !== get_current_user_id() ) {
+                return [
+                    0 => 0,
+                    1 => is_user_logged_in()
+                        ? esc_html__( 'These details belong to another registered user.', 'events-made-easy' )
+                        : esc_html__( 'These details belong to a registered user. Please log in first.', 'events-made-easy' ),
+                ];
             }
+            $person_id = $t_person['person_id'];
 
             $updated_personid = eme_db_update_person( $person_id, $person );
             if ( $updated_personid ) {
@@ -4591,15 +4707,13 @@ function eme_add_update_person_from_form( $person_id, $lastname = '', $firstname
         } else {
             $person['lastname']  = eme_sanitize_request( $lastname );
             $person['firstname'] = eme_sanitize_request( $firstname );
-            $person['email']     = $email;
-            if ( $wp_id > 0 && $wp_count == 0 ) {
-                $person['wp_id'] = intval( $wp_id );
-            }
+            $person['email'] = $email;
+            $person['wp_id'] = $new_wp_id;
             $person_id = eme_db_insert_person( $person );
             if ( $person_id ) {
                 eme_store_person_answers( $person_id );
                 if ( ! empty( $_POST['subscribe_groups'] ) ) {
-                    eme_add_persongroups( $updated_personid, eme_sanitize_request( $_POST['subscribe_groups'] ) );
+                    eme_add_persongroups( $person_id, eme_sanitize_request( $_POST['subscribe_groups'] ) );
                 }
                 return [
                     0 => $person_id,

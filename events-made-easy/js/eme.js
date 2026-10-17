@@ -15,12 +15,6 @@ function eme_debounce(func, wait = 300) {
     };
 }
 
-function eme_htmlDecode(inputStr) {
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = inputStr;
-    return textarea.value;
-}
-
 function eme_getValue(element) {
     if (!element) return null;
     if (!element.multiple) return element.value;
@@ -66,7 +60,7 @@ function eme_setFieldValue(field, value) {
             option.selected = values.includes(option.value);
         });
     } else {
-        field.value = (value === undefined || value === null) ? '' : eme_htmlDecode(String(value));
+        field.value = (value === undefined || value === null) ? '' : String(value);
     }
     eme_updateClearableIcon(field);
 }
@@ -241,6 +235,20 @@ function eme_updateLocationFieldState(opts = {}) {
     return { hasLocation, onlineOnly, overrideLoc };
 }
 
+function eme_createSuggestion(title, details = '') {
+    const el = document.createElement('div');
+    el.className = 'eme-autocomplete-suggestion';
+    const strong = document.createElement('strong');
+    strong.textContent = title;
+    el.appendChild(strong);
+    if (details) {
+        const small = document.createElement('small');
+        small.textContent = details;
+        el.append(document.createElement('br'), small);
+    }
+    return el;
+}
+
 // Autocomplete on the location name field, used by the admin event form and the
 // frontend submission form. Only present if the form has a location name field,
 // the admin event form can have a location dropdown instead
@@ -279,17 +287,11 @@ function eme_initLocationAutocomplete(opts = {}) {
                 suggestions.className = 'eme-autocomplete-suggestions';
 
                 if (!data.length) {
-                    const noMatch = document.createElement('div');
-                    noMatch.className = 'eme-autocomplete-suggestion';
-                    noMatch.setHTML(`<strong>${opts.nomatchText || ''}</strong>`);
-                    suggestions.appendChild(noMatch);
+                    suggestions.appendChild(eme_createSuggestion(opts.nomatchText || ''));
                 }
 
                 data.forEach(item => {
-                    const suggestion = document.createElement('div');
-                    suggestion.className = 'eme-autocomplete-suggestion';
-                    suggestion.setHTML(`<strong>${item.name}</strong><br><small>${item.address1} - ${item.city}</small>`);
-
+                    const suggestion = eme_createSuggestion(item.name, `${item.address1} - ${item.city}`);
                     suggestion.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -298,7 +300,6 @@ function eme_initLocationAutocomplete(opts = {}) {
                         removeSuggestions();
                         if (typeof opts.afterSelect === 'function') opts.afterSelect(item);
                     });
-
                     suggestions.appendChild(suggestion);
                 });
 

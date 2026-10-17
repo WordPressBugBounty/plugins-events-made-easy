@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 3.2.24
+Stable tag: 3.2.26
 Requires PHP: 8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -99,6 +99,13 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.2.26  (2026/10/17) =
+* Extra headers were not shown due to strict type checking of event status, fixed
+
+= 3.2.25  (2026/10/17) =
+* The old api function eme_locations_search_ajax no longer html-escapes it's json output (was never the intention). If you use it, make sure to correct your code accordingly
+* Fix possible header exploits if the admin allowed free text from user input in the settings
+
 = 3.2.24  (2026/10/16) =
 * Small fixes for browsers not supporting the Sanitizer API yet (notably Safari)
 * Fix for balloons in global map, and allow a little more tags/attributes in the balloon 

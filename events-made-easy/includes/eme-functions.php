@@ -3745,7 +3745,7 @@ function eme_format_full_name( $firstname, $lastname, $email='' ) {
 
 function eme_extra_event_headers( $event ) {
     $allowed_statuses = [ EME_EVENT_STATUS_PUBLIC, EME_EVENT_STATUS_PRIVATE, EME_EVENT_STATUS_UNLISTED ];
-    if ( ! in_array( $event['event_status'], $allowed_statuses, true ) ) {
+    if ( ! in_array( (int) $event['event_status'], $allowed_statuses, true ) ) {
         return;
     }
     if ( $event['event_status'] == EME_EVENT_STATUS_PRIVATE && ! is_user_logged_in() ) {
@@ -3765,9 +3765,11 @@ function eme_extra_event_headers( $event ) {
     if ( has_filter( 'eme_extra_event_headers_filter' ) ) {
         $header = apply_filters( 'eme_extra_event_headers_filter', $header, $event );
     }
-    $header             .= "\n";
-    $header             .= '<script type="application/ld+json">';
-    $footer              = '</script>';
+    # escape every placeholder in the meta header (including ones added by the
+    # filter above) by prefixing it with #ESC, and resolve the header as text
+    $header = str_replace( '#_', '#ESC_', $header );
+    $header = eme_replace_event_placeholders( $header, $event, 'text' );
+    $header .= "\n";
     $content             = [];
     $content['@context'] = 'http://www.schema.org';
     $content['@type']    = 'Event';
@@ -3880,6 +3882,8 @@ function eme_extra_event_headers( $event ) {
             if ( $answer['field_id'] == $field_id ) {
                 $val = eme_answer2readable( answer: $answer['answer'], formfield: $formfield, target: 'text' );
                 if ( ! empty( $val ) ) {
+                    // free text: make sure the placeholder walk below can't expand it
+                    $val = str_replace( '#_', '#', $val );
                     $performer            = [];
                     $performer['@type']   = 'Person';
                     $performer['name']    = $val;
@@ -3907,8 +3911,19 @@ function eme_extra_event_headers( $event ) {
     if ( has_filter( 'eme_extra_event_headers_json_filter' ) ) {
         $content = apply_filters( 'eme_extra_event_headers_json_filter', $content, $event );
     }
+    // resolve only pure placeholder strings (template values), as plain text;
+    // custom-field values, prices etc. are left alone and the encoder escapes everything
+    array_walk_recursive( $content, function ( &$v ) use ( $event ) {
+        if ( is_string( $v ) && str_contains( $v, '#_' ) ) {
+            $v = eme_replace_event_placeholders( $v, $event, 'text' );
+        }
+    } );
+    $json = wp_json_encode( $content, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
+    if ( $json === false ) {
+        $json = '{}';
+    }
 
-    return $header . wp_json_encode( $content, JSON_UNESCAPED_SLASHES ) . $footer;
+    return $header . '<script type="application/ld+json">' . $json . '</script>';
 }
 
 function eme_isjson( $data ) {

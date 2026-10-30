@@ -68,7 +68,10 @@ function eme_email_fs_event_action( $event, $action ) {
         // create and add the needed pdf attachments too
         if ( !empty( $attachment_tmpl_ids_arr ) ) {
             foreach ($attachment_tmpl_ids_arr as $attachment_tmpl_id) {
-                $attachment_ids_arr[] = eme_generate_fs_event_pdf( $person, $event, $attachment_tmpl_id );
+                $pdf_path = eme_generate_fs_event_pdf( $person, $event, $attachment_tmpl_id );
+                if ( $pdf_path ) {
+                    $attachment_ids_arr[] = $pdf_path;
+                }
             }
         }
 
@@ -87,24 +90,6 @@ function eme_generate_fs_event_pdf( $person, $event, $template_id ) {
     }
 
     $targetPath  = EME_UPLOAD_DIR . '/fsevents/' . $person['wp_id'];
-    $pdf_path    = '';
-    if ( is_dir( $targetPath ) ) {
-        foreach ( glob( "$targetPath/fsevent-$template_id-*.pdf" ) as $filename ) {
-            $pdf_path = $filename;
-        }
-    }
-    // we found a generated pdf, let's check the pdf creation time against the modif time of the event/booking/template
-    if ( !empty( $pdf_path ) ) {
-        $pdf_mtime      = filemtime( $pdf_path );
-        $pdf_mtime_obj      = new emeExpressiveDate( 'now', EME_TIMEZONE );
-        $pdf_mtime_obj->setTimestamp($pdf_mtime);
-        $booking_mtime_obj  = new emeExpressiveDate( $booking['modif_date'], EME_TIMEZONE );
-        $event_mtime_obj    = new emeExpressiveDate( $event['modif_date'], EME_TIMEZONE );
-        $template_mtime_obj = new emeExpressiveDate( $template['modif_date'], EME_TIMEZONE );
-        if ($booking_mtime_obj<$pdf_mtime_obj && $event_mtime_obj<$pdf_mtime_obj && $template_mtime_obj<$pdf_mtime_obj) {
-            return $pdf_path;
-        }
-    }
 
     // the template format needs br-handling, so lets use a handy function
     $format = eme_get_template_format( $template_id );
@@ -146,10 +131,10 @@ page-break-before: always;
     </head>
     <body>
 ";
-    // avoid a loop between eme_replace_booking_placeholders and eme_generate_booking_pdf
-    $format = str_replace( '#_BOOKINGPDF_URL', '', $format );
 
-    $format = eme_replace_people_placeholders( $format, $person );
+    if (!empty($person['wp_id'])) {
+        $format = eme_replace_people_placeholders( $format, $person );
+    }
     $html .= eme_replace_event_placeholders( $format, $event );
     $html .= "</body></html>";
     $dompdf->loadHtml( $html, get_bloginfo( 'charset' ) );
@@ -157,10 +142,10 @@ page-break-before: always;
     // now we know where to store it, so create the dir
     eme_mkdir_with_index( $targetPath );
     // unlink old pdf
-    array_map( 'wp_delete_file', glob( "$targetPath/fsevent-$template_id-*.pdf" ) );
+    array_map( 'wp_delete_file', glob( "$targetPath/fsevent-{$event['event_id']}-$template_id-*.pdf" ) );
     // now put new one
     $rand_id     = eme_random_id();
-    $target_file = $targetPath . "/fsevent-$template_id-$rand_id.pdf";
+    $target_file = $targetPath . "/fsevent-{$event['event_id']}-$template_id-$rand_id.pdf";
     file_put_contents( $target_file, $dompdf->output() );
     return $target_file;
 }

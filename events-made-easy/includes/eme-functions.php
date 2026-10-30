@@ -1113,20 +1113,17 @@ function eme_invite_url( $event, $email, $lastname, $firstname, $lang ) {
     $the_link    = eme_event_url( $event, $lang );
     $hashstring  = $email . $lastname . $firstname;
     $invite_hash = wp_hash( $hashstring . '|' . $event['event_id'], 'nonce' );
-    $the_link    = add_query_arg(
-        [
-            'eme_email'  => $email,
-            'eme_invite' => $invite_hash,
-        ],
-        $the_link
-    );
+    $args        = [
+        'eme_email'  => $email,
+        'eme_invite' => $invite_hash,
+    ];
     if ( ! empty( $lastname ) ) {
-        $the_link = add_query_arg( [ 'eme_ln' => $lastname ], $the_link );
+        $args['eme_ln'] = $lastname;
     }
     if ( ! empty( $firstname ) ) {
-        $the_link = add_query_arg( [ 'eme_fn' => $firstname ], $the_link );
+        $args['eme_fn'] = $firstname;
     }
-    return $the_link;
+    return add_query_arg( urlencode_deep( $args ), $the_link );
 }
 
 // A valid invite link is a capability to book for the invited person, even if that person
@@ -1200,11 +1197,13 @@ function eme_cpi_url( $person_id, $orig_email ) {
     $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "change_pi $person_id $orig_email" );
     $the_link = add_query_arg(
-        [
-            'eme_cpi'       => $person_id,
-            'email'         => $orig_email,
-            'eme_cpi_nonce' => $nonce,
-        ],
+        urlencode_deep(
+            [
+                'eme_cpi'       => $person_id,
+                'email'         => $orig_email,
+                'eme_cpi_nonce' => $nonce,
+            ]
+        ),
         $the_link
     );
     return $the_link;
@@ -1305,17 +1304,14 @@ function eme_unsub_confirm_url( $email, $groups ) {
 
     $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "unsub $email$groups" );
-    $the_link = add_query_arg(
-        [
-            'eme_unsub_confirm' => $email,
-            'eme_unsub_nonce'   => $nonce,
-        ],
-        $the_link
-    );
+    $args     = [
+        'eme_unsub_confirm' => $email,
+        'eme_unsub_nonce'   => $nonce,
+    ];
     if ( ! empty( $groups ) ) {
-        $the_link = add_query_arg( [ 'g' => $groups ], $the_link );
+        $args['g'] = $groups;
     }
-    return $the_link;
+    return add_query_arg( urlencode_deep( $args ), $the_link );
 }
 
 function eme_sub_confirm_url( $lastname, $firstname, $email, $groups ) {
@@ -1323,19 +1319,16 @@ function eme_sub_confirm_url( $lastname, $firstname, $email, $groups ) {
 
     $the_link = eme_get_events_page( language: $language );
     $nonce    = wp_create_nonce( "sub $lastname$firstname$email$groups" );
-    $the_link = add_query_arg(
-        [
-            'eme_sub_confirm' => $email,
-            'lastname'        => $lastname,
-            'firstname'       => $firstname,
-            'eme_sub_nonce'   => $nonce,
-        ],
-        $the_link
-    );
+    $args     = [
+        'eme_sub_confirm' => $email,
+        'lastname'        => $lastname,
+        'firstname'       => $firstname,
+        'eme_sub_nonce'   => $nonce,
+    ];
     if ( ! empty( $groups ) ) {
-        $the_link = add_query_arg( [ 'g' => $groups ], $the_link );
+        $args['g'] = $groups;
     }
-    return $the_link;
+    return add_query_arg( urlencode_deep( $args ), $the_link );
 }
 
 function eme_single_event_ical_url( $id ) {
@@ -3481,21 +3474,28 @@ function eme_ajax_record_list( $tablename, $cap ) {
     $table        = EME_DB_PREFIX . $tablename;
     $fTableResult = [];
     // The toolbar search input
-    $q           = eme_sanitize_request( $_REQUEST['q'] ?? '' );
-    $opt         = eme_sanitize_request( $_REQUEST['opt'] ?? '' );
+    $q           = eme_sanitize_request( $_REQUEST['q'] ?? [] );
+    $opt         = eme_sanitize_request( $_REQUEST['opt'] ?? [] );
     $where       = '';
     $where_array = [];
-    if ( $q ) {
+    if ( ! empty( $q ) && is_array( $q ) && is_array( $opt ) ) {
+        $count_q   = count( $q );
+        $count_opt = count( $opt );
         $allowed_columns = eme_get_table_columns( $table );
-
-        $fld = $opt[ $i ];
-        if ( in_array( $fld, $allowed_columns, true ) ) {
-            $where_array[] = $wpdb->prepare(
-                "`$fld` LIKE %s",
-                '%' . $wpdb->esc_like( $q[ $i ] ) . '%'
-            );
+        if ( $count_q === $count_opt ) {
+            for ( $i = 0; $i < $count_opt; $i++ ) {
+                $fld = $opt[ $i ];
+                if ( in_array( $fld, $allowed_columns, true ) ) {
+                    $where_array[] = $wpdb->prepare(
+                        "`$fld` LIKE %s",
+                        '%' . $wpdb->esc_like( $q[ $i ] ) . '%'
+                    );
+                }
+            }
+            if ( ! empty( $where_array ) ) {
+                $where = ' WHERE ' . implode( ' AND ', $where_array );
+            }
         }
-        $where = ' WHERE ' . implode( ' AND ', $where_array );
     }
     if ( current_user_can( get_option( $cap ) ) ) {
         $sql         = "SELECT COUNT(*) FROM $table $where";

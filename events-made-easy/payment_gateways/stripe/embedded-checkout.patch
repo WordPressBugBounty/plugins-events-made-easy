@@ -1,0 +1,274 @@
+diff --git a/includes/eme-options.php b/includes/eme-options.php
+--- a/includes/eme-options.php
++++ b/includes/eme-options.php
+@@ -463,6 +463,8 @@
+         'eme_sumup_button_above'                          => sprintf( $eme_payment_button_above_localizable, 'SumUp' ),
+         'eme_sumup_button_below'                          => '',
+         'eme_stripe_private_key'                          => '',
++        'eme_stripe_public_key'                           => '',
++        'eme_stripe_checkout_mode'                        => 'hosted',
+         'eme_stripe_cost'                                 => 0,
+         'eme_stripe_cost2'                                => 0,
+         'eme_stripe_button_label'                         => sprintf( $eme_payment_button_label_localizable, 'Stripe' ),
+@@ -1117,9 +1119,6 @@
+             delete_option( 'eme_sumup_app_id' );
+             delete_option( 'eme_sumup_app_secret' );
+         }
+-        if ( $db_version < 443 ) {
+-            delete_option( 'eme_stripe_public_key' );
+-        }
+     }
+ 
+     // always reset the drop data option
+@@ -1256,7 +1255,7 @@
+         'mail' => [ 'eme_rsvp_mail_notify_is_active', 'eme_rsvp_mail_notify_pending', 'eme_rsvp_mail_notify_paid', 'eme_rsvp_mail_notify_approved', 'eme_rsvp_paidmail_immediately', 'eme_mail_sender_name', 'eme_mail_sender_address', 'eme_mail_force_from', 'eme_mail_send_method', 'eme_smtp_host', 'eme_smtp_port', 'eme_smtp_encryption', 'eme_smtp_auth', 'eme_smtp_username', 'eme_smtp_password', 'eme_smtp_debug', 'eme_mail_send_html', 'eme_mail_bcc_address', 'eme_smtp_verify_cert', 'eme_queue_mails', 'eme_cron_send_queued', 'eme_cron_queue_count', 'eme_people_newsletter', 'eme_people_massmail', 'eme_massmail_popup_text', 'eme_massmail_popup', 'eme_mail_tracking', 'eme_mail_sleep', 'eme_mail_blacklist', 'eme_imap_bounce_active', 'eme_imap_bounce_server', 'eme_imap_bounce_port', 'eme_imap_bounce_username', 'eme_imap_bounce_password', 'eme_imap_bounce_mailbox', 'eme_imap_bounce_encryption', 'eme_cron_process_bounces' ],
+         'mailtemplates' => [ 'eme_contactperson_email_subject', 'eme_contactperson_cancelled_email_subject', 'eme_contactperson_pending_email_subject', 'eme_contactperson_email_body', 'eme_contactperson_cancelled_email_body', 'eme_contactperson_pending_email_body', 'eme_contactperson_ipn_email_subject', 'eme_contactperson_ipn_email_body', 'eme_contactperson_paid_email_subject', 'eme_contactperson_paid_email_body', 'eme_respondent_email_subject', 'eme_respondent_email_body', 'eme_registration_pending_email_subject', 'eme_registration_pending_email_body', 'eme_registration_userpending_email_subject', 'eme_registration_userpending_email_body', 'eme_registration_cancelled_email_subject', 'eme_registration_cancelled_email_body', 'eme_registration_trashed_email_subject', 'eme_registration_trashed_email_body', 'eme_registration_updated_email_subject', 'eme_registration_updated_email_body', 'eme_registration_paid_email_subject', 'eme_registration_paid_email_body', 'eme_registration_pending_reminder_email_subject', 'eme_registration_pending_reminder_email_body', 'eme_registration_reminder_email_subject', 'eme_registration_reminder_email_body', 'eme_sub_subject', 'eme_sub_body', 'eme_unsub_subject', 'eme_unsub_body', 'eme_unsub_confirm_subject', 'eme_unsub_confirm_body', 'eme_booking_attach_ids', 'eme_pending_attach_ids', 'eme_paid_attach_ids', 'eme_booking_attach_tmpl_ids', 'eme_pending_attach_tmpl_ids', 'eme_paid_attach_tmpl_ids', 'eme_subscribe_attach_ids', 'eme_cp_task_signup_pending_email_subject', 'eme_cp_task_signup_pending_email_body', 'eme_cp_task_signup_email_subject', 'eme_cp_task_signup_email_body', 'eme_cp_task_signup_cancelled_email_subject', 'eme_cp_task_signup_cancelled_email_body', 'eme_task_signup_pending_email_subject', 'eme_task_signup_pending_email_body', 'eme_task_signup_email_subject', 'eme_task_signup_email_body', 'eme_task_signup_cancelled_email_subject', 'eme_task_signup_cancelled_email_body', 'eme_task_signup_trashed_email_subject', 'eme_task_signup_trashed_email_body', 'eme_task_signup_reminder_email_subject', 'eme_task_signup_reminder_email_body', 'eme_bd_email_subject', 'eme_bd_email_body', 'eme_fs_contactperson_ipn_email_subject', 'eme_fs_contactperson_ipn_email_body', 'eme_fs_author_ipn_email_subject', 'eme_fs_author_ipn_email_body', 'eme_fs_contactperson_newevent_email_subject', 'eme_fs_contactperson_newevent_email_body', 'eme_fs_ipn_attach_ids', 'eme_fs_ipn_attach_tmpl_ids' ],
+         'gdpr' => [ 'eme_cpi_subject', 'eme_cpi_body', 'eme_cpi_form', 'eme_gdpr_subject', 'eme_gdpr_body', 'eme_gdpr_approve_subject', 'eme_gdpr_approve_body', 'eme_gdpr_page_title', 'eme_gdpr_page_header', 'eme_gdpr_page_footer', 'eme_gdpr_approve_page_title', 'eme_gdpr_approve_page_content', 'eme_gdpr_remove_expired_member_days', 'eme_gdpr_anonymize_expired_member_days', 'eme_gdpr_anonymize_old_bookings_days', 'eme_gdpr_remove_old_events_days', 'eme_gdpr_archive_old_mailings_days', 'eme_gdpr_remove_old_attendances_days', 'eme_gdpr_remove_old_signups_days' ],
+-        'payments' => [ 'eme_default_vat', 'eme_payment_form_header_format', 'eme_payment_form_footer_format', 'eme_multipayment_form_header_format', 'eme_multipayment_form_footer_format', 'eme_fs_payment_form_header_format', 'eme_fs_payment_form_footer_format', 'eme_payment_succes_format', 'eme_payment_fail_format', 'eme_payment_member_succes_format', 'eme_payment_member_fail_format', 'eme_payment_booking_already_paid_format', 'eme_payment_booking_on_waitinglist_format', 'eme_default_currency', 'eme_default_price', 'eme_payment_refund_ok', 'eme_pg_submit_immediately', 'eme_payment_redirect', 'eme_payment_redirect_wait', 'eme_payment_redirect_msg', 'eme_paypal_url', 'eme_paypal_clientid', 'eme_paypal_secret', 'eme_webmoney_purse', 'eme_webmoney_secret', 'eme_webmoney_demo', 'eme_fdgg_url', 'eme_fdgg_store_name', 'eme_fdgg_shared_secret', 'eme_paypal_cost', 'eme_fdgg_cost', 'eme_webmoney_cost', 'eme_paypal_cost2', 'eme_fdgg_cost2', 'eme_webmoney_cost2', 'eme_mollie_api_key', 'eme_mollie_cost', 'eme_mollie_cost2', 'eme_paypal_button_label', 'eme_paypal_button_above', 'eme_paypal_button_below', 'eme_fdgg_button_label', 'eme_fdgg_button_above', 'eme_fdgg_button_below', 'eme_webmoney_button_label', 'eme_webmoney_button_above', 'eme_webmoney_button_below', 'eme_mollie_button_label', 'eme_mollie_button_above', 'eme_mollie_button_below', 'eme_paypal_button_img_url', 'eme_fdgg_button_img_url', 'eme_webmoney_button_img_url', 'eme_mollie_button_img_url', 'eme_worldpay_demo', 'eme_worldpay_instid', 'eme_worldpay_md5_secret', 'eme_worldpay_md5_parameters', 'eme_worldpay_test_pwd', 'eme_worldpay_live_pwd', 'eme_worldpay_cost', 'eme_worldpay_cost2', 'eme_worldpay_button_label', 'eme_worldpay_button_img_url', 'eme_worldpay_button_above', 'eme_worldpay_button_below', 'eme_braintree_private_key', 'eme_braintree_public_key', 'eme_braintree_merchant_id', 'eme_braintree_env', 'eme_braintree_cost', 'eme_braintree_cost2', 'eme_braintree_button_label', 'eme_braintree_button_img_url', 'eme_braintree_button_above', 'eme_braintree_button_below', 'eme_stripe_private_key', 'eme_stripe_cost', 'eme_stripe_cost2', 'eme_stripe_button_label', 'eme_stripe_button_img_url', 'eme_stripe_button_above', 'eme_stripe_button_below', 'eme_stripe_payment_methods', 'eme_offline_payment', 'eme_offline_cost', 'eme_offline_cost2', 'eme_legacypaypal_url', 'eme_legacypaypal_business', 'eme_legacypaypal_no_tax', 'eme_legacypaypal_cost', 'eme_legacypaypal_cost2', 'eme_legacypaypal_button_label', 'eme_legacypaypal_button_img_url', 'eme_legacypaypal_button_above', 'eme_legacypaypal_button_below', 'eme_instamojo_env', 'eme_instamojo_key', 'eme_instamojo_auth_token', 'eme_instamojo_salt', 'eme_instamojo_cost', 'eme_instamojo_cost2', 'eme_instamojo_button_label', 'eme_instamojo_button_img_url', 'eme_instamojo_button_above', 'eme_instamojo_button_below', 'eme_mercadopago_demo', 'eme_mercadopago_sandbox_token', 'eme_mercadopago_live_token', 'eme_mercadopago_cost', 'eme_mercadopago_cost2', 'eme_mercadopago_button_label', 'eme_mercadopago_button_img_url', 'eme_mercadopago_button_above', 'eme_mercadopago_button_below', 'eme_fondy_merchant_id', 'eme_fondy_secret_key', 'eme_fondy_cost', 'eme_fondy_cost2', 'eme_fondy_button_label', 'eme_fondy_button_img_url', 'eme_fondy_button_above', 'eme_fondy_button_below', 'eme_bancontactwero_api_key', 'eme_bancontactwero_env', 'eme_bancontactwero_cost', 'eme_bancontactwero_cost2', 'eme_bancontactwero_button_label', 'eme_bancontactwero_button_img_url', 'eme_bancontactwero_button_above', 'eme_bancontactwero_button_below', 'eme_sumup_merchant_code', 'eme_sumup_api_key', 'eme_sumup_cost', 'eme_sumup_cost2', 'eme_sumup_button_label', 'eme_sumup_button_img_url', 'eme_sumup_button_above', 'eme_sumup_button_below', 'eme_opayo_demo', 'eme_opayo_vendor_name', 'eme_opayo_test_pwd', 'eme_opayo_live_pwd', 'eme_opayo_cost', 'eme_opayo_cost2', 'eme_opayo_button_label', 'eme_opayo_button_img_url', 'eme_opayo_button_above', 'eme_opayo_button_below' ],
++        'payments' => [ 'eme_default_vat', 'eme_payment_form_header_format', 'eme_payment_form_footer_format', 'eme_multipayment_form_header_format', 'eme_multipayment_form_footer_format', 'eme_fs_payment_form_header_format', 'eme_fs_payment_form_footer_format', 'eme_payment_succes_format', 'eme_payment_fail_format', 'eme_payment_member_succes_format', 'eme_payment_member_fail_format', 'eme_payment_booking_already_paid_format', 'eme_payment_booking_on_waitinglist_format', 'eme_default_currency', 'eme_default_price', 'eme_payment_refund_ok', 'eme_pg_submit_immediately', 'eme_payment_redirect', 'eme_payment_redirect_wait', 'eme_payment_redirect_msg', 'eme_paypal_url', 'eme_paypal_clientid', 'eme_paypal_secret', 'eme_webmoney_purse', 'eme_webmoney_secret', 'eme_webmoney_demo', 'eme_fdgg_url', 'eme_fdgg_store_name', 'eme_fdgg_shared_secret', 'eme_paypal_cost', 'eme_fdgg_cost', 'eme_webmoney_cost', 'eme_paypal_cost2', 'eme_fdgg_cost2', 'eme_webmoney_cost2', 'eme_mollie_api_key', 'eme_mollie_cost', 'eme_mollie_cost2', 'eme_paypal_button_label', 'eme_paypal_button_above', 'eme_paypal_button_below', 'eme_fdgg_button_label', 'eme_fdgg_button_above', 'eme_fdgg_button_below', 'eme_webmoney_button_label', 'eme_webmoney_button_above', 'eme_webmoney_button_below', 'eme_mollie_button_label', 'eme_mollie_button_above', 'eme_mollie_button_below', 'eme_paypal_button_img_url', 'eme_fdgg_button_img_url', 'eme_webmoney_button_img_url', 'eme_mollie_button_img_url', 'eme_worldpay_demo', 'eme_worldpay_instid', 'eme_worldpay_md5_secret', 'eme_worldpay_md5_parameters', 'eme_worldpay_test_pwd', 'eme_worldpay_live_pwd', 'eme_worldpay_cost', 'eme_worldpay_cost2', 'eme_worldpay_button_label', 'eme_worldpay_button_img_url', 'eme_worldpay_button_above', 'eme_worldpay_button_below', 'eme_braintree_private_key', 'eme_braintree_public_key', 'eme_braintree_merchant_id', 'eme_braintree_env', 'eme_braintree_cost', 'eme_braintree_cost2', 'eme_braintree_button_label', 'eme_braintree_button_img_url', 'eme_braintree_button_above', 'eme_braintree_button_below', 'eme_stripe_private_key', 'eme_stripe_public_key', 'eme_stripe_checkout_mode', 'eme_stripe_cost', 'eme_stripe_cost2', 'eme_stripe_button_label', 'eme_stripe_button_img_url', 'eme_stripe_button_above', 'eme_stripe_button_below', 'eme_stripe_payment_methods', 'eme_offline_payment', 'eme_offline_cost', 'eme_offline_cost2', 'eme_legacypaypal_url', 'eme_legacypaypal_business', 'eme_legacypaypal_no_tax', 'eme_legacypaypal_cost', 'eme_legacypaypal_cost2', 'eme_legacypaypal_button_label', 'eme_legacypaypal_button_img_url', 'eme_legacypaypal_button_above', 'eme_legacypaypal_button_below', 'eme_instamojo_env', 'eme_instamojo_key', 'eme_instamojo_auth_token', 'eme_instamojo_salt', 'eme_instamojo_cost', 'eme_instamojo_cost2', 'eme_instamojo_button_label', 'eme_instamojo_button_img_url', 'eme_instamojo_button_above', 'eme_instamojo_button_below', 'eme_mercadopago_demo', 'eme_mercadopago_sandbox_token', 'eme_mercadopago_live_token', 'eme_mercadopago_cost', 'eme_mercadopago_cost2', 'eme_mercadopago_button_label', 'eme_mercadopago_button_img_url', 'eme_mercadopago_button_above', 'eme_mercadopago_button_below', 'eme_fondy_merchant_id', 'eme_fondy_secret_key', 'eme_fondy_cost', 'eme_fondy_cost2', 'eme_fondy_button_label', 'eme_fondy_button_img_url', 'eme_fondy_button_above', 'eme_fondy_button_below', 'eme_bancontactwero_api_key', 'eme_bancontactwero_env', 'eme_bancontactwero_cost', 'eme_bancontactwero_cost2', 'eme_bancontactwero_button_label', 'eme_bancontactwero_button_img_url', 'eme_bancontactwero_button_above', 'eme_bancontactwero_button_below', 'eme_sumup_merchant_code', 'eme_sumup_api_key', 'eme_sumup_cost', 'eme_sumup_cost2', 'eme_sumup_button_label', 'eme_sumup_button_img_url', 'eme_sumup_button_above', 'eme_sumup_button_below', 'eme_opayo_demo', 'eme_opayo_vendor_name', 'eme_opayo_test_pwd', 'eme_opayo_live_pwd', 'eme_opayo_cost', 'eme_opayo_cost2', 'eme_opayo_button_label', 'eme_opayo_button_img_url', 'eme_opayo_button_above', 'eme_opayo_button_below' ],
+         'maps' => [ 'eme_indiv_zoom_factor', 'eme_map_zooming', 'eme_location_balloon_format', 'eme_location_map_icon', 'eme_map_gesture_handling', 'eme_osm_url', 'eme_osm_attribution' ],
+         'emefs' => [ 'eme_fs' ],
+         'other' => [ 'eme_allowed_style_attr', 'eme_allowed_html', 'eme_thumbnail_size', 'eme_image_max_width', 'eme_image_max_height', 'eme_image_max_size', 'eme_html_header', 'eme_html_footer', 'eme_event_html_headers_format', 'eme_location_html_headers_format', 'eme_csv_delimiter', 'eme_use_external_url', 'eme_time_remove_leading_zeros', 'eme_stay_on_edit_page', 'eme_localize_price', 'eme_decimals', 'eme_timepicker_minutesstep', 'eme_form_required_field_string', 'eme_version', 'eme_htmleditor', 'eme_pdf_font', 'eme_backend_dateformat', 'eme_backend_timeformat', 'eme_address1_string', 'eme_address2_string', 'eme_multisite_active' ],
+@@ -3179,6 +3178,8 @@
+     $gateway = 'stripe';
+     $notification_link = add_query_arg( [ 'eme_eventAction' => "{$gateway}_notification" ], $events_page_link );
+     eme_options_input_text( __( 'Stripe Secret Key', 'events-made-easy' ), 'eme_stripe_private_key', __( 'Stripe Secret Key', 'events-made-easy' ) );
++    eme_options_input_text( __( 'Stripe Publishable Key', 'events-made-easy' ), 'eme_stripe_public_key', __( 'Stripe Publishable Key. Only needed when using the embedded checkout mode.', 'events-made-easy' ) );
++    eme_options_select( __( 'Checkout mode', 'events-made-easy' ), 'eme_stripe_checkout_mode', [ 'hosted' => __( 'Hosted page (redirect to Stripe)', 'events-made-easy' ), 'embedded' => __( 'Embedded (inline payment form)', 'events-made-easy' ) ], __( 'Choose whether customers are redirected to the Stripe hosted checkout page or see the payment form inline on your site. The embedded mode requires the publishable key above.', 'events-made-easy' ) );
+     eme_options_input_text( __( 'Extra charge', 'events-made-easy' ), 'eme_' . $gateway . '_cost', __( 'Extra charge added to the price. Can either be an absolute number or a percentage. E.g. 2 or 5%', 'events-made-easy' ) );
+     eme_options_input_text( __( 'Extra charge 2', 'events-made-easy' ), 'eme_' . $gateway . '_cost2', __( 'Second extra charge added to the price. Can either be an absolute number or a percentage. E.g. 2 or 5%', 'events-made-easy' ) );
+     eme_options_input_text( __( 'Payment button label', 'events-made-easy' ), 'eme_' . $gateway . '_button_label', __( 'The text shown inside the payment button', 'events-made-easy' ) );
+diff --git a/includes/eme-payments.php b/includes/eme-payments.php
+--- a/includes/eme-payments.php
++++ b/includes/eme-payments.php
+@@ -45,8 +45,22 @@
+     }
+ }
+ 
++function eme_stripe_checkout_mode() {
++    $mode = get_option( 'eme_stripe_checkout_mode', 'hosted' );
++    if ( $mode !== 'embedded' ) {
++        $mode = 'hosted';
++    }
++    return $mode;
++}
++
+ function eme_pg_is_inline( $pg ) {
+-    return $pg === 'braintree';
++    if ( $pg === 'braintree' ) {
++        return true;
++    }
++    if ( $pg === 'stripe' && eme_stripe_checkout_mode() === 'embedded' ) {
++        return true;
++    }
++    return false;
+ }
+ 
+ function eme_get_payment_desc( $item_name, $payment, $gateway, $multi_booking, $remove_accents=false ) {
+@@ -1092,12 +1106,98 @@
+     return $form_html;
+ }
+ 
++function eme_stripe_create_session( $payment, $price, $cur, $description, $item_name, $ui_mode = 'hosted' ) {
++    $gateway                = 'stripe';
++    $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
++    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
++    \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
++    \Stripe\Stripe::setAppInfo( 'WordPress Events Made Easy Stripe plugin' );
++
++    $payment_methods = get_option( 'eme_stripe_payment_methods' );
++    if ( empty( $payment_methods ) ) {
++        $payment_methods = 'card';
++    }
++    // make sure it is an array with numeric keys
++    if ( ! is_array( $payment_methods ) ) {
++        $payment_methods_arr = explode( ',', $payment_methods );
++    } else {
++        $payment_methods_arr = $payment_methods;
++    }
++
++    $stripe_session_params = [
++        'payment_method_types' => $payment_methods_arr,
++        'payment_intent_data'  => [ 'description' => $description ],
++        'line_items'           => [
++            [
++                'price_data' => [
++                    'currency'     => strtolower( $cur ),
++                    'unit_amount'  => $price,
++                    'product_data' => [
++                        'name'        => $item_name,
++                        'description' => $description,
++                    ],
++                ],
++                'quantity'   => 1,
++            ],
++        ],
++        'mode'                 => 'payment',
++        'client_reference_id'  => $payment['id'],
++    ];
++
++    if ( $ui_mode === 'embedded' ) {
++        $stripe_session_params['ui_mode']    = 'embedded_page';
++        $stripe_session_params['return_url'] = eme_payment_return_url( $payment, $gateway );
++    } else {
++        $stripe_session_params['success_url'] = eme_payment_return_url( $payment, $gateway );
++        $stripe_session_params['cancel_url']  = eme_payment_url( $payment );
++    }
++
++    // prefill e-mail in Stripe form if possible
++    $customer_email = '';
++    if ( $payment['target'] === 'member' ) {
++        $member_ids = eme_get_payment_member_ids( $payment['id'] );
++        if ( $member_ids ) {
++            $member = eme_get_member( $member_ids[0] );
++            if ( ! empty( $member ) ) {
++                $person = eme_get_person( $member['person_id'] );
++                if ( ! empty( $person ) ) {
++                    $customer_email = $person['email'];
++                }
++            }
++        }
++    } else {
++        $booking_ids = eme_get_payment_booking_ids( $payment['id'] );
++        if ( $booking_ids ) {
++            $booking = eme_get_booking( $booking_ids[0] );
++            if ( ! empty( $booking ) ) {
++                $person = eme_get_person( $booking['person_id'] );
++                if ( ! empty( $person ) ) {
++                    $customer_email = $person['email'];
++                }
++            }
++        }
++    }
++    if ( ! empty( $customer_email ) ) {
++        $stripe_session_params['customer_email'] = $customer_email;
++    }
++
++    $stripe_session = \Stripe\Checkout\Session::create( $stripe_session_params );
++    eme_update_payment_pg_pid( $payment['id'], $stripe_session->id );
++
++    return $stripe_session;
++}
++
+ function eme_payment_form_stripe( $item_name, $payment, $baseprice, $cur, $multi_booking = 0 ) {
+-    $gateway               = 'stripe';
++    $gateway                = 'stripe';
+     $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
++    $eme_stripe_public_key  = get_option( 'eme_stripe_public_key' );
++    $ui_mode                = eme_stripe_checkout_mode();
+     if ( empty( $eme_stripe_private_key ) ) {
+         return;
+     }
++    if ( $ui_mode === 'embedded' && empty( $eme_stripe_public_key ) ) {
++        return;
++    }
+ 
+     $description = eme_get_payment_desc( $item_name, $payment, $gateway, $multi_booking );
+ 
+@@ -1118,6 +1218,40 @@
+     $button_below   = get_option( 'eme_' . $gateway . '_button_below' );
+     $button_img_url = get_option( 'eme_' . $gateway . '_button_img_url' );
+ 
++    if ( $ui_mode === 'embedded' ) {
++        $stripe_description = wp_strip_all_tags( html_entity_decode( $description, ENT_QUOTES, 'UTF-8' ) );
++        try {
++            $stripe_session = eme_stripe_create_session( $payment, $price, $cur, $stripe_description, wp_strip_all_tags( $item_name ), 'embedded' );
++        } catch ( Exception $e ) {
++            error_log( 'EME stripe embedded session error: ' . $e->getMessage() );
++            return "<div class='eme-message-error eme-rsvp-message-error'>" . esc_html__( 'Stripe error:', 'events-made-easy' ) . ' ' . esc_html( $e->getMessage() ) . '</div>';
++        }
++        $client_secret = $stripe_session->client_secret;
++        $container_id  = 'eme_stripe_checkout_' . $payment_id;
++
++        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript -- Stripe payment integration HTML block with escaped variables, SDK must be loaded inline
++        $form_html  = $button_above;
++        $form_html .= "<div id='$container_id'></div>";
++        $form_html .= "<script src='https://js.stripe.com/v3/'></script>
++        <script>
++            (function() {
++                var stripe = Stripe('" . esc_js( $eme_stripe_public_key ) . "');
++                stripe.createEmbeddedCheckoutPage({
++                    fetchClientSecret: function() {
++                        return Promise.resolve('" . esc_js( $client_secret ) . "');
++                    }
++                }).then(function(checkout) {
++                    checkout.mount('#" . esc_js( $container_id ) . "');
++                }).catch(function(error) {
++                    console.error('Stripe embedded checkout error:', error);
++                });
++            })();
++        </script>";
++        $form_html .= $button_below;
++        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript
++        return $form_html;
++    }
++
+     $form_html  = $button_above;
+     $form_html .= "<form action='' method='post' name='eme_{$gateway}_form' id='eme_{$gateway}_form'>
+    <input type='hidden' name='payment_id' value='$payment_id'>
+@@ -2382,63 +2516,12 @@
+         exit;
+     }
+ 
+-    $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
+-    $item_name              = esc_attr( get_option( 'blog_name' ) );
++    $item_name = esc_attr( get_option( 'blog_name' ) );
+     if ( empty( $item_name ) ) {
+         $item_name = $description;
+     }
+ 
+-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
+-    \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
+-    \Stripe\Stripe::setAppInfo( 'WordPress Events Made Easy Stripe plugin' );
+-
+-    $payment_methods = get_option( 'eme_stripe_payment_methods' );
+-    if ( empty( $payment_methods ) ) {
+-        $payment_methods = 'card';
+-    }
+-    // make sure it is an array with numeric keys
+-    if ( ! is_array( $payment_methods ) ) {
+-        $payment_methods_arr = explode( ',', $payment_methods );
+-    } else {
+-        $payment_methods_arr = $payment_methods;
+-    }
+-
+-    $stripe_session_params = [
+-        'payment_method_types' => $payment_methods_arr,
+-        'payment_intent_data'  => [ 'description' => $description ],
+-        'line_items'           => [
+-            [
+-                'price_data' => [
+-                    'currency'     => strtolower( $cur ),
+-                    'unit_amount'  => $price,
+-                    'product_data' => [
+-                        'name'        => $item_name,
+-                        'description' => $description,
+-                    ],
+-                ],
+-                'quantity'   => 1,
+-            ],
+-        ],
+-        'mode'                 => 'payment',
+-        'client_reference_id'  => $payment_id,
+-        'success_url'          => $success_link,
+-        'cancel_url'           => $cancel_link,
+-    ];
+-
+-    // prefill e-mail in Stripe form if possible
+-    $booking_ids = eme_get_payment_booking_ids( $payment_id );
+-    if ( $booking_ids ) {
+-        $booking = eme_get_booking( $booking_ids[0] );
+-        $person  = eme_get_person( $booking['person_id'] );
+-        if (!empty($person)) {
+-            $stripe_session_params['customer_email'] = $person['email'];
+-        }
+-    }
+-
+-    $stripe_session = \Stripe\Checkout\Session::create($stripe_session_params);
+-
+-    $stripe_session_id = $stripe_session->id;
+-    eme_update_payment_pg_pid( $payment_id, $stripe_session_id );
++    $stripe_session = eme_stripe_create_session( $payment, $price, $cur, $description, $item_name, 'hosted' );
+ 
+     // stripe.redirectToCheckout is removed in Stripe.js, redirect to the session url instead
+     wp_redirect( $stripe_session->url, 303 );

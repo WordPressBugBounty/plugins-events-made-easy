@@ -11,7 +11,6 @@ function eme_payment_gateways() {
         'webmoney'     => __( 'Webmoney', 'events-made-easy' ),
         'fdgg'         => __( 'First Data', 'events-made-easy' ),
         'mollie'       => __( 'Mollie', 'events-made-easy' ),
-        'payconiq'     => __( 'Bancontact Pay - Wero', 'events-made-easy' ),
         'bancontactwero' => __( 'Bancontact Pay - Wero', 'events-made-easy' ),
         'worldpay'     => __( 'Worldpay', 'events-made-easy' ),
         'opayo'        => __( 'Opayo', 'events-made-easy' ),
@@ -45,6 +44,10 @@ function eme_is_offline_pg( $pg ) {
     }
 }
 
+function eme_pg_is_inline( $pg ) {
+    return $pg === 'braintree';
+}
+
 function eme_get_payment_desc( $item_name, $payment, $gateway, $multi_booking, $remove_accents=false ) {
     if ( $payment['target'] == 'member' ) {
         // translators: %s is the membership name
@@ -75,21 +78,30 @@ function eme_payment_form( $payment_id, $resultcode = 0, $standalone = 0 ) {
     $ret_string = '';
     $payment    = eme_get_payment( $payment_id );
     if ( empty( $payment ) ) {
-        return;
+        return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Nothing linked to this payment id', 'events-made-easy' ) . '</div>';
+    }
+    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment );
+    if ( ! empty( $check_allowed_to_pay )) {
+        return $check_allowed_to_pay;
+    }
+
+    $notice = '';
+    if ( ! empty( $_GET['eme_pg_na'] ) ) {
+        $notice = "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'The payment method you selected is no longer available, please choose another one.', 'events-made-easy' ) . '</div>';
     }
     if ( $payment['target'] == 'member' ) {
-        return eme_member_payment_form( $payment_id, $resultcode, $standalone );
+        return $notice . eme_member_payment_form( $payment, $resultcode, $standalone );
     }
     if ( $payment['target'] == 'fs_event' ) {
-        return eme_fs_event_payment_form( $payment_id, $resultcode, $standalone );
+        return $notice . eme_fs_event_payment_form( $payment, $resultcode, $standalone );
     }
-    return eme_event_payment_form( $payment_id, $resultcode, $standalone );
+    return $notice . eme_event_payment_form( $payment, $resultcode, $standalone );
 }
 
-function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 ) {
+function eme_event_payment_form( $payment, $resultcode = 0, $standalone = 0 ) {
     $ret_string = '';
-    $payment    = eme_get_payment( $payment_id );
 
+    $payment_id = $payment['id'];
     $bookings = eme_get_bookings_by_paymentid( $payment_id );
     if ( empty( $bookings ) ) {
         return;
@@ -108,12 +120,6 @@ function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 )
     $event   = eme_get_event( $booking['event_id'] );
 
     $cur = $event['currency'];
-
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
 
     // if on the waiting list, it can't be paid for yet
     if ( $booking['waitinglist'] ) {
@@ -188,7 +194,7 @@ function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 )
     if ( $pg_count == 1 && get_option( 'eme_pg_submit_immediately' ) ) {
         $eme_pg_submit_immediately = 1;
         $pg_in_use                 = eme_event_get_first_pg( $event );
-        if ($pg_in_use != "braintree") { //braintree replaces our form, no need for submit/hidden
+        if ( ! eme_pg_is_inline( $pg_in_use ) ) { //inline payment forms replace our form, no need for submit/hidden
             $hidden_class              = 'eme-hidden';
         }
     }
@@ -218,7 +224,7 @@ function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 )
     }
 
     // if "submit immediately": we show the button text, since the rest of the div is hidden
-    if ( $eme_pg_submit_immediately ) {
+    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg_in_use ) ) {
         if ($pg_in_use == "braintree") {
             $above_text = "";
         } else {
@@ -247,7 +253,7 @@ function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 )
                 if ( function_exists( $func ) ) {
                     $pg_form     = $func( $event['event_name'], $payment, $total_price, $cur, $is_multi );
                     $ret_string .= eme_replace_payment_gateway_placeholders( $pg_form, $pg, $total_price, $cur, $event['event_properties']['vat_pct'], 'html', $person['lang'] );
-                    if ( $eme_pg_submit_immediately && $pg != "braintree" ) { //braintree replaces our form, no need for submit/hidden
+                    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg ) ) { //inline payment forms replace our form, no need for submit/hidden
                         $waitperiod  = intval( get_option( 'eme_payment_redirect_wait' ) ) * 1000;
                         // wp_add_inline_script is not working for ajax executed code
                         $ret_string .= '<script type="text/javascript">
@@ -282,15 +288,15 @@ function eme_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 )
     return $ret_string;
 }
 
-function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 ) {
+function eme_member_payment_form( $payment, $resultcode = 0, $standalone = 0 ) {
     if ( $resultcode > 0 ) {
         $ret_string = "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Payment failed for your membership for #_MEMBERSHIPNAME, please try again.', 'events-made-easy' ) . '</div>';
     } else {
         $ret_string = '';
     }
 
-    $payment     = eme_get_payment( $payment_id );
-    $member      = eme_get_member_by_paymentid( $payment_id );
+    $payment_id = $payment['id'];
+    $member     = eme_get_member_by_paymentid( $payment_id );
     if (empty($member)) {
         // member has been deleted, but the payment id is still present
         $ret_string = "<div class='eme-message-error eme-rsvp-message-error'>" . __( "No member found linked to this payment. If you believe you've received this message in error please contact the site owner.", 'events-made-easy' ) . '</div>';
@@ -300,25 +306,19 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
     $total_price = eme_get_payment_price( $payment_id );
     $membership  = eme_get_membership( $member['membership_id'] );
 
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    } else {
-        if ( $member['status'] == EME_MEMBER_STATUS_ACTIVE || $member['status'] == EME_MEMBER_STATUS_GRACE ) {
-            $end_date      = eme_localized_date( $member['end_date'], EME_TIMEZONE );
-            $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
-            $next_end_date = eme_localized_date( $next_end_date, EME_TIMEZONE );
-            // translators: %1$s is the current membership end date, %2$s is the extended membership end date
-            $ret_string   .= "<div class='eme-message-success eme-rsvp-message-success'>" . sprintf( __( 'Your membership is currently active until %1$s. If you pay the membership fee again, your membership will be extended until %2$s', 'events-made-easy' ), $end_date, $next_end_date ) . '</div>';
-        } elseif ( $member['status'] == EME_MEMBER_STATUS_EXPIRED ) {
-            // set the third option to eme_get_start_date to 1, to force a new startdate (only has an effect for rolling-type memberships)
-            $new_start_date = eme_get_start_date( $membership, $member, 1 );
-            $next_end_date  = eme_get_next_end_date( $membership, $new_start_date );
-            $next_end_date  = eme_localized_date( $next_end_date, EME_TIMEZONE );
-            // translators: %s is the membership reactivation end date
-            $ret_string    .= "<div class='eme-message-success eme-rsvp-message-success'>" . sprintf( __( 'Your membership has expired. If you pay the membership fee again, your membership will be reactivated until %s', 'events-made-easy' ), $next_end_date ) . '</div>';
-        }
+    if ( $member['status'] == EME_MEMBER_STATUS_ACTIVE || $member['status'] == EME_MEMBER_STATUS_GRACE ) {
+        $end_date      = eme_localized_date( $member['end_date'], EME_TIMEZONE );
+        $next_end_date = eme_get_next_end_date( $membership, $member['end_date'] );
+        $next_end_date = eme_localized_date( $next_end_date, EME_TIMEZONE );
+        // translators: %1$s is the current membership end date, %2$s is the extended membership end date
+        $ret_string   .= "<div class='eme-message-success eme-rsvp-message-success'>" . sprintf( __( 'Your membership is currently active until %1$s. If you pay the membership fee again, your membership will be extended until %2$s', 'events-made-easy' ), $end_date, $next_end_date ) . '</div>';
+    } elseif ( $member['status'] == EME_MEMBER_STATUS_EXPIRED ) {
+        // set the third option to eme_get_start_date to 1, to force a new startdate (only has an effect for rolling-type memberships)
+        $new_start_date = eme_get_start_date( $membership, $member, 1 );
+        $next_end_date  = eme_get_next_end_date( $membership, $new_start_date );
+        $next_end_date  = eme_localized_date( $next_end_date, EME_TIMEZONE );
+        // translators: %s is the membership reactivation end date
+        $ret_string    .= "<div class='eme-message-success eme-rsvp-message-success'>" . sprintf( __( 'Your membership has expired. If you pay the membership fee again, your membership will be reactivated until %s', 'events-made-easy' ), $next_end_date ) . '</div>';
     }
 
     $cur = $membership['properties']['currency'];
@@ -332,7 +332,7 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
     if ( $pg_count == 1 && get_option( 'eme_pg_submit_immediately' ) ) {
         $eme_pg_submit_immediately = 1;
         $pg_in_use                 = eme_membership_get_first_pg( $membership );
-        if ($pg_in_use != "braintree") { //braintree replaces our form, no need for submit/hidden
+        if ( ! eme_pg_is_inline( $pg_in_use ) ) { //inline payment forms replace our form, no need for submit/hidden
             $hidden_class              = 'eme-hidden';
         }
     }
@@ -362,7 +362,7 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
     }
 
     // if "submit immediately": we show the button text, since the rest of the div is hidden
-    if ( $eme_pg_submit_immediately ) {
+    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg_in_use ) ) {
         // braintree shows anyway, so hide the button_above
         if ($pg_in_use == "braintree") {
             $above_text = "";
@@ -396,7 +396,7 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
                 if ( function_exists( $func ) ) {
                     $pg_form     = $func( $membership['name'], $payment, $total_price, $cur, $is_multi );
                     $ret_string .= eme_replace_payment_gateway_placeholders( $pg_form, $pg, $total_price, $cur, $membership['properties']['vat_pct'], 'html', $person['lang'] );
-                    if ( $eme_pg_submit_immediately && $pg != "braintree" ) { //braintree replaces our form, no need for submit/hidden
+                    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg ) ) { //inline payment forms replace our form, no need for submit/hidden
                         $waitperiod  = intval( get_option( 'eme_payment_redirect_wait' ) ) * 1000;
                         // wp_add_inline_script is not working for ajax executed code
                         $ret_string .= '<script type="text/javascript">
@@ -432,27 +432,17 @@ function eme_member_payment_form( $payment_id, $resultcode = 0, $standalone = 0 
     return $ret_string;
 }
 
-function eme_fs_event_payment_form( $payment_id, $resultcode = 0, $standalone = 0 ) {
+function eme_fs_event_payment_form( $payment, $resultcode = 0, $standalone = 0 ) {
     if ( $resultcode > 0 ) {
         $ret_string = "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Payment failed for your membership for #_MEMBERSHIPNAME, please try again.', 'events-made-easy' ) . '</div>';
     } else {
         $ret_string = '';
     }
 
-    $payment = eme_get_payment( $payment_id );
-    if (empty($payment)) {
-        return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Nothing linked to this payment id', 'events-made-easy' ) . '</div>';
-    }
     $event   = eme_get_event( $payment['related_id'] );
     if (empty($event)) {
         // event has been deleted, but the payment id is still present
         return "<div class='eme-message-error eme-rsvp-message-error'>" . __( "No event found linked to this payment. If you believe you've received this message in error please contact the site owner.", 'events-made-easy' ) . '</div>';
-    }
-
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
     }
 
     $eme_fs_options = get_option('eme_fs');
@@ -464,8 +454,8 @@ function eme_fs_event_payment_form( $payment_id, $resultcode = 0, $standalone = 
     $pg_count = eme_fs_event_count_pgs( );
     if ( $pg_count == 1 && get_option( 'eme_pg_submit_immediately' ) ) {
         $eme_pg_submit_immediately = 1;
-        $hidden_class              = 'eme-hidden';
         $pg_in_use                 = eme_fs_event_get_first_pg( );
+        $hidden_class              = eme_pg_is_inline( $pg_in_use ) ? '' : 'eme-hidden';
     } else {
         $eme_pg_submit_immediately = 0;
         $hidden_class              = '';
@@ -491,7 +481,7 @@ function eme_fs_event_payment_form( $payment_id, $resultcode = 0, $standalone = 
     }
 
     // if "submit immediately": we show the button text, since the rest of the div is hidden
-    if ( $eme_pg_submit_immediately ) {
+    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg_in_use ) ) {
         $button_above = get_option( 'eme_' . $pg_in_use . '_button_above' );
         $above_text   = eme_replace_payment_gateway_placeholders( $button_above, $pg_in_use, $total_price, $cur, $vat_pct );
         if ( !eme_is_empty_string( $above_text ) ) {
@@ -516,7 +506,7 @@ function eme_fs_event_payment_form( $payment_id, $resultcode = 0, $standalone = 
                 if ( function_exists( $func ) ) {
                     $pg_form     = $func( $event['event_name'], $payment, $total_price, $cur, $is_multi );
                     $ret_string .= eme_replace_payment_gateway_placeholders( $pg_form, $pg, $total_price, $cur, $vat_pct );
-                    if ( $eme_pg_submit_immediately ) {
+                    if ( $eme_pg_submit_immediately && ! eme_pg_is_inline( $pg ) ) {
                         $waitperiod  = intval( get_option( 'eme_payment_redirect_wait' ) ) * 1000;
                         // wp_add_inline_script is not working for ajax executed code
                         $ret_string .= '<script type="text/javascript">
@@ -546,30 +536,97 @@ function eme_fs_event_payment_form( $payment_id, $resultcode = 0, $standalone = 
     return $ret_string;
 }
 
-function eme_payment_allowed_to_pay( $payment_id ) {
+function eme_payment_allowed_to_pay( $payment_info, $gateway = null ) {
+    // backwards compatible: if the first arg is not an payment array, it is the payment id
+    if (!is_array($payment_info)) {
+        $payment = eme_get_payment($payment_info);
+    } else {
+        $payment = $payment_info;
+    }
     // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $payment = eme_get_payment ( $payment_id );
+    if ( empty( $payment ) ) {
+        return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Nothing linked to this payment id', 'events-made-easy' ) . '</div>';
+    }
+    $payment_id = $payment['id'];
     if ( $payment['target'] == 'member' ) {
-        $member      = eme_get_member_by_paymentid( $payment_id );
-        $membership  = eme_get_membership( $member['membership_id'] );
+        $member = eme_get_member_by_paymentid( $payment_id );
+        if ( empty( $member ) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No member found', 'events-made-easy' ) . '</div>';
+        }
+        $membership = eme_get_membership( $member['membership_id'] );
+        if ( empty( $membership ) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No membership found', 'events-made-easy' ) . '</div>';
+        }
+        if ( ! eme_membership_has_pgs_configured( $membership ) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No payment method allowed', 'events-made-easy' ) . '</div>';
+        }
+        if ( $gateway && ! eme_membership_has_pg_configured( $membership, $gateway) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Payment method not allowed', 'events-made-easy' ) . '</div>';
+        }
         return eme_check_member_allowed_to_pay( $member, $membership );
     } elseif ( $payment['target'] == 'fs_event' ) {
         // events are simple :-)
         $event = eme_get_event( $payment['related_id'] );
+        if ( empty( $event ) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No event found', 'events-made-easy' ) . '</div>';
+        }
+        if ( ! eme_fs_event_has_pgs_configured() ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No payment method allowed', 'events-made-easy' ) . '</div>';
+        }
+        if ( $gateway && ! eme_fs_event_has_pg_configured( $gateway) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Payment method not allowed', 'events-made-easy' ) . '</div>';
+        }
         if (empty($payment['pg_handled']) && $event['event_status'] == EME_EVENT_STATUS_FS_DRAFT ) {
-            return 0;
+            return '';
         } else { 
             $message = get_option( 'eme_payment_booking_already_paid_format' );
             return "<div class='eme-already-paid'>" . $message . '</div>';
         }
     } else {
+        // Include trashed bookings so we can distinguish "payment exists but its
+        // bookings were trashed" from "no bookings at all", and so the event-status
+        // check below can actually fire for trashed events.
+        $bookings = eme_get_bookings_by_paymentid( $payment_id, 1 );
+        if ( empty( $bookings ) ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No bookings found', 'events-made-easy' ) . '</div>';
+        }
+
+        $active_bookings = 0;
+        foreach ( $bookings as $booking ) {
+            // A trashed booking means the user cancelled it; it should not block
+            // payment for the remaining active bookings of the same payment.
+            if ( $booking['status'] == EME_RSVP_STATUS_TRASH ) {
+                continue;
+            }
+            $active_bookings++;
+
+            $event = eme_get_event( $booking['event_id'] );
+            if ( empty( $event ) || $event['event_status'] == EME_EVENT_STATUS_TRASH ) {
+                return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'The event linked to this payment has been cancelled, payment is no longer possible.', 'events-made-easy' ) . '</div>';
+            }
+            if ( ! eme_event_has_pgs_configured( $event ) ) {
+                return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'No payment method allowed', 'events-made-easy' ) . '</div>';
+            }
+            if ( $gateway && ! eme_event_has_pg_configured( $event, $gateway) ) {
+                return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Payment method not allowed', 'events-made-easy' ) . '</div>';
+            }
+            if ( ! eme_is_event_rsvp( $event ) ) {
+                return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'Bookings for this event are disabled, payment is no longer possible.', 'events-made-easy' ) . '</div>';
+            }
+        }
+
+        // All bookings for this payment are trashed: treat as cancelled.
+        if ( $active_bookings === 0 ) {
+            return "<div class='eme-message-error eme-rsvp-message-error'>" . __( 'The bookings linked to this payment have been cancelled, payment is no longer possible.', 'events-made-easy' ) . '</div>';
+        }
+
         $payment_paid = eme_get_payment_paid( $payment );
         if ( $payment_paid ) {
             $message = get_option( 'eme_payment_booking_already_paid_format' );
             return "<div class='eme-already-paid'>" . $message . '</div>';
         }
     }
-    return 0;
+    return '';
 }
 
 function eme_payment_gateway_total( $price, $cur, $gateway ) {
@@ -581,7 +638,7 @@ function eme_payment_gateway_total( $price, $cur, $gateway ) {
         if ( $gateway == 'stripe' ) {
             $price *= 100;
         }
-        if ( $gateway == 'payconiq' || $gateway == 'bancontactwero' ) {
+        if ( $gateway == 'bancontactwero' ) {
             $price *= 100;
         }
         if ( $gateway == 'fondy' ) {
@@ -622,6 +679,24 @@ function eme_payment_gateway_extra_charge( $price, $gateway ) {
         $result += apply_filters( 'eme_payment_gateway_extra_cost', $price, $gateway );
     }
     return $result;
+}
+
+function eme_payment_charge_guard( $payment, $gateway ) {
+    if ( empty( eme_payment_allowed_to_pay( $payment, $gateway ) ) ) {
+        // empty means all is ok, ready to receive payment
+        return;
+    }
+    $url = eme_payment_url( $payment );
+    // Since we got here, the mentioned gateway got removed
+    // We'll redirect back to the payment form and add an indication to the url
+    //    but we'll only add the indication about the removed gatateway 
+    //    if another payment method is still present (to keep the url as clean as possible)
+    //    Removing this is not bad, but leave the call for UX reasons
+    if ( empty( eme_payment_allowed_to_pay( $payment ) ) ) {
+        $url = add_query_arg( 'eme_pg_na', 1, $url );
+    }
+    wp_safe_redirect( $url );
+    exit;
 }
 
 function eme_payment_form_webmoney( $item_name, $payment, $baseprice, $cur, $multi_booking = 0 ) {
@@ -1005,7 +1080,8 @@ function eme_payment_form_sumup( $item_name, $payment, $baseprice, $cur, $multi_
         if ( ! empty( $existing ) ) {
             $checkout = $existing[0];
             if ( $checkout->status == 'PAID' ) {
-                return 'already paid';
+                $message = get_option( 'eme_payment_booking_already_paid_format' );
+                return "<div class='eme-already-paid'>" . $message . '</div>';
             }
         } else {
             $checkout = $checkoutService->create(
@@ -1023,9 +1099,11 @@ function eme_payment_form_sumup( $item_name, $payment, $baseprice, $cur, $multi_
         $checkoutId = $checkout->id;
         //  pass the $checkoutId to the front-end to be processed
     } catch ( \SumUp\Exception\ApiException $e ) {
-        return 'SumUp API error: ' . $e->getMessage();
+        error_log( 'EME SumUp API error: ' . $e->getMessage() );
+        return "<div class='eme-message-error eme-rsvp-message-error'>" . esc_html__( 'The SumUp payment could not be initialized.', 'events-made-easy' ) . '</div>';
     } catch ( \Throwable $e ) {
-        return 'SumUp error: ' . $e->getMessage();
+        error_log( 'EME SumUp API error: ' . $e->getMessage() );
+        return "<div class='eme-message-error eme-rsvp-message-error'>" . esc_html__( 'The SumUp payment could not be initialized.', 'events-made-easy' ) . '</div>';
     }
 
     eme_update_payment_pg_pid( $payment['id'], $checkoutId );
@@ -1052,8 +1130,8 @@ function eme_payment_form_sumup( $item_name, $payment, $baseprice, $cur, $multi_
 
 function eme_payment_form_stripe( $item_name, $payment, $baseprice, $cur, $multi_booking = 0 ) {
     $gateway               = 'stripe';
-    $eme_stripe_public_key = get_option( 'eme_stripe_public_key' );
-    if ( ! $eme_stripe_public_key ) {
+    $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
+    if ( empty( $eme_stripe_private_key ) ) {
         return;
     }
 
@@ -1255,9 +1333,6 @@ function eme_payment_form_mollie( $item_name, $payment, $baseprice, $cur, $multi
     return $form_html;
 }
 
-function eme_payment_form_payconiq( $item_name, $payment, $baseprice, $cur, $multi_booking = 0 ) {
-    return eme_payment_form_bancontactwero( $item_name, $payment, $baseprice, $cur, $multi_booking);
-}
 function eme_payment_form_bancontactwero( $item_name, $payment, $baseprice, $cur, $multi_booking = 0 ) {
     $gateway = 'bancontactwero';
     $api_key = get_option( 'eme_bancontactwero_api_key' );
@@ -1630,7 +1705,7 @@ function eme_complete_transaction_sumup( $payment ) {
 
 function eme_complete_transaction_stripe( $payment ) {
     $gateway = 'stripe';
-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/init.php';
+    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
     $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
     \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
 
@@ -1760,7 +1835,7 @@ function eme_complete_transaction_fondy( $payment ) {
         if ( $amount_paid < $expected_price - 0.01 ) {
             error_log( "EME fondy completion price mismatch for payment {$payment['id']}: paid $amount_paid, expected $expected_price" );
         }
-        eme_mark_payment_paid( $payment['id'], $gateway, $order_id );
+        eme_mark_payment_paid( $payment['id'], 1, $gateway, $order_id );
         return true;
     } else {
         return false;
@@ -1998,6 +2073,10 @@ function eme_notification_fdgg() {
 
     // First Data only allows USD
     $payment = eme_get_payment( $payment_id );
+    if (empty($payment)) {
+        esc_html_e( 'Incorrect payment id.', 'events-made-easy' );
+        return;
+    }
     if ( $payment['target'] == 'member' ) {
         $member = eme_get_member_by_paymentid( $payment_id );
         if ( $member ) {
@@ -2097,7 +2176,7 @@ function eme_notification_stripe() {
     $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
     $webhook_secret         = get_option( 'eme_stripe_webhook_secret' );
 
-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/init.php';
+    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
     \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
 
     $payload    = @file_get_contents( 'php://input' );
@@ -2216,7 +2295,7 @@ function eme_stripe_webhook() {
         return;
     }
 
-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/init.php';
+    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
     \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
 
     // first check all webhooks, delete the one matching our url and recreate it, otherwise we can't get the secret
@@ -2273,6 +2352,9 @@ function eme_charge_paypal() {
         exit;
     }
 
+    $success_link = eme_payment_return_url($payment, $gateway);
+    $cancel_link = eme_payment_url($payment);
+
     // Log mismatches between POST and DB values
     $expected_price = eme_payment_gateway_total( eme_get_payment_price( $payment_id ), $cur, $gateway );
     $expected_cur = ! empty( $payment['currency'] ) ? $payment['currency'] : get_option( 'eme_default_currency' );
@@ -2283,8 +2365,9 @@ function eme_charge_paypal() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    $success_link = eme_payment_return_url($payment, $gateway);
-    $cancel_link = eme_payment_url($payment);
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
+
     try {
         $order = $client->create_order( $price, $cur, $description, $payment_id, $success_link, $cancel_link );
         eme_update_payment_pg_pid( $payment_id, $order['id'] );
@@ -2327,21 +2410,16 @@ function eme_charge_stripe() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     $eme_stripe_private_key = get_option( 'eme_stripe_private_key' );
-    $eme_stripe_public_key  = get_option( 'eme_stripe_public_key' );
     $item_name              = esc_attr( get_option( 'blog_name' ) );
     if ( empty( $item_name ) ) {
         $item_name = $description;
     }
 
-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/init.php';
+    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
     \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
     \Stripe\Stripe::setAppInfo( 'WordPress Events Made Easy Stripe plugin' );
 
@@ -2393,18 +2471,8 @@ function eme_charge_stripe() {
     $stripe_session_id = $stripe_session->id;
     eme_update_payment_pg_pid( $payment_id, $stripe_session_id );
 
-    // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript -- Stripe payment integration HTML block with escaped variables, SDK must be loaded inline
-    print "<html><body>
-        <script src='https://js.stripe.com/v3/'></script>
-        <script>
-            var stripe = Stripe('" . esc_js( $eme_stripe_public_key ) . "');
-            stripe.redirectToCheckout({
-                sessionId: '" . esc_js( $stripe_session_id ) . "'
-            });
-        </script>
-        </body></html>
-   ";
-    // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped,WordPress.WP.EnqueuedResources.NonEnqueuedScript
+    wp_redirect( $stripe_session->url, 303 );
+    exit;
 }
 
 function eme_charge_braintree() {
@@ -2443,12 +2511,8 @@ function eme_charge_braintree() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/braintree/vendor/autoload.php';
     if ( ! isset( $_POST['braintree_nonce'] ) ) {
@@ -2516,12 +2580,8 @@ function eme_charge_instamojo() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/instamojo/vendor/autoload.php';
     $mode = get_option( 'eme_instamojo_env' );
@@ -2570,6 +2630,15 @@ function eme_charge_mercadopago() {
     $payment      = eme_get_payment( $payment_id );
     $success_link = eme_payment_return_url( $payment, 0 );
     $fail_link    = eme_payment_return_url( $payment, 1 );
+
+    // MercadoPago's checkout JS submits this POST itself (we can't inject a
+    // nonce into its request), so CSRF protection relies on:
+    //   1. eme_payment_charge_guard() refusing disallowed payments/gateways, and
+    //   2. re-querying the MercadoPago API below and only marking paid when the
+    //      API confirms an approved payment for this external_reference.
+    // Re-marking an already-paid payment is a no-op (pg_handled guard in
+    // eme_mark_payment_paid()).
+    eme_payment_charge_guard( $payment, $gateway );
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/mercadopago/vendor/autoload.php';
     MercadoPago\SDK::setAccessToken( $eme_mercadopago_access_token );
@@ -2633,18 +2702,15 @@ function eme_charge_fondy() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     require_once EME_PLUGIN_DIR . 'payment_gateways/fondy/autoload.php';
     \Cloudipsp\Configuration::setMerchantId( $merchant_id );
     \Cloudipsp\Configuration::setSecretKey( $secret_key );
 
     $data = [
+        'order_id'            => "ep-{$payment_id}",
         'order_desc'          => $description,
         'amount'              => $price,
         'currency'            => $cur,
@@ -2657,9 +2723,7 @@ function eme_charge_fondy() {
 
     try {
         $response = \Cloudipsp\Checkout::url( $data );
-        $order_id = $response->getOrderID();
-        eme_update_payment_pg_pid( $payment_id, $order_id );
-
+        eme_update_payment_pg_pid( $payment_id, "ep-{$payment_id}" );
         $response->toCheckout();
     } catch ( \Exception $e ) {
         error_log("Fondy API error: {$e->getMessage()}");
@@ -2688,13 +2752,10 @@ function eme_refund_booking_paypal($booking) {
     }
 }
 
-function eme_refund_booking_payconiq( $booking ) {
-    return eme_refund_booking_bancontactwero( $booking );
-}
 function eme_refund_booking_bancontactwero( $booking ) {
     $api_key = get_option( "eme_bancontactwero_api_key" );
     if ( ! $api_key ) {
-        return;
+        return false;
     }
     if ( ! class_exists( 'BancontactWero\Client' ) ) {
         require_once EME_PLUGIN_DIR . 'payment_gateways/BancontactWero/src/Client.php';
@@ -2712,7 +2773,14 @@ function eme_refund_booking_bancontactwero( $booking ) {
         $price            = eme_payment_gateway_total( $price, $cur, $booking['pg'] );
         // translators: %1$s is the event name, %2$d is the payment ID
         $description      = sprintf(__( 'Booking refunded for %1$s, payment id %2$d', 'events-made-easy' ),$event['event_name'],$booking['payment_id']);
-        $bancontactwero_payment = $bancontactwero->refundPayment( $booking['pg_pid'], $price, $cur, $description );
+        $result = $bancontactwero->refundPayment( $booking['pg_pid'], $price, $cur, $description );
+        // Client::refundPayment() throws on failure (missing paymentId in response),
+        // but makeRequest() can also swallow HTTP/cURL errors into ->message, so
+        // double-check we got a real refund object back.
+        if ( empty( $result->paymentId ) ) {
+            error_log( "BancontactWero refund returned no paymentId for booking {$booking['booking_id']}: " . ( $result->message ?? 'unknown error' ) );
+            return false;
+        }
         return true;
     } catch ( Exception $e ) {
         error_log("BancontactWero refund API error: {$e->getMessage()}");
@@ -2821,21 +2889,17 @@ function eme_refund_booking_stripe( $booking ) {
         return;
     }
 
-    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/init.php';
+    require_once EME_PLUGIN_DIR . 'payment_gateways/stripe/vendor/autoload.php';
     \Stripe\Stripe::setApiKey( "$eme_stripe_private_key" );
 
     $stripe_pi_id = $booking['pg_pid'];
     try {
-        $stripe_pi = \Stripe\PaymentIntent::retrieve( $stripe_pi_id );
+        $re = \Stripe\Refund::create( [ 'payment_intent' => $stripe_pi_id ] );
     } catch ( Exception $e ) {
-        return;
+        return false;
     }
-    $re = \Stripe\Refund::create(
-        [
-            'payment_intent' => $stripe_pi_id,
-        ]
-    );
-    return true;
+    return isset( $re->status ) && $re->status !== 'failed';
+
 }
 
 function eme_refund_booking_braintree( $booking ) {
@@ -2859,8 +2923,12 @@ function eme_refund_booking_braintree( $booking ) {
         ]
     );
     $transaction_id    = $booking['pg_pid'];
-    $result            = $braintree_gateway->transaction()->refund( $transaction_id );
-    return true;
+    try {
+        $result = $braintree_gateway->transaction()->refund( $transaction_id );
+    } catch ( Exception $e ) {
+        return false;
+    }
+    return $result->success;
 }
 
 function eme_charge_mollie() {
@@ -2898,12 +2966,8 @@ function eme_charge_mollie() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     // Avoid loading the Mollie API if it is already loaded by another plugin
     if ( ! class_exists( 'Mollie\Api\MollieApiClient' ) ) {
@@ -3007,9 +3071,6 @@ function eme_notification_mollie( $mollie_payment_id = 0 ) {
     return false;
 }
 
-function eme_charge_payconiq() {
-    return eme_charge_bancontactwero();
-}
 function eme_charge_bancontactwero() {
     $gateway          = 'bancontactwero';
     $events_page_link = eme_get_events_page();
@@ -3050,12 +3111,8 @@ function eme_charge_bancontactwero() {
         error_log( "EME $gateway currency mismatch for payment $payment_id: POST cur $cur, DB cur $expected_cur" );
     }
 
-    // avoid that people pay again after pressing "back" and arriving on the payment form again
-    $check_allowed_to_pay = eme_payment_allowed_to_pay( $payment_id );
-    if ( ! empty( $check_allowed_to_pay )) {
-        // not allowed: return the reason and stop
-        return $check_allowed_to_pay;
-    }
+    // check if payment is still possible via this gateway
+    eme_payment_charge_guard( $payment, $gateway );
 
     if ( ! class_exists( 'BancontactWero\Client' ) ) {
         require_once EME_PLUGIN_DIR . 'payment_gateways/BancontactWero/src/Client.php';
@@ -3089,9 +3146,6 @@ function eme_charge_bancontactwero() {
     }
 }
 
-function eme_complete_transaction_payconiq( $payment ) {
-    return eme_complete_transaction_bancontactwero( $payment );
-}
 function eme_complete_transaction_bancontactwero( $payment ) {
     $gateway     = 'bancontactwero';
     $api_key     = get_option( "eme_{$gateway}_api_key" );
@@ -3132,9 +3186,6 @@ function eme_complete_transaction_bancontactwero( $payment ) {
     return false;
 }
 
-function eme_notification_payconiq() {
-    return eme_notification_bancontactwero();
-}
 function eme_notification_bancontactwero() {
     $gateway     = 'bancontactwero';
     $api_key     = get_option( "eme_{$gateway}_api_key" );
@@ -3404,6 +3455,14 @@ function eme_event_can_pay_online( $event ) {
     return $pg_count;
 }
 
+function eme_event_has_pg_configured( $event, $gateway ) {
+    if ( !eme_event_count_pgs( $event ) )
+        return false;
+    if ( in_array( $gateway, $event['event_properties']['payment_gateways'] ) )
+        return true;
+    return false;
+}
+
 function eme_event_has_pgs_configured( $event ) {
     if ( eme_event_count_pgs( $event ) > 0 ) {
         return true;
@@ -3425,8 +3484,32 @@ function eme_membership_can_pay_online( $membership ) {
     return $pg_count;
 }
 
+function eme_membership_has_pg_configured( $membership, $gateway ) {
+    if ( !eme_membership_count_pgs( $membership ) )
+        return false;
+    if ( in_array( $gateway, $membership['properties']['payment_gateways'] ) )
+        return true;
+    return false;
+}
+
 function eme_membership_has_pgs_configured( $membership ) {
     if ( eme_membership_count_pgs( $membership ) > 0 ) {
+        return true;
+    }
+    return false;
+}
+
+function eme_fs_event_has_pg_configured( $gateway ) {
+    if ( !eme_fs_event_count_pgs() )
+        return false;
+    $eme_fs_options = get_option('eme_fs');
+    if ( isset($eme_fs_options['payment_gateways']) && is_array($eme_fs_options['payment_gateways']) && in_array( $gateway, $eme_fs_options['payment_gateways'] ) )
+        return true;
+    return false;
+}
+
+function eme_fs_event_has_pgs_configured() {
+    if ( eme_fs_event_count_pgs() > 0 ) {
         return true;
     }
     return false;
@@ -3838,7 +3921,7 @@ function eme_update_payment_pg_handled( $payment_id ) {
     $wpdb->update(
         $table,
         [ 'pg_handled' => 1 ],
-        [ 'id' => $payment_id ],
+        [ 'id' => $payment_id, 'pg_handled' => 0 ],
         [ '%d' ],
         [ '%d' ]
     );

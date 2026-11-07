@@ -4,7 +4,7 @@ Donate link: https://www.e-dynamics.be/wordpress
 Tags: events, memberships, bookings, maps, payment gateways
 Requires at least: 6.0
 Tested up to: 7.1
-Stable tag: 3.3.5
+Stable tag: 3.3.6
 Requires PHP: 8.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -91,6 +91,10 @@ Events list and calendars can be added to your blogs through widgets, shortcodes
 
 See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/eme-docs/).
 
+= Why are square brackets in plain-text output shown as parentheses? =
+
+To prevent user-provided text from being executed as a shortcode or EME placeholder, EME neutralizes `[` and `]` as `(` and `)` and `#_` as `# ` when rendering plain-text templates. HTML and HTML email output use character entities, so the original brackets remain visible there.
+
 == Screenshots ==
 
 1. A map with a pin and popup
@@ -99,6 +103,13 @@ See the FAQ section at the [Official site](https://www.e-dynamics.be/wordpress/e
 4. Recurrence editing of an event
 
 == Changelog ==
+= 3.3.6  (2026/11/07) =
+* More consistent language filtering for states/countries
+* Remove tests/examples from Fondy. Security issue reported by Pham Cong Lap (Clapboiz) of HPT Vietnam Corporation, via Patchstack
+* Security: restrict #_WPUSERDATA and #_WPUSERMETA to allowlists, so sensitive fields like user_login and roles are no longer exposed. Use the filters eme_wpuserdata_allowed_fields and eme_wpuser_meta_allowed_fields to extend them
+* Security: neutralize user-controlled placeholder output to prevent shortcode injection from booking, member and task data, and from event/location/category/membership names. Security issue reported by Pham Cong Lap (Clapboiz) of HPT Vietnam Corporation, via Patchstack
+  Neutralize shortcode/placeholder syntax from person first/last names on save, so for example "Smith [Jr]" is stored as "Smith Jr"
+
 = 3.3.5  (2026/11/04) =
 * Stripe payment methods are now only set via the Stripe dashboard, not in EME anymore
 

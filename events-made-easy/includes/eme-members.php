@@ -5446,11 +5446,11 @@ function eme_get_member_placeholder_handler_definitions() {
         },
         '/#_DISCOUNTCODES_ENTERED$/' => function( $result, $matches, $ctx ) {
             $dcodes_entered = $ctx['member']['dcodes_entered'];
-            return eme_sanitize_placeholder_output( join( ', ', $dcodes_entered ), $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( join( ', ', $dcodes_entered ), $ctx['target'], true );
         },
         '/#_DISCOUNTCODES_VALID|#_DISCOUNTCODES_USED$/' => function( $result, $matches, $ctx ) {
             $dcodes_used = $ctx['member']['dcodes_used'];
-            return eme_sanitize_placeholder_output( join( ', ', $dcodes_used ), $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( join( ', ', $dcodes_used ), $ctx['target'], true );
         },
         '/#_PRICE$/' => function( $result, $matches, $ctx ) {
             $replacement = eme_localized_price( $ctx['total_member_price'], $ctx['membership']['properties']['currency'], $ctx['target'] );
@@ -5729,7 +5729,7 @@ function eme_get_member_placeholder_handler_definitions() {
                     }
                 }
                 $replacement = eme_translate( $replacement, $ctx['lang'] );
-                return eme_sanitize_placeholder_output( $replacement, $target, false, true );
+                return eme_sanitize_placeholder_output( $replacement, $target, false );
             }
             return '';
         },
@@ -5764,7 +5764,7 @@ function eme_get_member_placeholder_handler_definitions() {
                     $replacement .= '</table>';
                 }
                 $replacement = eme_translate( $replacement, $ctx['lang'] );
-                return eme_sanitize_placeholder_output( $replacement, $target, false, true );
+                return eme_sanitize_placeholder_output( $replacement, $target, false );
             }
             return '';
         },
@@ -5822,7 +5822,7 @@ function eme_get_member_placeholder_handler_definitions() {
                 }
             }
             $formfield = eme_get_formfield( $field_key );
-            if ( ! empty( $formfield ) && in_array( $formfield['field_purpose'], [ 'generic', 'members' ] ) ) {
+            if ( ! empty( $formfield ) ) {
                 $matched_answers = [];
                 foreach ( $ctx['answers'] as $answer ) {
                     if ( $answer['field_id'] == $formfield['field_id'] ) {
@@ -5831,7 +5831,7 @@ function eme_get_member_placeholder_handler_definitions() {
                         } else {
                             $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
                         }
-                        $matched_answers[] = eme_sanitize_placeholder_output( $field_replace, $target, false, true );
+                        $matched_answers[] = eme_sanitize_placeholder_output( $field_replace, $target, false );
                         break;
                     }
                 }
@@ -5862,7 +5862,7 @@ function eme_get_member_placeholder_handler_definitions() {
                         } else {
                             $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $target );
                         }
-                        $matched_answers[] = eme_sanitize_placeholder_output( $field_replace, $target, false, true );
+                        $matched_answers[] = eme_sanitize_placeholder_output( $field_replace, $target, false );
                     }
                 }
                 $replacement = join($eol_sep, $matched_answers);
@@ -5998,11 +5998,11 @@ function eme_get_membership_placeholder_handler_definitions() {
     $handlers = [
         '/#_NAME/' => function( $result, $matches, $ctx ) {
             $replacement = $ctx['membership']['name'];
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_DESCRIPTION/' => function( $result, $matches, $ctx ) {
             $replacement = $ctx['membership']['description'];
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, false );
         },
         '/#_PRICE$/' => function( $result, $matches, $ctx ) {
             $membership = $ctx['membership'];
@@ -6096,7 +6096,7 @@ function eme_get_membership_placeholder_handler_definitions() {
                         } else {
                             $field_replace = eme_answer2readable( $answer['answer'], $formfield, 1, $sep, $ctx['target'] );
                         }
-                        $field_replace = eme_sanitize_placeholder_output( $field_replace, $ctx['target'], false, true );
+                        $field_replace = eme_sanitize_placeholder_output( $field_replace, $ctx['target'], false );
                     }
                 }
                 foreach ( $ctx['files'] as $file ) {
@@ -6240,9 +6240,6 @@ function eme_replace_membership_placeholders( $format, $membership, $target = 'h
 }
 
 function eme_import_csv_members() {
-    global $wpdb;
-    $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-
     if ( ! current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
         return __( 'Access denied', 'events-made-easy' );
     }
@@ -6430,21 +6427,19 @@ function eme_import_csv_members() {
                     // now handle all the extra info, in the CSV they need to be named like 'answer_XX_fieldname' (with XX being a number starting from 0, e.g. answer_0_myfieldname)
                     foreach ( $line as $key => $value ) {
                         if ( preg_match( '/^answer_(.*)$/', $key, $matches ) ) {
-                            $grouping   = 0;
                             $field_name = $matches[1];
                             $formfield  = eme_get_formfield( $field_name );
-                            if ( ! empty( $formfield ) ) {
+                            if ( ! empty( $formfield ) && in_array( $formfield['field_purpose'], [ 'generic', 'members', 'people' ]) ) {
                                 $field_id = $formfield['field_id'];
-                                $wpdb->delete(
-                                    $answers_table,
-                                    [
-                                        'related_id' => $member_id,
-                                        'field_id'   => $field_id,
-                                        'type'       => 'member'
-                                    ],
-                                    [ '%d', '%d', '%s' ]
-                                );
-                                eme_insert_answer( 'member', $member_id, $field_id, eme_sanitize_request( $value ) );
+                                if ($formfield['field_purpose'] == 'people') {
+                                    $type = 'person';
+                                    $related_id = $person_id;
+                                } else {
+                                    $type = 'member';
+                                    $related_id = $member_id;
+                                }
+                                eme_delete_answer_by_field( $type, $related_id, $field_id );
+                                eme_insert_answer( $type, $related_id, $field_id, eme_sanitize_request( $value ) );
                             }
                         }
                     }
@@ -6468,9 +6463,6 @@ function eme_import_csv_members() {
 }
 
 function eme_import_csv_member_dynamic_answers() {
-    global $wpdb;
-    $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-
     if ( ! current_user_can( get_option( 'eme_cap_cleanup' ) ) ) {
         return __( 'Access denied', 'events-made-easy' );
     }
@@ -6586,35 +6578,37 @@ function eme_import_csv_member_dynamic_answers() {
                     if ( ! isset( $occurences[ $member_id ] ) ) {
                         $occurences[ $member_id ] = [];
                     }
-                    // make sure grouping contains a sensible value (we call it "index now, but keep "grouping" for backwards compat)
+                    // make sure grouping_id contains a sensible value (we call it "index" now, but keep "grouping" for backwards compat)
                     if ( isset( $line['index'] ) ) {
-                        $grouping = intval( $line['index'] );
-                        if ( $grouping < 1 ) {
-                            $grouping = 1;
+                        $grouping_id = intval( $line['index'] );
+                        if ( $grouping_id < 1 ) {
+                            $grouping_id = 1;
                         }
                     } elseif ( isset( $line['grouping'] ) ) {
-                        $grouping = intval( $line['grouping'] );
-                        if ( $grouping < 1 ) {
-                            $grouping = 1;
+                        $grouping_id = intval( $line['grouping'] );
+                        if ( $grouping_id < 1 ) {
+                            $grouping_id = 1;
                         }
                     } else {
-                        $grouping = 1;
+                        $grouping_id = 1;
                     }
-                    if ( ! isset( $occurences[ $member_id ][ $grouping ] ) ) {
+                    if ( ! isset( $occurences[ $member_id ][ $grouping_id ] ) ) {
                         $occurence = 0;
                     } else {
-                        $occurence = $occurences[ $member_id ][ $grouping ];
+                        $occurence = $occurences[ $member_id ][ $grouping_id ];
                         ++$occurence;
                     }
-                    $occurences[ $member_id ][ $grouping ] = $occurence;
+                    $occurences[ $member_id ][ $grouping_id ] = $occurence;
                     // handle all the extra info, in the CSV they need to be named like 'answer_XX_fieldname' (with XX being a number starting from 0, e.g. answer_0_myfieldname)
                     foreach ( $line as $key => $value ) {
                         if ( preg_match( '/^answer_(.*)$/', $key, $matches ) ) {
                             $field_name = $matches[1];
                             $formfield  = eme_get_formfield( $field_name );
-                            if ( ! empty( $formfield ) ) {
+                            if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'members' ) {
                                 $field_id = $formfield['field_id'];
-                                eme_insert_answer( 'member', $member_id, $field_id, eme_sanitize_request( $value ), $grouping, $occurence );
+                                $type = 'member';
+                                eme_delete_answer_by_field( $type, $member_id, $field_id, $grouping_id, $occurence );
+                                eme_insert_answer( $type, $member_id, $field_id, eme_sanitize_request( $value ), $grouping_id, $occurence );
                                 ++$inserted;
                             }
                         }
@@ -7744,7 +7738,7 @@ function eme_membership_store_answers( $membership_id ) {
     // delete old answer_ids
     foreach ( $all_answers as $answer ) {
         if ( ! in_array( $answer['answer_id'], $answer_ids_seen ) && $answer['type'] == 'membership' && $answer['related_id'] == $membership_id ) {
-            eme_delete_answer( $answer_id );
+            eme_delete_answer( $answer['answer_id'] );
         }
     }
     wp_cache_delete( "eme_membership_cf $membership_id" );

@@ -3024,11 +3024,7 @@ function eme_sanitize_person_name( $value ) {
     if ( ! is_string( $value ) ) {
         return $value;
     }
-    $value = eme_sanitize_request( $value );
-    $value = str_replace( [ '[', ']' ], '', $value );
-    // match a '#' only when followed by _, @, ESC or URL (i.e. the start of a placeholder); the lookahead leaves those characters untouched
-    $value = preg_replace( '/#(?=(?:_|@|ESC|URL))/', '# ', $value );
-    return $value;
+    return eme_neutralize_template_syntax( eme_sanitize_request( $value ), 'text' );
 }
 
 function eme_sanitize_email( $email ) {
@@ -4409,12 +4405,35 @@ function eme_insert_answer( $type, $related_id, $field_id, $answer, $grouping_id
 function eme_update_answer( $answer_id, $value ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-    $wpdb->update( $answers_table, ['answer'=>$value], ['answer_id'=>$answer_id] );
+    return $wpdb->update( $answers_table, ['answer'=>$value], ['answer_id'=>$answer_id] );
 }
+
 function eme_delete_answer( $answer_id ) {
     global $wpdb;
     $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-    $wpdb->delete( $answers_table, ['answer_id'=>$answer_id], ['%d'] );
+    if ( null !== $answer_id ) {
+        return $wpdb->delete( $answers_table, [ 'answer_id' => $answer_id ], [ '%d' ] );
+    }
+    return false;
+}
+
+function eme_delete_answer_by_field( $type = '', $related_id = 0, $field_id = 0, $grouping_id = 0, $occurence = 0 ) {
+    global $wpdb;
+    $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
+    if ( '' === $type || $related_id <= 0 || $field_id <= 0 ) {
+        return false;
+    }
+    return $wpdb->delete(
+        $answers_table,
+        [
+            'related_id'   => $related_id,
+            'field_id'     => $field_id,
+            'type'         => $type,
+            'eme_grouping' => $grouping_id,
+            'occurence'    => $occurence
+        ],
+        [ '%d', '%d', '%s', '%d', '%d' ]
+    );
 }
 
 function eme_get_db_prefix() {
@@ -4744,7 +4763,7 @@ function eme_message_error_div($message, $is_dismissible = 0) {
 
 // backwars compatible
 function eme_apply_output_filters( $replacement, $target, $esc_html = false ) {
-    return eme_sanitize_placeholder_output( $replacement, $target, $esc_html);
+    return eme_sanitize_placeholder_output( $replacement, $target, $esc_html, false );
 }
 function eme_neutralize_template_syntax( $value, $target = 'html' ) {
     if ( is_array( $value ) ) {
@@ -4762,14 +4781,15 @@ function eme_neutralize_template_syntax( $value, $target = 'html' ) {
         $value = str_replace( [ '[', ']' ], [ '&#91;', '&#93;' ], $value );
         $value = preg_replace( '/#(?=(?:_|@|ESC|URL))/', '&#35;', $value );
     } else {
-        $value = str_replace( [ '[', ']' ], [ '(', ')' ], $value );
+        $value = preg_replace( '/\[(?=[A-Za-z0-9_\/-])/', '[ ', $value );
+        $value = preg_replace( '/(?<=[A-Za-z0-9_\/-])\]/', ' ]', $value );
         // match a '#' only when followed by _, @, ESC or URL (i.e. the start of a placeholder); the lookahead leaves those characters untouched
         $value = preg_replace( '/#(?=(?:_|@|ESC|URL))/', '# ', $value );
     }
     return $value;
 }
 
-function eme_sanitize_placeholder_output( $replacement, $target, $esc_html = false, $neutralize = false ) {
+function eme_sanitize_placeholder_output( $replacement, $target, $esc_html = false, $neutralize = true ) {
     if ( $target == 'html' || $target == 'htmlmail' ) {
         $replacement = eme_kses($replacement);
         if ( $esc_html ) {

@@ -340,7 +340,7 @@ function eme_get_people_placeholder_handler_definitions() {
         '/#_FULLNAME/' => function( $result, $matches, $ctx ) {
             $person = $ctx['person'];
             $replacement = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_(NAME|LASTNAME|FIRSTNAME|ZIP|POSTAL|CITY|ADDRESS1|ADDRESS2|PHONE|BIRTHPLACE)$/' => function( $result, $matches, $ctx ) {
             $field = str_replace( '#_', '', $result );
@@ -352,7 +352,7 @@ function eme_get_people_placeholder_handler_definitions() {
                 $field = 'zip';
             }
             $replacement = $ctx['person'][ $field ];
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_BIRTHDATE$/' => function( $result, $matches, $ctx ) {
             $replacement = eme_localized_date( $ctx['person']['birthdate'], EME_TIMEZONE, 1 );
@@ -363,28 +363,28 @@ function eme_get_people_placeholder_handler_definitions() {
             if ( $ctx['target'] == 'html' ) {
                 $replacement = eme_email_obfuscate( $replacement, $ctx['orig_target'] );
             }
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], false, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], false );
         },
         '/#_FIRSTNAME\{(.+)\}/' => function( $result, $matches, $ctx ) {
             $length = intval( $matches[1] );
             $replacement = substr( $ctx['person']['firstname'], 0, $length );
             $replacement .= ( substr( $replacement, -1 ) == '.' ? '' : '.' );
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_LASTNAME\{(.+)\}/' => function( $result, $matches, $ctx ) {
             $length = intval( $matches[1] );
             $replacement = substr( $ctx['person']['lastname'], 0, $length );
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_INITIALS/' => function( $result, $matches, $ctx ) {
             $person = $ctx['person'];
             $fullname = eme_format_full_name( $person['firstname'], $person['lastname'], $person['email'] );
             $replacement = eme_get_initials( $fullname );
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_LASTNAME_INITIALS/' => function( $result, $matches, $ctx ) {
             $replacement = eme_get_initials( $ctx['person']['lastname'] );
-            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+            return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
         },
         '/#_COUNTRY/' => function( $result, $matches, $ctx ) {
             $replacement = eme_get_country_name( $ctx['person']['country_code'], $ctx['lang'] );
@@ -590,7 +590,7 @@ function eme_get_people_placeholder_handler_definitions() {
             if ( isset( $person[ $tmp_attkey ] ) && ! is_array( $person[ $tmp_attkey ] ) ) {
                 $replacement = $person[ $tmp_attkey ];
                 $replacement = eme_translate( $replacement, $ctx['lang'] );
-                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
             }
             return '';
         },
@@ -636,7 +636,7 @@ function eme_get_people_placeholder_handler_definitions() {
                         } else {
                             $field_replace = eme_answer2readable( $answer['answer'], $formfield, 0, $sep, $target );
                         }
-                        $field_replace = eme_sanitize_placeholder_output( $field_replace, $target, false, true );
+                        $field_replace = eme_sanitize_placeholder_output( $field_replace, $target, false );
                         break;
                     }
                 }
@@ -669,7 +669,7 @@ function eme_get_people_placeholder_handler_definitions() {
                 if ( $user ) {
                     $replacement = $user->user_nicename;
                 }
-                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
             }
             return '';
         },
@@ -681,7 +681,7 @@ function eme_get_people_placeholder_handler_definitions() {
                 if ( $user ) {
                     $replacement = $user->display_name;
                 }
-                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true, true );
+                return eme_sanitize_placeholder_output( $replacement, $ctx['target'], true );
             }
             return '';
         },
@@ -828,9 +828,6 @@ function eme_replace_people_placeholders( $format, $person, $target = 'html', $l
 }
 
 function eme_import_csv_people() {
-    global $wpdb;
-    $answers_table = EME_DB_PREFIX . EME_ANSWERS_TBNAME;
-
     //validate whether uploaded file is a csv file
     $csvMimes = [ 'text/x-comma-separated-values', 'text/comma-separated-values', 'application/octet-stream', 'application/vnd.ms-excel', 'application/x-csv', 'text/x-csv', 'text/csv', 'application/csv', 'application/excel', 'application/vnd.msexcel', 'text/plain' ];
     if ( empty( $_FILES['eme_csv']['name'] ) || ! in_array( $_FILES['eme_csv']['type'], $csvMimes ) ) {
@@ -966,17 +963,9 @@ function eme_import_csv_people() {
                         $grouping   = 0;
                         $field_name = $matches[1];
                         $formfield  = eme_get_formfield( $field_name );
-                        if ( ! empty( $formfield ) ) {
+                        if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'people') {
                             $field_id = $formfield['field_id'];
-                            $wpdb->delete(
-                                $answers_table,
-                                    [
-                                        'related_id' => $person_id,
-                                        'field_id'   => $field_id,
-                                        'type'       => 'person'
-                                    ],
-                                    [ '%d', '%d', '%s' ]
-                            );
+                            eme_delete_answer_by_field( 'person', $person_id, $field_id );
                             eme_insert_answer( 'person', $person_id, $field_id, eme_sanitize_request( $value ) );
                         }
                     }

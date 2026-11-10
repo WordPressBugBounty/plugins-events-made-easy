@@ -656,6 +656,14 @@ function eme_fs_process_newevent() {
         $preserved_single_event_format = $_POST['event']['event_single_event_format'] ?? null;
         $preserved_location_description = $_POST['event']['location_description'] ?? null;
         $event_data = eme_kses($_POST['event']);
+        if ( ! is_array( $event_data ) ) {
+            $event_data = [];
+        }
+        foreach ( [ 'event_attributes', 'event_properties' ] as $key ) {
+            if ( isset( $event_data[ $key ] ) && ! is_array( $event_data[ $key ] ) ) {
+                unset( $event_data[ $key ] );
+            }
+        }
         if ( $preserved_notes !== null ) {
             $event_data['event_notes'] = eme_kses_maybe_unfiltered( $preserved_notes );
         }
@@ -667,10 +675,10 @@ function eme_fs_process_newevent() {
         }
     }
     // add in the event_attributes and properties
-    if (isset($_POST['event_attributes']) && !empty($_POST['event_attributes'])) {
+    if (isset($_POST['event_attributes']) && !empty($_POST['event_attributes']) && is_array($_POST['event_attributes'])) {
         $event_data['event_attributes'] = eme_kses($_POST['event_attributes']);
     }
-    if (isset($_POST['event_properties']) && !empty($_POST['event_properties'])) {
+    if (isset($_POST['event_properties']) && !empty($_POST['event_properties']) && is_array($_POST['event_properties'])) {
         $event_data['event_properties'] = eme_kses($_POST['event_properties']);
         // validate wp_page_template against the theme's allow-list
         if ( ! empty( $event_data['event_properties']['wp_page_template'] ) ) {
@@ -680,6 +688,27 @@ function eme_fs_process_newevent() {
             }
         }
     }
+
+    if ( ! is_user_logged_in() ) {
+        // guests: some limitations
+        foreach ( [ 'event_author', 'event_contactperson_id', 'event_status',
+            'event_page_title_format', 'event_single_event_format',
+            'event_contactperson_email_body', 'event_respondent_email_body',
+            'event_registration_pending_email_body', 'event_registration_updated_email_body',
+            'event_registration_cancelled_email_body', 'event_registration_trashed_email_body',
+            'event_registration_paid_email_body', 'event_registration_form_format',
+            'event_cancel_form_format', 'event_registration_recorded_ok_html'
+        ] as $col ) {
+            unset( $event_data[ $col ] );
+        }
+        if ( is_array( $event_data['event_properties'] ?? null ) ) {
+            unset( $event_data['event_properties']['rsvp_addpersontogroup'] );
+        }
+        $event_data = eme_neutralize_template_syntax( $event_data, 'text' ); // recursive: attributes, properties, notes, ...
+    }
+    // things nobody should touch in FS submit
+    unset( $event_data[ 'recurrence_id' ] );
+
     if (isset($event_data['event_properties']['all_day']) && $event_data['event_properties']['all_day']==1)
         $all_day=1;
     else
@@ -733,7 +762,6 @@ function eme_fs_process_newevent() {
             $force=1;
         if (empty($event_data['location_id']))
             $event_data['location_id'] = eme_fs_processlocation($event_data, $force);
-
         if (empty($event_data['event_status']))
             $event_data['event_status']=$eme_fs_options['auto_publish'];
         if (!isset($event_data['event_category_ids']) && !empty($eme_fs_options['default_cat']))

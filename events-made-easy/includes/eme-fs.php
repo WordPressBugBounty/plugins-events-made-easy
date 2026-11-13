@@ -663,7 +663,7 @@ function eme_fs_process_newevent() {
         $preserved_notes = $_POST['event']['event_notes'] ?? null;
         $preserved_single_event_format = $_POST['event']['event_single_event_format'] ?? null;
         $preserved_location_description = $_POST['event']['location_description'] ?? null;
-        $event_data = eme_kses($_POST['event']);
+        $event_data = eme_kses_request($_POST['event']);
         if ( ! is_array( $event_data ) ) {
             $event_data = [];
         }
@@ -673,21 +673,21 @@ function eme_fs_process_newevent() {
             }
         }
         if ( $preserved_notes !== null ) {
-            $event_data['event_notes'] = eme_kses_maybe_unfiltered( $preserved_notes );
+            $event_data['event_notes'] = eme_kses_request_maybe_unfiltered( $preserved_notes );
         }
         if ( $preserved_single_event_format !== null ) {
-            $event_data['event_single_event_format'] = eme_kses_maybe_unfiltered( $preserved_single_event_format );
+            $event_data['event_single_event_format'] = eme_kses_request_maybe_unfiltered( $preserved_single_event_format );
         }
         if ( $preserved_location_description !== null ) {
-            $event_data['location_description'] = eme_kses_maybe_unfiltered( $preserved_location_description );
+            $event_data['location_description'] = eme_kses_request_maybe_unfiltered( $preserved_location_description );
         }
     }
     // add in the event_attributes and properties
     if (isset($_POST['event_attributes']) && !empty($_POST['event_attributes']) && is_array($_POST['event_attributes'])) {
-        $event_data['event_attributes'] = eme_kses($_POST['event_attributes']);
+        $event_data['event_attributes'] = eme_kses_request($_POST['event_attributes']);
     }
     if (isset($_POST['event_properties']) && !empty($_POST['event_properties']) && is_array($_POST['event_properties'])) {
-        $event_data['event_properties'] = eme_kses($_POST['event_properties']);
+        $event_data['event_properties'] = eme_kses_request($_POST['event_properties']);
         // validate wp_page_template against the theme's allow-list
         if ( ! empty( $event_data['event_properties']['wp_page_template'] ) ) {
             $allowed_templates = array_values( wp_get_theme()->get_page_templates() );
@@ -800,7 +800,7 @@ function eme_fs_process_newevent() {
         if ($eme_fs_options['price']>0 && $pg_count>0) {
             $event_data['event_status'] = EME_EVENT_STATUS_FS_DRAFT;
         }
-        $event_data = eme_sanitize_event($event_data);
+        $event_data = eme_normalize_event($event_data);
         $validation_result = '';
         if (has_filter('eme_fs_validate_event_filter')) {
             $validation_result = apply_filters( 'eme_fs_validate_event_filter', $event_data );
@@ -883,7 +883,7 @@ function eme_fs_processlocation( $event_data, $force=0 ) {
     if (empty($location['location_name']) && empty($location['location_address1']) && empty($location['location_latitude']) && empty($location['location_longitude'])) {
         return 0;
     }
-    $location = eme_sanitize_location($location);
+    $location = eme_normalize_location($location);
     $location_id=eme_get_identical_location_id($location);
     if (!$location_id ) {
         $validation_result = eme_validate_location ( $location );

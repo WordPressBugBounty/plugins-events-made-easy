@@ -127,7 +127,7 @@ function eme_locations_page() {
                 }
             }
             //switched to WP TinyMCE field
-            $location['location_description'] = eme_kses_maybe_unfiltered( $_POST['location_description'] );
+            $location['location_description'] = eme_kses_request_maybe_unfiltered( $_POST['location_description'] );
 
             if ( isset( $_POST['location_category_ids'] ) && eme_is_integer_array( $_POST['location_category_ids'] ) ) {
                 $location ['location_category_ids'] = join( ',', array_map( 'intval', $_POST['location_category_ids'] ) );
@@ -139,7 +139,7 @@ function eme_locations_page() {
             $i=1;
             while (isset( $_POST[ "eme_attr_{$i}_ref" ] ) && !eme_is_empty_string( $_POST[ "eme_attr_{$i}_ref" ] ) ) {
                 if ( !eme_is_empty_string( $_POST[ "eme_attr_{$i}_name" ] ) ) {
-                    $location_attributes[ $_POST[ "eme_attr_{$i}_ref" ] ] = eme_kses( $_POST[ "eme_attr_{$i}_name" ] );
+                    $location_attributes[ $_POST[ "eme_attr_{$i}_ref" ] ] = eme_kses_request( $_POST[ "eme_attr_{$i}_name" ] );
                 }
                 $i++;
             }
@@ -152,13 +152,13 @@ function eme_locations_page() {
                     if ( preg_match( '/password/', $found_key ) ) {
                         $location_properties[ $found_key ] = $value;
                     } else {
-                        $location_properties[ $found_key ] = eme_kses( $value );
+                        $location_properties[ $found_key ] = eme_kses_request( $value );
                     }
                 }
             }
             $location['location_properties'] = eme_init_location_props( $location_properties );
 
-            $location          = eme_sanitize_location( $location );
+            $location          = eme_normalize_location( $location );
             $validation_result = eme_validate_location( $location );
             if ( $validation_result == 'OK' ) {
                 if ( $action == 'do_addlocation' ) {
@@ -1368,7 +1368,15 @@ function eme_get_identical_location_id( $location ) {
     return $wpdb->get_var( $prepared_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 }
 
-function eme_sanitize_location( $location ) {
+// Normalizes a location array: removes unwanted fields, fixes URLs, coerces
+// lat/long and id fields, and derives the slug.
+//
+// It deliberately does NOT filter HTML. Free-text fields (e.g.
+// location_description) must be sanitized by the caller at input time using
+// eme_kses_request()/eme_kses_request_maybe_unfiltered(). Re-running kses here
+// would re-evaluate the *current* user's unfiltered_html capability against
+// already-stored data and could silently strip content on a later save.
+function eme_normalize_location( $location ) {
     // remove possible unwanted fields
     if ( isset( $location['location_id'] ) ) {
         unset( $location['location_id'] );
@@ -1418,12 +1426,12 @@ function eme_sanitize_location( $location ) {
         }
     }
 
-    $preserved_description = $location['location_description'] ?? null;
-    $location = eme_kses( $location );
-    if ( $preserved_description !== null ) {
-        $location['location_description'] = eme_kses_maybe_unfiltered($preserved_description);
-    }
     return $location;
+}
+
+// backwards compatible
+function eme_sanitize_location( $location ) {
+    return eme_normalize_location( $location );
 }
 
 function eme_validate_location( $location ) {
@@ -3403,7 +3411,7 @@ function eme_get_location_post_answers() {
             $field_id  = intval( $matches[1] );
             $formfield = eme_get_formfield( $field_id );
             if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'locations' ) {
-                $value = eme_kses_maybe_unfiltered( $value );
+                $value = eme_kses_request_maybe_unfiltered( $value );
                 // for multivalue fields like checkbox, the value is in fact an array
                 // to store it, we make it a simple "multi" string using eme_convert_array2multi, so later on when we need to parse the values
                 // (when editing), we can re-convert it to an array with eme_convert_multi2array (see eme_formfields.php)
@@ -3492,6 +3500,9 @@ function eme_get_cf_location_ids( $val, $field_id, $is_multi = 0 ) {
     if ( empty( $val ) ) {
         return [];
     }
+
+    // let's not filter for more than 20 things
+    $val = array_slice( $val, 0, 20 );
 
     $table = $wpdb->prefix . 'eme_answers';
 

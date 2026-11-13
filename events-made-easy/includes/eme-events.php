@@ -433,7 +433,7 @@ function eme_events_page() {
         $post_vars  = [ 'event_seats', 'price', 'currency', 'event_author', 'event_contactperson_id', 'event_url', 'event_image_url', 'event_image_id', 'event_prefix', 'event_slug', 'event_page_title_format', 'event_contactperson_email_body', 'event_registration_recorded_ok_html', 'event_respondent_email_body', 'event_registration_pending_email_body', 'event_registration_updated_email_body', 'event_registration_cancelled_email_body', 'event_registration_trashed_email_body', 'event_registration_form_format', 'event_cancel_form_format', 'event_registration_paid_email_body' ];
         foreach ( $post_vars as $post_var ) {
             if ( isset( $_POST[ $post_var ] ) ) {
-                $event[ $post_var ] = eme_kses( $_POST[ $post_var ] );
+                $event[ $post_var ] = eme_kses_request( $_POST[ $post_var ] );
             }
         }
 
@@ -448,8 +448,8 @@ function eme_events_page() {
         }
 
         // event notes and format
-        $event['event_single_event_format'] = eme_kses_maybe_unfiltered( $_POST['event_single_event_format'] ?? '' );
-        $event['event_notes']               = eme_kses_maybe_unfiltered( $_POST['content'] ?? '' );
+        $event['event_single_event_format'] = eme_kses_request_maybe_unfiltered( $_POST['event_single_event_format'] ?? '' );
+        $event['event_notes']               = eme_kses_request_maybe_unfiltered( $_POST['content'] ?? '' );
 
         if ( ! current_user_can( get_option( 'eme_cap_publish_event' ) ) ) {
             $event['event_status'] = EME_EVENT_STATUS_DRAFT;
@@ -551,7 +551,7 @@ function eme_events_page() {
         $i=1;
         while (isset( $_POST[ "eme_attr_{$i}_ref" ] ) && !eme_is_empty_string( $_POST[ "eme_attr_{$i}_ref" ] ) ) {
             if ( !eme_is_empty_string( $_POST[ "eme_attr_{$i}_name" ] ) ) {
-                $event_attributes[ $_POST[ "eme_attr_{$i}_ref" ] ] = eme_kses( $_POST[ "eme_attr_{$i}_name" ] );
+                $event_attributes[ $_POST[ "eme_attr_{$i}_ref" ] ] = eme_kses_request( $_POST[ "eme_attr_{$i}_name" ] );
             }
             $i++;
         }
@@ -568,7 +568,7 @@ function eme_events_page() {
                 } elseif ( $found_key == 'multiprice_desc' ) {
                     $event_properties[ $found_key ] = eme_convert_array2multi( eme_sanitize_request( eme_text_split_newlines( $value ) ) );
                 } else {
-                    $event_properties[ $found_key ] = eme_kses( $value );
+                    $event_properties[ $found_key ] = eme_kses_request( $value );
                 }
             }
             if ( preg_match( '/eme_loc_prop_(.+)/', eme_sanitize_request( $key ), $matches ) ) {
@@ -576,7 +576,7 @@ function eme_events_page() {
                 if ( preg_match( '/password/', $found_key ) ) {
                     $location_properties[ $found_key ] = $value;
                 } else {
-                    $location_properties[ $found_key ] = eme_kses( $value );
+                    $location_properties[ $found_key ] = eme_kses_request( $value );
                 }
             }
         }
@@ -587,8 +587,8 @@ function eme_events_page() {
         $event['event_properties']       = eme_init_event_props( $event_properties );
         $location['location_properties'] = eme_init_location_props( $location_properties );
 
-        $event             = eme_sanitize_event( $event );
-        $location          = eme_sanitize_location( $location );
+        $event             = eme_normalize_event( $event );
+        $location          = eme_normalize_location( $location );
         $validation_result = eme_validate_event( $event );
         if ( !empty($validation_result) ) {
             // validation unsuccessful
@@ -6134,7 +6134,7 @@ function eme_import_csv_events() {
                     $event_id = eme_check_event_external_ref( $line['event_external_ref'] );
                 }
 
-                $line = eme_sanitize_event( $line );
+                $line = eme_normalize_event( $line );
                 if ( $event_id ) {
                     // event_id is returned if update is ok, and we use the location id later on
                     $event_id = eme_db_update_event( $line, $event_id );
@@ -9319,7 +9319,15 @@ function eme_general_footer() {
     }
 }
 
-function eme_sanitize_event( $event ) {
+// Normalizes an event array: removes unwanted fields, fixes the start/end
+// datetimes, seats, prices and derived properties.
+//
+// It deliberately does NOT filter HTML. Free-text fields (e.g. event_notes,
+// event_single_event_format) must be sanitized by the caller at input time
+// using eme_kses_request()/eme_kses_request_maybe_unfiltered(). Re-running kses
+// here would re-evaluate the *current* user's unfiltered_html capability against
+// already-stored data and could silently strip content on a later save.
+function eme_normalize_event( $event ) {
     // remove possible unwanted fields
     if ( isset( $event['event_id'] ) ) {
         unset( $event['event_id'] );
@@ -9462,6 +9470,11 @@ function eme_sanitize_event( $event ) {
     $event['event_properties'] = $event_properties;
 
     return $event;
+}
+
+// backwards compatible
+function eme_sanitize_event( $event ) {
+    return eme_normalize_event( $event );
 }
 
 function eme_db_insert_event( $line, $event_is_part_of_recurrence = 0, $day_difference = 0, $plugin_installing = 0 ) {
@@ -10651,7 +10664,7 @@ function eme_get_event_post_answers() {
             $field_id  = intval( $matches[1] );
             $formfield = eme_get_formfield( $field_id );
             if ( ! empty( $formfield ) && $formfield['field_purpose'] == 'events' ) {
-                $value = eme_kses_maybe_unfiltered( $value );
+                $value = eme_kses_request_maybe_unfiltered( $value );
                 // for multivalue fields like checkbox, the value is in fact an array
                 // to store it, we make it a simple "multi" string using eme_convert_array2multi, so later on when we need to parse the values
                 // (when editing), we can re-convert it to an array with eme_convert_multi2array (see eme_formfields.php)
@@ -10772,6 +10785,9 @@ function eme_get_cf_event_ids( $val, $field_id, $is_multi = 0 ) {
     if ( empty( $val ) ) {
         return [];
     }
+
+    // let's not filter for more than 20 things
+    $val = array_slice( $val, 0, 20 );
 
     $table = $wpdb->prefix . 'eme_answers';
 
